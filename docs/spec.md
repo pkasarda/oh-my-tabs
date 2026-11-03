@@ -125,24 +125,29 @@ When developer mode is off, only the generic rules apply. The badge count can th
 
 ### Windows view (secondary)
 
-- Windows are stacked vertically, one full-width card each.
-- A card header shows the window name, `This window` or `Window N`, and the window actions.
-  - The window name is the window's biggest group plus how many other groups it holds, e.g. `pkasarda/oh-my-tabs & 3 more`. Clicking it brings the window to the front.
-  - The current window is highlighted.
-  - Actions:
-    - `New tab`.
-    - `Minimize`, which becomes `Restore` on a minimized window. Restoring focuses the window, which returns it to its previous state.
-    - `Close window`. It asks for confirmation above 10 tabs.
-- Under the header, a stats line reads like `59 tabs · 12 sites · 3 dups · active 5 h ago · oldest used 4 wk ago`.
+The windows view uses the groups view's language one level up: window → group → tab, all collapsible cards ([preview](previews/windows.html), option E).
+
+- Each window is a collapsible card, styled like a group. The current window is highlighted and starts open.
+- The card header shows:
+  - a mini stack of the first favicons of its biggest groups;
+  - the window name: the window's biggest group plus how many other groups it holds, e.g. `pkasarda/oh-my-tabs & 3 more`;
+  - a stats line, e.g. `59 tabs · 12 sites · 3 dups · active 5 h ago · oldest used 4 wk ago`;
+  - the window actions;
+  - `This window` or `Window N`.
+- Stats line:
   - Sites are distinct web hostnames.
   - The times come from the tabs' `lastAccessed`.
   - A monitor icon's tooltip gives the window state and size, e.g. `maximized · 2560×985`.
-- In the groups view, clicking a tab's window label switches to the windows view and scrolls to that window.
-- Each group in a window is a stack showing up to 5 overlapping 32 px favicons plus `+N`, with the group name under it.
-- On hover (after a 60 ms delay) or keyboard focus, the stack spreads out into a panel that lies over the card. The panel shows the group name and every favicon, wrapping onto more rows as needed. Nothing else in the window moves.
-- The animation is a FLIP on `translate` only: 200 ms, `cubic-bezier(0.23, 1, 0.32, 1)`, a 12 ms stagger. With `prefers-reduced-motion` it opens without motion.
-- Pointing at a favicon in an open stack shows, instantly, a line at the bottom of the panel with the tab's title, short URL and, for copies, `duplicate`. There is no native tooltip, which only appears after a delay. Clicking the favicon switches to that tab.
-- Drag a favicon or a whole stack onto another window card or onto `+ New window` to move it (native drag and drop). `Move to…` remains as the keyboard way to do the same.
+- Window actions:
+  - `Bring to front`.
+  - `New tab`.
+  - `Minimize`, which becomes `Restore` on a minimized window. Restoring focuses the window, which returns it to its previous state.
+  - `Close window`. It asks for confirmation above 10 tabs.
+- Open, the card lists the window's groups with two or more tabs as nested group cards that open into tab rows. Groups with a single tab are plain tab rows under `1-tab sites · N`.
+- Tab rows inside a window card hide their window label, except copies nested under a keeper.
+- A copy whose keeper is in another window cannot nest under it. It shows a `copy` marker, whose tooltip names the keeper's window.
+- Drag a tab row or a group header onto another window card, or onto `Drop here for a new window`, to move it (native drag and drop). `Move to…` in the groups view does the same from the keyboard.
+- In the groups view, clicking a tab's window label switches to the windows view, opens that window and scrolls to it.
 
 ### Search
 

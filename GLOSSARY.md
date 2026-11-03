@@ -17,12 +17,8 @@ The main view: groups and their tabs from all windows together. Each tab carries
 _Avoid_: list view, tab view
 
 **Windows view**:
-The secondary view: one card per browser window, each holding that window's groups as stacks.
+The secondary view: one collapsible card per browser window, which opens into that window's groups, which open into tabs.
 _Avoid_: window manager, overview
-
-**Stack**:
-The compact picture of one group: the favicons of its tabs laid over each other, spreading out side by side when pointed at or focused.
-_Avoid_: deck, pile, cluster
 
 **Window name**:
 A name oh-my-tabs makes up for a browser window from the groups it holds, because browsers do not name their windows.

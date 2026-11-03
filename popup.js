@@ -6,7 +6,6 @@ const SETTINGS = { dev: true, sort: 'recent', view: 'groups' };
 const IS_PAGE = new URLSearchParams(location.search).has('page');
 const IS_FIREFOX = typeof browser.runtime.getBrowserInfo === 'function';
 const CONFIRM_ABOVE = 10;
-const VISIBLE_IN_STACK = 5;
 
 const state = {
   ...SETTINGS,
@@ -18,8 +17,6 @@ const state = {
 const $ = selector => document.querySelector(selector);
 const body = $('#body');
 const search = $('#search');
-const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)');
-const canHover = matchMedia('(hover: hover) and (pointer: fine)');
 
 // Stroke icons drawn from Lucide (ISC license). Text glyphs like ⚙ render tiny and differ per font.
 const ICONS = {
@@ -172,8 +169,8 @@ function hostLabel(url) {
   }
 }
 
-function favicon(tab, { cls = '', attrs = 'draggable="false"', style = '', alt = '' } = {}) {
-  return `<img class="fav ${cls}" src="${esc(faviconSrc(tab))}" alt="${esc(alt)}" data-host="${esc(hostLabel(tab.url))}" style="${style}" ${attrs}>`;
+function favicon(tab) {
+  return `<img class="fav" src="${esc(faviconSrc(tab))}" alt="" data-host="${esc(hostLabel(tab.url))}" draggable="false">`;
 }
 
 // A favicon that fails to load (privileged URL, no icon) becomes a letter tile.
@@ -206,7 +203,12 @@ function shortUrl(url) {
 }
 
 function copiesButton(tab) {
-  if (!tab.set || tab.isDup) return '';
+  if (!tab.set) return '';
+  // A copy shown on its own row: its keeper is not in this list (another window in the Windows view).
+  if (tab.isDup) {
+    const n = state.windows.indexOf(tab.set.keeper.windowId) + 1;
+    return `<span class="copy-pill" title="Copy of a tab in window ${n}">copy</span>`;
+  }
   const copies = tab.set.size - 1;
   return `<button type="button" class="copies" data-copies="${tab.id}" title="Show copies">+${copies} ${copies === 1 ? 'copy' : 'copies'}</button>`;
 }
@@ -215,7 +217,7 @@ function rowHtml(tab, nested = false) {
   return `<li class="row${nested ? ' nested' : ''}" data-id="${tab.id}">
     ${favicon(tab)}
     <span class="t"><span class="title">${esc(tab.title || tab.url)}</span><span class="url">${esc(shortUrl(tab.url))}</span></span>
-    ${copiesButton(tab)}
+    ${nested ? '' : copiesButton(tab)}
     ${windowLabel(tab.windowId, { interactive: true })}
     <span class="actions">
       <button type="button" class="icon-btn" data-move-tab="${tab.id}" title="Move to…" aria-label="Move to window">${icon('move')}</button>
@@ -243,7 +245,7 @@ function renderGroups(list) {
   const html = groups.map(([name, members]) => {
     const open = state.query || state.openGroups.has(name);
     const dups = members.filter(tab => tab.isDup).length;
-    return `<details class="group" data-group="${esc(name)}" ${open ? 'open' : ''}>
+    return `<details class="group" data-key="${esc(name)}" ${open ? 'open' : ''}>
       <summary>
         <span class="chev">${icon('chevron')}</span>
         <span class="mini-stack">${members.slice(0, 4).map(tab => favicon(tab)).join('')}</span>
@@ -261,43 +263,55 @@ function renderGroups(list) {
   return `<div class="groups">${html}</div>`;
 }
 
+// Windows view (option E): a window looks like a group and opens into its groups, which open into tabs.
+// Groups with one tab are plain tab rows under "1-tab sites".
+function windowGroupHtml(windowId, name, members) {
+  const key = `w:${windowId}:${name}`;
+  const open = state.query || state.openGroups.has(key);
+  const dups = members.filter(tab => tab.isDup).length;
+  return `<details class="group" data-key="${esc(key)}" ${open ? 'open' : ''}>
+    <summary draggable="true" data-drag-group="${esc(name)}" data-w="${windowId}">
+      <span class="chev">${icon('chevron')}</span>
+      <span class="mini-stack">${members.slice(0, 4).map(tab => favicon(tab)).join('')}</span>
+      <span class="g-name">${esc(name)}</span>
+      <span class="g-meta">${members.length}</span>
+      ${dups ? `<span class="dup-count">${dups} dup${dups === 1 ? '' : 's'}</span>` : ''}
+    </summary>
+    <ul class="rows">${groupRows(sortTabs(members))}</ul>
+  </details>`;
+}
+
 function renderWindows(list) {
   const cards = state.windows.map(windowId => {
     const members = list.filter(tab => tab.windowId === windowId);
     if (members.length === 0) return '';
     const n = state.windows.indexOf(windowId) + 1;
-    const stacks = groupsOf(members).map(([name, groupTabs]) => {
-      const icons = sortTabs(groupTabs).map((tab, i) => favicon(tab, {
-        cls: tab.isDup ? 'dup' : '',
-        // No title attribute: the panel's info line shows the title at once, the native tooltip only after a delay.
-        attrs: `draggable="true" data-tab="${tab.id}"`,
-        style: `--i:${i}`,
-        alt: tab.title ?? '',
-      })).join('');
-      const more = groupTabs.length > VISIBLE_IN_STACK ? `<span class="more">+${groupTabs.length - VISIBLE_IN_STACK}</span>` : '';
-      return `<div class="stack" tabindex="0" draggable="true" data-stack-group="${esc(name)}" data-w="${windowId}" aria-label="${esc(name)}, ${groupTabs.length} tabs">
-        <div class="icons"><div class="panel-name">${esc(name)} · ${groupTabs.length}</div>${icons}${more}<div class="panel-info"><span class="pi-hint">Point at a tab to see what it is</span></div></div>
-        <div class="stack-name">${esc(name)} · ${groupTabs.length}</div>
-      </div>`;
-    }).join('');
+    const groups = groupsOf(members);
+    const multi = groups.filter(([, groupTabs]) => groupTabs.length > 1);
+    const singles = groups.filter(([, groupTabs]) => groupTabs.length === 1).map(([, [tab]]) => tab);
     const current = windowId === state.currentWindow;
     const minimized = state.windowInfo.get(windowId).state === 'minimized';
-    const name = esc(windowName(windowId));
-    return `<section class="win${current ? ' cur' : ''}" id="win-${windowId}" data-drop-w="${windowId}">
-      <div class="win-head">
-        <button type="button" class="win-name" data-focus-window="${windowId}" title="${name} · bring to front">${name}</button>
+    const key = `w:${windowId}`;
+    const open = state.query || state.openGroups.has(key);
+    return `<details class="group win${current ? ' cur' : ''}" id="win-${windowId}" data-key="${key}" data-drop-w="${windowId}" ${open ? 'open' : ''}>
+      <summary>
+        <span class="chev">${icon('chevron')}</span>
+        <span class="mini-stack">${groups.slice(0, 4).map(([, [first]]) => favicon(first)).join('')}</span>
+        <span class="win-title"><span class="g-name">${esc(windowName(windowId))}</span><span class="win-stats">${windowStats(windowId)}</span></span>
+        <span class="g-spacer"></span>
+        <button type="button" class="icon-btn" data-focus-window="${windowId}" title="Bring this window to the front" aria-label="Bring this window to the front">${icon('page')}</button>
+        <button type="button" class="icon-btn" data-new-tab="${windowId}" title="New tab in this window" aria-label="New tab in this window">${icon('plus')}</button>
+        <button type="button" class="icon-btn" data-minimize="${windowId}" title="${minimized ? 'Restore' : 'Minimize'} this window" aria-label="${minimized ? 'Restore' : 'Minimize'} this window">${icon(minimized ? 'restore' : 'minimize')}</button>
+        <button type="button" class="icon-btn" data-close-window="${windowId}" title="Close this window" aria-label="Close this window">${icon('close')}</button>
         <span class="win-count">${current ? 'This window' : `Window ${n}`}</span>
-        <span class="win-actions">
-          <button type="button" class="icon-btn" data-new-tab="${windowId}" title="New tab in this window" aria-label="New tab in this window">${icon('plus')}</button>
-          <button type="button" class="icon-btn" data-minimize="${windowId}" title="${minimized ? 'Restore' : 'Minimize'} this window" aria-label="${minimized ? 'Restore' : 'Minimize'} this window">${icon(minimized ? 'restore' : 'minimize')}</button>
-          <button type="button" class="icon-btn" data-close-window="${windowId}" title="Close this window" aria-label="Close this window">${icon('close')}</button>
-        </span>
+      </summary>
+      <div class="win-body">
+        ${multi.map(([name, groupTabs]) => windowGroupHtml(windowId, name, groupTabs)).join('')}
+        ${singles.length ? `<div class="singles-head">1-tab sites · ${singles.length}</div><ul class="rows singles">${sortTabs(singles).map(tab => rowHtml(tab)).join('')}</ul>` : ''}
       </div>
-      <div class="win-stats">${windowStats(windowId)}</div>
-      <div class="stacks">${stacks}</div>
-    </section>`;
+    </details>`;
   }).join('');
-  return `<div class="windows">${cards}<section class="win new" data-drop-w="new">+ New window</section></div>`;
+  return `<div class="windows">${cards}<div class="win-new" data-drop-w="new">${icon('plus')} Drop here for a new window</div></div>`;
 }
 
 function render() {
@@ -317,6 +331,8 @@ function render() {
   }
   const scroll = body.scrollTop;
   body.innerHTML = state.view === 'groups' ? renderGroups(list) : renderWindows(list);
+  // In the Windows view a tab row can be dragged onto another window.
+  for (const row of body.querySelectorAll('.windows .row')) row.draggable = true;
   body.scrollTop = scroll;
   highlightSelection();
 }
@@ -405,29 +421,33 @@ moveMenu.addEventListener('keydown', event => {
 
 // ---------- list events ----------
 // Window actions in the Windows view, and the window glyph that leads there.
-async function handleWindowClick(target) {
+async function handleWindowClick(target, event) {
   const show = target.closest('[data-show-window]');
   if (show) {
     await saveSetting('view', 'windows');
+    state.openGroups.add(`w:${show.dataset.showWindow}`);
     render();
     const card = document.getElementById(`win-${show.dataset.showWindow}`);
     card?.scrollIntoView({ block: 'start' });
-    card?.querySelector('.win-name').focus();
+    card?.querySelector('summary').focus();
     return true;
   }
   const focus = target.closest('[data-focus-window]');
   if (focus) {
+    event.preventDefault();
     await browser.windows.update(Number(focus.dataset.focusWindow), { focused: true });
     if (!IS_PAGE) window.close();
     return true;
   }
   const newTab = target.closest('[data-new-tab]');
   if (newTab) {
+    event.preventDefault();
     await browser.tabs.create({ windowId: Number(newTab.dataset.newTab) });
     return true;
   }
   const minimize = target.closest('[data-minimize]');
   if (minimize) {
+    event.preventDefault();
     const windowId = Number(minimize.dataset.minimize);
     // Focusing a minimized window restores it to its previous state.
     if (state.windowInfo.get(windowId).state === 'minimized') await browser.windows.update(windowId, { focused: true });
@@ -437,6 +457,7 @@ async function handleWindowClick(target) {
   }
   const closeWindow = target.closest('[data-close-window]');
   if (closeWindow) {
+    event.preventDefault();
     const windowId = Number(closeWindow.dataset.closeWindow);
     if (await confirmClose(tabsIn(windowId).length)) await browser.windows.remove(windowId);
     return true;
@@ -446,7 +467,7 @@ async function handleWindowClick(target) {
 
 body.addEventListener('click', async event => {
   const target = event.target;
-  if (await handleWindowClick(target)) return;
+  if (await handleWindowClick(target, event)) return;
   const closeGroupDups = target.closest('[data-close-group-dups]');
   if (closeGroupDups) {
     // Never asks: every keeper stays open, so no page is lost.
@@ -486,20 +507,15 @@ body.addEventListener('click', async event => {
     render();
     return;
   }
-  const fav = target.closest('.stack.open [data-tab]');
-  if (fav) {
-    switchTo(Number(fav.dataset.tab));
-    return;
-  }
   const row = target.closest('.row');
   if (row) switchTo(Number(row.dataset.id));
 });
 
 body.addEventListener('toggle', event => {
   const details = event.target;
-  if (state.query || !details.matches('details.group')) return;
-  if (details.open) state.openGroups.add(details.dataset.group);
-  else state.openGroups.delete(details.dataset.group);
+  if (state.query || !details.matches('details[data-key]')) return;
+  if (details.open) state.openGroups.add(details.dataset.key);
+  else state.openGroups.delete(details.dataset.key);
 }, true);
 
 // ---------- search ----------
@@ -586,81 +602,13 @@ async function renderShortcuts() {
     .join('');
 }
 
-// ---------- stacks: fan out on hover or keyboard focus (FLIP, transform only) ----------
-function setStackOpen(stack, open) {
-  if (stack.classList.contains('open') === open) return;
-  const icons = [...stack.querySelectorAll('.fav')];
-  const first = icons.map(icon => icon.getBoundingClientRect());
-  icons.forEach(icon => icon.getAnimations().forEach(animation => animation.cancel()));
-  // The panel's name line sits above the icons, so lift it to keep the icons where the stack was.
-  stack.style.setProperty('--top', `${stack.offsetTop - 34}px`);
-  stack.classList.toggle('open', open);
-  if (reduceMotion.matches) return;
-  icons.forEach((icon, i) => {
-    const last = icon.getBoundingClientRect();
-    const dx = first[i].left - last.left;
-    const dy = first[i].top - last.top;
-    if (!dx && !dy) return;
-    icon.animate(
-      [{ translate: `${dx}px ${dy}px` }, { translate: '0 0' }],
-      { duration: 200, easing: 'cubic-bezier(0.23, 1, 0.32, 1)', delay: open ? Math.min(i, 8) * 12 : 0, fill: 'backwards' },
-    );
-  });
-}
-
-// The open panel's bottom line names the favicon under the pointer, without the native tooltip's delay.
-function showTabInfo(stack, tab) {
-  const info = stack.querySelector('.panel-info');
-  const duplicate = tab.isDup ? ' · <span class="pi-dup">duplicate</span>' : '';
-  info.innerHTML = `<span class="pi-title">${esc(tab.title || tab.url)}</span>
-    <span class="pi-url">${esc(shortUrl(tab.url))}${duplicate}</span>`;
-}
-
-body.addEventListener('pointerover', event => {
-  const fav = event.target.closest('.stack.open [data-tab]');
-  if (!fav) return;
-  const tab = state.tabs.find(t => t.id === Number(fav.dataset.tab));
-  if (tab) showTabInfo(fav.closest('.stack'), tab);
-});
-
-let hoverTimer;
-body.addEventListener('pointerover', event => {
-  if (!canHover.matches) return;
-  const stack = event.target.closest('.stack');
-  if (!stack || stack.classList.contains('open')) return;
-  clearTimeout(hoverTimer);
-  // A short delay so sweeping the pointer across a card does not open every stack on the way.
-  hoverTimer = setTimeout(() => setStackOpen(stack, true), 60);
-});
-body.addEventListener('pointerout', event => {
-  const stack = event.target.closest('.stack');
-  if (!stack || stack.contains(event.relatedTarget)) return;
-  clearTimeout(hoverTimer);
-  if (!stack.contains(document.activeElement)) setStackOpen(stack, false);
-});
-body.addEventListener('focusin', event => {
-  const stack = event.target.closest('.stack');
-  if (stack) setStackOpen(stack, true);
-});
-body.addEventListener('focusout', event => {
-  const stack = event.target.closest('.stack');
-  if (stack && !stack.contains(event.relatedTarget)) setStackOpen(stack, false);
-});
-body.addEventListener('keydown', event => {
-  const stack = event.target.closest('.stack');
-  if (!stack || event.key !== 'Enter') return;
-  const first = stack.querySelector('[data-tab]');
-  if (first) switchTo(Number(first.dataset.tab));
-});
-
 // ---------- drag and drop between windows ----------
 body.addEventListener('dragstart', event => {
-  const fav = event.target.closest('[data-tab]');
-  const stack = event.target.closest('.stack');
+  const row = event.target.closest('.row');
+  const group = event.target.closest('[data-drag-group]');
   let ids = [];
-  // A single favicon drags only once its stack has spread out; otherwise the whole stack moves.
-  if (fav && stack?.classList.contains('open')) ids = [Number(fav.dataset.tab)];
-  else if (stack) ids = groupTabIds(stack.dataset.stackGroup, Number(stack.dataset.w));
+  if (row) ids = [Number(row.dataset.id)];
+  else if (group) ids = groupTabIds(group.dataset.dragGroup, Number(group.dataset.w));
   event.dataTransfer.setData('text/plain', ids.join(','));
   event.dataTransfer.effectAllowed = 'move';
 });
@@ -704,6 +652,7 @@ async function start() {
   await load();
   const active = state.tabs.find(tab => tab.windowId === state.currentWindow && tab.active);
   if (active) state.openGroups.add(active.group);
+  state.openGroups.add(`w:${state.currentWindow}`);
   render();
   search.focus();
   renderShortcuts();
