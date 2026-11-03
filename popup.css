@@ -70,9 +70,9 @@ details.group > summary::-webkit-details-marker { display: none; }
 details.group > summary:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
 .chev { flex: none; width: 10px; color: var(--muted); transition: rotate 150ms var(--ease-out); }
 details[open] > summary .chev { rotate: 90deg; }
-.mini-stack { --fav: 24px; display: flex; flex: none; }
+.mini-stack { --fav: 32px; display: flex; flex: none; }
 .mini-stack .fav { background-color: var(--surface); box-shadow: 0 0 0 2px var(--surface); }
-.mini-stack .fav + .fav { margin-inline-start: -6px; }
+.mini-stack .fav + .fav { margin-inline-start: -10px; }
 details[open] .mini-stack .fav { background-color: var(--surface-2); box-shadow: 0 0 0 2px var(--surface-2); }
 .g-name { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .g-meta { color: var(--muted); font-size: 12px; white-space: nowrap; }
@@ -80,7 +80,7 @@ details[open] .mini-stack .fav { background-color: var(--surface-2); box-shadow:
 .g-spacer { margin-left: auto; }
 
 ul.rows { list-style: none; margin: 0; padding: 0 6px 6px; }
-.row { --fav: 24px; position: relative; display: flex; gap: 10px; align-items: center; padding: 7px 8px; border-radius: 7px; cursor: pointer; }
+.row { --fav: 28px; position: relative; display: flex; gap: 10px; align-items: center; padding: 7px 8px; border-radius: 7px; cursor: pointer; }
 .row:hover, .row.sel { background: var(--raised); }
 .row.sel { outline: 1px solid var(--accent); }
 .row .t { min-width: 0; flex: 1; display: grid; }

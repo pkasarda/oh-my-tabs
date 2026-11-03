@@ -109,7 +109,7 @@ When developer mode is off, only the generic rules apply. The badge count can th
 - Groups start collapsed, except the group holding the current tab.
 - Tabs within a group are sorted by `Recent` (`lastAccessed`, descending) or by `Tab order` (window, then index).
 - A tab row shows:
-  - a 24 px favicon and the title;
+  - a 28 px favicon and the title;
   - a short URL;
   - its window label: a small window glyph with the window's number, highlighted for the current window. Its tooltip gives the window name;
   - `Move to…` (other windows plus `New window`) and `×`.
