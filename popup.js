@@ -21,6 +21,20 @@ const search = $('#search');
 const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)');
 const canHover = matchMedia('(hover: hover) and (pointer: fine)');
 
+// Stroke icons drawn from Lucide (ISC license). Text glyphs like ⚙ render tiny and differ per font.
+const ICONS = {
+  settings: '<path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/>',
+  page: '<path d="M15 3h6v6"/><path d="M10 14 21 3"/><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>',
+  move: '<path d="m16 3 4 4-4 4"/><path d="M20 7H4"/><path d="m8 21-4-4 4-4"/><path d="M4 17h16"/>',
+  close: '<path d="M18 6 6 18"/><path d="m6 6 12 12"/>',
+  chevron: '<path d="m9 18 6-6-6-6"/>',
+  plus: '<path d="M5 12h14"/><path d="M12 5v14"/>',
+};
+
+function icon(name) {
+  return `<svg class="i" viewBox="0 0 24 24" aria-hidden="true">${ICONS[name]}</svg>`;
+}
+
 function esc(text) {
   return String(text).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 }
@@ -166,8 +180,8 @@ function rowHtml(tab, nested = false) {
     ${copiesButton(tab)}
     ${windowLabel(tab.windowId)}
     <span class="actions">
-      <button type="button" class="icon-btn" data-move-tab="${tab.id}" title="Move to…" aria-label="Move to window">⇄</button>
-      <button type="button" class="icon-btn" data-close="${tab.id}" title="Close tab" aria-label="Close tab">×</button>
+      <button type="button" class="icon-btn" data-move-tab="${tab.id}" title="Move to…" aria-label="Move to window">${icon('move')}</button>
+      <button type="button" class="icon-btn" data-close="${tab.id}" title="Close tab" aria-label="Close tab">${icon('close')}</button>
     </span>
   </li>`;
 }
@@ -193,13 +207,13 @@ function renderGroups(list) {
     const dups = members.filter(tab => tab.isDup).length;
     return `<details class="group" data-group="${esc(name)}" ${open ? 'open' : ''}>
       <summary>
-        <span class="chev" aria-hidden="true">▸</span>
+        <span class="chev">${icon('chevron')}</span>
         <span class="mini-stack">${members.slice(0, 4).map(tab => favicon(tab)).join('')}</span>
         <span class="g-name">${esc(name)}</span>
         <span class="g-meta">${members.length}</span>
         ${dups ? `<span class="dup-count">${dups} dup${dups === 1 ? '' : 's'}</span>` : ''}
         <span class="g-spacer"></span>
-        <button type="button" class="icon-btn" data-move-group="${esc(name)}" title="Move group to…" aria-label="Move group to window">⇄</button>
+        <button type="button" class="icon-btn" data-move-group="${esc(name)}" title="Move group to…" aria-label="Move group to window">${icon('move')}</button>
       </summary>
       <ul class="rows">${groupRows(sortTabs(members))}</ul>
     </details>`;
@@ -312,7 +326,7 @@ function openMoveMenu(trigger, ids) {
   const items = state.windows
     .filter(windowId => !(from.size === 1 && from.has(windowId)))
     .map(windowId => `<button type="button" role="menuitem" data-target="${windowId}">${windowLabel(windowId)}<span>${esc(windowName(windowId))}</span></button>`);
-  moveMenu.innerHTML = `${items.join('')}${items.length ? '<hr>' : ''}<button type="button" role="menuitem" data-target="new">＋ New window</button>`;
+  moveMenu.innerHTML = `${items.join('')}${items.length ? '<hr>' : ''}<button type="button" role="menuitem" data-target="new">${icon('plus')}<span>New window</span></button>`;
   const rect = trigger.getBoundingClientRect();
   moveMenu.style.top = `${Math.min(rect.bottom + 4, innerHeight - 200)}px`;
   moveMenu.style.left = `${Math.max(8, rect.right - 300)}px`;
@@ -568,6 +582,7 @@ browser.windows.onCreated.addListener(refresh);
 browser.windows.onRemoved.addListener(refresh);
 
 async function start() {
+  for (const element of document.querySelectorAll('[data-icon]')) element.innerHTML = icon(element.dataset.icon);
   if (IS_PAGE) {
     document.documentElement.classList.add('page');
     state.ownTabId = (await browser.tabs.getCurrent())?.id ?? null;
