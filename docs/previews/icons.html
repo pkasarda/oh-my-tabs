@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>Icon options</title>
+<style>
+  body { margin: 0; padding: 24px 16px 48px; font: 14px/1.4 system-ui, sans-serif; background: light-dark(#f6f7f9, #15171c); color: light-dark(#1f2328, #e6e8ec); }
+  h1 { font-size: 18px; margin: 0 0 4px; }
+  p.lead { margin: 0 0 20px; color: light-dark(#5b6478, #9aa3b2); }
+  .grid { display: grid; gap: 14px; max-width: 980px; }
+  .card { display: grid; grid-template-columns: 220px 1fr; gap: 20px; align-items: center; padding: 16px; border: 1px solid light-dark(#dde1e7, #2c3039); border-radius: 14px; background: light-dark(#fff, #1c1f26); }
+  .card h2 { font-size: 15px; margin: 0 0 4px; }
+  .card p { margin: 0; color: light-dark(#5b6478, #9aa3b2); font-size: 13px; }
+  .sizes { display: flex; gap: 18px; align-items: flex-end; flex-wrap: wrap; }
+  .sizes figure { margin: 0; display: grid; justify-items: center; gap: 6px; font-size: 11px; color: light-dark(#5b6478, #9aa3b2); }
+  .bar { display: flex; gap: 10px; align-items: center; padding: 8px 12px; border-radius: 10px; }
+  .bar.light { background: #dee1e6; }
+  .bar.dark { background: #35363a; }
+  .slot { position: relative; width: 28px; height: 28px; display: grid; place-items: center; }
+  .slot .badge { position: absolute; right: -6px; bottom: -3px; padding: 0 4px; min-width: 14px; height: 13px; border-radius: 7px; font: 700 9px/13px system-ui, sans-serif; color: #fff; text-align: center; }
+  .other { width: 16px; height: 16px; border-radius: 4px; opacity: .55; }
+  svg { display: block; }
+</style>
+</head>
+<body>
+<h1>oh-my-tabs · icon options</h1>
+<p class="lead">Each icon at 128, 48, 32 and 16 px, and in a light and a dark toolbar with the badge (red = duplicates, blue-gray = tab count). Judge them at 16 px: that is what you see every day.</p>
+<div class="grid" id="grid"></div>
+
+<script type="module">
+// Every icon is a 128×128 SVG; the same drawing is shown at each size.
+const ICONS = {
+  A: {
+    name: 'A · "ot" (current)',
+    note: 'The placeholder: monospace letters on indigo. Fine at 128, turns into a blur at 16.',
+    svg: `<rect width="128" height="128" rx="28" fill="#4f46e5"/>
+      <text x="64" y="84" text-anchor="middle" font-family="Menlo, ui-monospace, monospace" font-size="64" font-weight="700" fill="#fff">ot</text>`,
+  },
+  B: {
+    name: 'B · Stacked tabs',
+    note: 'Three browser tabs stacked: "your tabs, grouped". Reads as a tab at any size.',
+    svg: `<defs><linearGradient id="gB" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#6366f1"/><stop offset="1" stop-color="#4338ca"/></linearGradient></defs>
+      <rect width="128" height="128" rx="28" fill="url(#gB)"/>
+      <path d="M38 30h26a8 8 0 0 1 7.4 5l3.2 8H98a8 8 0 0 1 8 8v8H30V38a8 8 0 0 1 8-8z" fill="#fff" opacity=".35"/>
+      <path d="M30 44h26a8 8 0 0 1 7.4 5l3.2 8H90a8 8 0 0 1 8 8v8H22V52a8 8 0 0 1 8-8z" fill="#fff" opacity=".6"/>
+      <path d="M22 58h26a8 8 0 0 1 7.4 5l3.2 8H98a8 8 0 0 1 8 8v19a8 8 0 0 1-8 8H22a8 8 0 0 1-8-8V66a8 8 0 0 1 8-8z" fill="#fff"/>`,
+  },
+  C: {
+    name: 'C · Prompt arrow',
+    note: 'A nod to oh-my-zsh: its green ➜ prompt next to a short list of tabs.',
+    svg: `<rect width="128" height="128" rx="28" fill="#111827"/>
+      <path d="M22 64h34M42 46l18 18-18 18" fill="none" stroke="#22c55e" stroke-width="12" stroke-linecap="round" stroke-linejoin="round"/>
+      <rect x="72" y="40" width="36" height="10" rx="5" fill="#e5e7eb"/>
+      <rect x="72" y="59" width="28" height="10" rx="5" fill="#9ca3af"/>
+      <rect x="72" y="78" width="36" height="10" rx="5" fill="#6b7280"/>`,
+  },
+  D: {
+    name: 'D · Duplicate merged',
+    note: 'Two tabs, the copy dashed and fading into the one that stays: the duplicate feature.',
+    svg: `<rect width="128" height="128" rx="28" fill="#4f46e5"/>
+      <path d="M40 26h22a7 7 0 0 1 6.5 4.4L71 37h21a8 8 0 0 1 8 8v31a8 8 0 0 1-8 8H40a8 8 0 0 1-8-8V34a8 8 0 0 1 8-8z" fill="none" stroke="#fff" stroke-width="5" stroke-dasharray="9 7" opacity=".55"/>
+      <path d="M28 46h22a7 7 0 0 1 6.5 4.4L59 57h21a8 8 0 0 1 8 8v31a8 8 0 0 1-8 8H28a8 8 0 0 1-8-8V54a8 8 0 0 1 8-8z" fill="#fff"/>
+      <path d="M40 80l10 10 18-20" fill="none" stroke="#4f46e5" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/>`,
+  },
+  E: {
+    name: 'E · Grouped list',
+    note: 'The popup itself: rows with a favicon, the first group highlighted. Calm and very legible.',
+    svg: `<rect width="128" height="128" rx="28" fill="#4f46e5"/>
+      <rect x="24" y="28" width="80" height="22" rx="7" fill="#fff"/>
+      <rect x="30" y="33" width="12" height="12" rx="3" fill="#f59e0b"/>
+      <rect x="48" y="36" width="44" height="6" rx="3" fill="#4f46e5"/>
+      <rect x="30" y="62" width="12" height="12" rx="3" fill="#fff" opacity=".85"/>
+      <rect x="48" y="65" width="50" height="6" rx="3" fill="#fff" opacity=".85"/>
+      <rect x="30" y="86" width="12" height="12" rx="3" fill="#fff" opacity=".6"/>
+      <rect x="48" y="89" width="38" height="6" rx="3" fill="#fff" opacity=".6"/>`,
+  },
+};
+
+const svg = (key, size) => `<svg width="${size}" height="${size}" viewBox="0 0 128 128" role="img" aria-label="${ICONS[key].name}">${ICONS[key].svg.replaceAll('id="g', `id="${key}${size}g`).replaceAll('url(#g', `url(#${key}${size}g`)}</svg>`;
+const bar = (key, tone, badge, color) => `<div class="bar ${tone}">
+  <span class="other" style="background:#a855f7"></span><span class="other" style="background:#0ea5e9"></span>
+  <span class="slot">${svg(key, 16)}<span class="badge" style="background:${color}">${badge}</span></span>
+  <span class="other" style="background:#64748b"></span></div>`;
+
+document.getElementById('grid').innerHTML = Object.keys(ICONS).map(key => `<section class="card">
+  <div><h2>${ICONS[key].name}</h2><p>${ICONS[key].note}</p></div>
+  <div class="sizes">
+    ${[128, 48, 32, 16].map(size => `<figure>${svg(key, size)}<figcaption>${size}</figcaption></figure>`).join('')}
+    <figure>${bar(key, 'light', '3', '#d4483b')}<figcaption>light toolbar</figcaption></figure>
+    <figure>${bar(key, 'dark', '389', '#5b6478')}<figcaption>dark toolbar</figcaption></figure>
+  </div>
+</section>`).join('');
+</script>
+</body>
+</html>

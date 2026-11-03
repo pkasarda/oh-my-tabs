@@ -20,6 +20,7 @@ Firefox containers are respected: the same page open in two different containers
 **Categories**: Tabs; Productivity
 **Tags**: tabs, tab manager, duplicate tabs, developer, github
 **Support site**: https://github.com/pkasarda/oh-my-tabs/issues
+**Support email**: oh-my-tabs@pixelcherry.eu
 **Homepage**: https://github.com/pkasarda/oh-my-tabs
 **License**: to decide (the repository has no LICENSE yet)
 **Privacy policy**: the text of PRIVACY.md. AMO accepts it as text, so paste it in.

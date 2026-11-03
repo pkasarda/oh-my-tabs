@@ -47,4 +47,4 @@ If this policy changes, the new version is published at this address with a new 
 
 ## Contact
 
-Questions about privacy: open an issue at https://github.com/pkasarda/oh-my-tabs/issues.
+Questions about privacy: write to oh-my-tabs@pixelcherry.eu or open an issue at https://github.com/pkasarda/oh-my-tabs/issues.

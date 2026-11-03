@@ -45,7 +45,7 @@ PRIVATE BY DESIGN
 oh-my-tabs works entirely on your device. It reads the titles and addresses of your open tabs to group them. It never reads page content and never sends anything anywhere. It has no analytics and no accounts. Your settings stay in local browser storage.
 
 FEEDBACK
-Open source: https://github.com/pkasarda/oh-my-tabs. Report issues or ideas at https://github.com/pkasarda/oh-my-tabs/issues.
+Open source: https://github.com/pkasarda/oh-my-tabs. Report issues or ideas at https://github.com/pkasarda/oh-my-tabs/issues or write to oh-my-tabs@pixelcherry.eu.
 ```
 
 **Category**
@@ -124,7 +124,7 @@ https://github.com/pkasarda/oh-my-tabs/blob/main/PRIVACY.md (live once PR #1 is 
 ## Developer Info
 
 **Publisher Name**: Peter Kasarda (to confirm)
-**Contact Email**: to decide, shown publicly; the developer account email is used for Google's notices
+**Contact Email**: oh-my-tabs@pixelcherry.eu (shown publicly; Google sends its notices to the developer account email)
 **Support URL**: https://github.com/pkasarda/oh-my-tabs/issues
 **Homepage URL**: https://github.com/pkasarda/oh-my-tabs
 
