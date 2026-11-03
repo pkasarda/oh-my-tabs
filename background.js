@@ -9,26 +9,36 @@ const MENU_CLOSE_DUPLICATES = 'close-duplicates';
 // Only lives for one burst of events, so the worker still keeps no state between them.
 const justRemoved = new Set();
 
+const DUPLICATES_COLOR = '#d4483b';
+const TABS_COLOR = '#5b6478';
+
 // Everything is recomputed from the open tabs on each event.
-async function duplicateSets() {
-  const { dev } = await browser.storage.local.get(SETTINGS);
+async function openTabs() {
   const windows = await browser.windows.getAll({ populate: true, windowTypes: ['normal'] });
-  const tabs = windows.flatMap(w => w.tabs).filter(tab => !justRemoved.has(tab.id));
-  return findDuplicates(tabs, dev);
+  return windows.flatMap(w => w.tabs).filter(tab => !justRemoved.has(tab.id));
+}
+
+async function duplicateSets(tabs) {
+  const { dev } = await browser.storage.local.get(SETTINGS);
+  return findDuplicates(tabs ?? await openTabs(), dev);
 }
 
 function truncate(text, length) {
   return text.length > length ? `${text.slice(0, length - 1)}…` : text;
 }
 
+// Duplicates in red; with none, the number of open tabs in a quiet color.
 async function updateBadge() {
-  const sets = await duplicateSets();
+  const tabs = await openTabs();
+  const sets = await duplicateSets(tabs);
   const count = sets.reduce((sum, set) => sum + set.copies.length, 0);
-  await browser.action.setBadgeText({ text: count ? String(count) : '' });
-  await browser.action.setBadgeBackgroundColor({ color: '#d4483b' });
+  const shown = count || tabs.length;
+  await browser.action.setBadgeText({ text: shown > 999 ? '999+' : String(shown) });
+  await browser.action.setBadgeBackgroundColor({ color: count ? DUPLICATES_COLOR : TABS_COLOR });
+  await browser.action.setBadgeTextColor?.({ color: '#ffffff' });
 
   if (count === 0) {
-    await browser.action.setTitle({ title: 'oh-my-tabs' });
+    await browser.action.setTitle({ title: `oh-my-tabs · ${tabs.length} tab${tabs.length === 1 ? '' : 's'}, no duplicates` });
     return;
   }
   const lines = sets.slice(0, 3).map(set => `${truncate(set.keeper.title, 48)} ×${set.copies.length + 1}`);
@@ -73,6 +83,8 @@ browser.contextMenus.onClicked.addListener(info => {
   if (info.menuItemId === MENU_CLOSE_DUPLICATES) closeDuplicates();
 });
 browser.runtime.onMessage.addListener(message => {
+  // The popup asks on open, so the badge never lags behind what the popup shows.
+  if (message.type === 'refresh-badge') refresh();
   if (message.type === 'move-to-new-window') {
     moveToNewWindow(message.ids).catch(error => console.error('oh-my-tabs: move failed', error));
   }

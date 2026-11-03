@@ -79,7 +79,7 @@ When developer mode is off, only the generic rules apply. The badge count can th
 
 ## Background (`background.js`)
 
-- **Badge**: the number of duplicates, empty when there are none.
+- **Badge**: the number of duplicates in red. With none, the number of open tabs in a muted blue-gray, shown as `999+` above 999. The popup asks for a recompute when it opens, so the two never disagree.
   - Recomputed from the open tabs on `tabs.onCreated`, `onRemoved`, `onReplaced`, `onActivated`, on `onUpdated` when `changeInfo.url` is set, and when developer mode changes. Recomputes are debounced by 150 ms, so a burst of closes ends in one count. Tabs that were just removed are left out, because Firefox can still list them.
   - A full recompute is cheap at 400+ tabs.
 - **Tooltip** (`action.setTitle`): `3 duplicates`, followed by up to 3 lines like `acme/oh-my-tabs #42 ×2`.

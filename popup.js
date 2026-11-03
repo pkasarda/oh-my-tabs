@@ -888,6 +888,7 @@ async function start() {
   $('#s-dev').checked = state.dev;
   document.querySelector(`[name="sort"][value="${state.sort}"]`).checked = true;
 
+  browser.runtime.sendMessage({ type: 'refresh-badge' }).catch(() => {});
   await load();
   const active = state.tabs.find(tab => tab.windowId === state.currentWindow && tab.active);
   if (active) state.openGroups.add(active.group);
