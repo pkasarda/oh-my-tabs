@@ -98,7 +98,11 @@ ul.rows { list-style: none; margin: 0; padding: 0 6px 6px; }
 .row.nested::before { content: "└"; position: absolute; left: -14px; color: var(--muted); }
 .row.suspended .fav { opacity: 0.45; }
 .row.suspended .title { color: var(--muted); }
-.zz-pill { flex: none; border-radius: 9px; padding: 1px 7px; font-size: 11px; font-weight: 600; background: var(--surface-2); color: var(--muted); border: 1px solid var(--border); }
+/* A suspended tab: a small zZz on the corner of its favicon. */
+.fav-wrap { position: relative; display: inline-grid; flex: none; }
+.zzz { position: absolute; right: -6px; bottom: -5px; padding: 0 3px; border-radius: 6px; background: var(--surface); color: var(--accent); font: 700 9px/12px var(--sans); letter-spacing: -0.02em; box-shadow: 0 0 0 1px var(--border); }
+.age { flex: none; color: var(--muted); font-size: 11.5px; white-space: nowrap; }
+.icon-btn.saved { color: var(--accent); }
 .copy-pill { flex: none; border-radius: 9px; padding: 1px 7px; font-size: 11px; font-weight: 600; background: var(--danger-soft); color: var(--danger); }
 .copies { flex: none; border: 1px solid color-mix(in oklch, var(--danger) 40%, var(--border)); background: var(--danger-soft); color: var(--danger); border-radius: 9px; padding: 1px 7px; font-size: 11px; font-weight: 600; }
 
@@ -129,6 +133,23 @@ ul.rows.singles { padding: 0; }
 /* Inside a window card the row's own window is obvious; copies still say where they are. */
 .windows .row:not(.nested) .wl-icon { display: none; }
 .win-new { display: flex; gap: 8px; align-items: center; justify-content: center; min-height: 52px; border: 1px dashed var(--border); border-radius: 10px; color: var(--muted); }
+
+/* ---------- stale tabs and the library ---------- */
+details.group.stale { border-color: color-mix(in oklch, #f59e0b 45%, var(--border)); }
+details.group.stale > summary .g-name { color: light-dark(#b45309, #fbbf24); }
+.stale-icon { flex: none; display: grid; place-items: center; width: 32px; height: 32px; border-radius: 8px; background: light-dark(#fef3c7, #3b2a0b); color: light-dark(#b45309, #fbbf24); }
+.stale-icon .i { width: 20px; height: 20px; }
+.filters { display: flex; flex-wrap: wrap; gap: 6px; padding: 0 0 8px; }
+.chip { display: inline-flex; gap: 6px; align-items: center; padding: 3px 10px; border: 1px solid var(--border); border-radius: 999px; background: var(--surface-2); color: var(--muted); font-size: 12px; }
+.chip:hover { color: var(--text); }
+.chip[aria-pressed="true"] { border-color: var(--accent); background: var(--accent-soft); color: var(--text); }
+.chip .i { width: 14px; height: 14px; }
+.chip.add { border-style: dashed; }
+.topic-pill { flex: none; max-width: 140px; overflow: hidden; text-overflow: ellipsis; padding: 1px 8px; border-radius: 9px; font-size: 11px; background: var(--accent-soft); color: var(--accent); white-space: nowrap; }
+.settings select { font: inherit; padding: 1px 4px; border: 1px solid var(--border); border-radius: 6px; background: var(--surface-2); color: var(--text); cursor: pointer; }
+.topic-field { display: grid; gap: 6px; margin-bottom: 14px; }
+.topic-field input { padding: 7px 10px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface-2); color: var(--text); font: inherit; }
+.dialog-actions { display: flex; gap: 8px; justify-content: flex-end; }
 
 /* ---------- tooltip ---------- */
 [popover].tip { min-width: 0; max-width: 300px; padding: 5px 9px; border-radius: 7px; font-size: 12px; line-height: 1.35; pointer-events: none; }
@@ -165,3 +186,4 @@ dialog { border: 1px solid var(--border); border-radius: 12px; background: var(-
 dialog::backdrop { background: oklch(0% 0 0 / 0.35); }
 dialog p { margin: 0 0 14px; }
 dialog form { display: flex; gap: 8px; justify-content: flex-end; }
+#topic-dialog form { display: block; }

@@ -1,10 +1,11 @@
 {
   "manifest_version": 3,
   "name": "oh-my-tabs",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Your tabs grouped by repo, Jira project or Linear team, with duplicates found even when the URLs differ.",
   "minimum_chrome_version": "123",
   "permissions": ["tabs", "storage", "contextMenus", "favicon"],
+  "optional_permissions": ["bookmarks"],
   "background": {
     "service_worker": "background.js",
     "type": "module"

@@ -179,3 +179,34 @@ export function findDuplicates(tabs, dev) {
   }
   return sets;
 }
+
+const DAY = 24 * 60 * 60 * 1000;
+
+// Open web tabs, not pinned, last used more than `days` ago.
+export function staleTabs(tabs, now, days) {
+  const cutoff = now - days * DAY;
+  return tabs.filter(tab => !tab.pinned && isWeb(tab.url ?? '') && tab.lastAccessed < cutoff);
+}
+
+// What saving `tabs` to the library means, given what is saved already.
+// saved: [{ id, url, topic }], tabs: [{ url, title }], topic: a name or null (keep the old topic).
+// A saved tab with the same duplicate key is replaced, so the library never holds two of one page.
+export function planSave(saved, tabs, dev, topic) {
+  const savedByKey = new Map();
+  for (const item of saved) {
+    const key = duplicateKey(item.url, dev);
+    if (key) savedByKey.set(key, item);
+  }
+  const remove = [];
+  const create = [];
+  const seen = new Set();
+  for (const tab of tabs) {
+    const key = duplicateKey(tab.url ?? '', dev);
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+    const old = savedByKey.get(key);
+    if (old) remove.push(old.id);
+    create.push({ url: tab.url, title: tab.title || tab.url, topic: topic ?? old?.topic ?? null });
+  }
+  return { remove, create };
+}

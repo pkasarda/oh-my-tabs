@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { groupName, duplicateKey, findDuplicates } from './rules.js';
+import { groupName, duplicateKey, findDuplicates, staleTabs, planSave } from './rules.js';
 
 const DEV = true;
 const PLAIN = false;
@@ -181,4 +181,45 @@ test('findDuplicates uses pendingUrl while a tab is still loading', () => {
     { id: 2, url: '', pendingUrl: 'https://example.com/a', lastAccessed: 2 },
   ];
   assert.equal(findDuplicates(tabs, DEV).length, 1);
+});
+
+const DAY = 24 * 60 * 60 * 1000;
+
+test('staleTabs: unpinned web tabs not used for longer than the threshold', () => {
+  const now = 100 * DAY;
+  const tabs = [
+    { id: 1, url: 'https://a.example/', lastAccessed: now - 8 * DAY },
+    { id: 2, url: 'https://b.example/', lastAccessed: now - 2 * DAY },
+    { id: 3, url: 'https://c.example/', lastAccessed: now - 30 * DAY, pinned: true },
+    { id: 4, url: 'chrome://newtab/', lastAccessed: now - 30 * DAY },
+    { id: 5, url: 'https://d.example/', lastAccessed: now - 7 * DAY - 1 },
+  ];
+  assert.deepEqual(staleTabs(tabs, now, 7).map(t => t.id), [1, 5]);
+});
+
+test('planSave: a new tab becomes a bookmark with the chosen topic', () => {
+  const plan = planSave([], [{ url: 'https://example.com/a', title: 'A' }], DEV, 'Read later');
+  assert.deepEqual(plan, { remove: [], create: [{ url: 'https://example.com/a', title: 'A', topic: 'Read later' }] });
+});
+
+test('planSave: saving again replaces the saved tab with the same duplicate key and keeps its topic', () => {
+  const saved = [{ id: 'b1', url: 'https://github.com/a/b/pull/3', topic: 'Release' }];
+  const plan = planSave(saved, [{ url: 'https://github.com/a/b/pull/3/files', title: 'PR 3' }], DEV, null);
+  assert.deepEqual(plan, { remove: ['b1'], create: [{ url: 'https://github.com/a/b/pull/3/files', title: 'PR 3', topic: 'Release' }] });
+});
+
+test('planSave: an explicit topic wins over the old one', () => {
+  const saved = [{ id: 'b1', url: 'https://example.com/a', topic: 'Old' }];
+  assert.equal(planSave(saved, [{ url: 'https://example.com/a#x', title: 'A' }], DEV, 'New').create[0].topic, 'New');
+});
+
+test('planSave: duplicates among the tabs are saved once; system tabs are skipped', () => {
+  const tabs = [
+    { url: 'https://example.com/a', title: 'A' },
+    { url: 'https://example.com/a#section', title: 'A again' },
+    { url: 'chrome://extensions/', title: 'Extensions' },
+  ];
+  const plan = planSave([], tabs, DEV, null);
+  assert.equal(plan.create.length, 1);
+  assert.equal(plan.create[0].url, 'https://example.com/a');
 });

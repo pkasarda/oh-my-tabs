@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url';
 process.chdir(fileURLToPath(new URL('..', import.meta.url)));
 
 const OUT = 'dist/firefox';
-const FILES = ['background.js', 'rules.js', 'popup.html', 'popup.css', 'popup.js', 'fonts', 'icons'];
+const FILES = ['background.js', 'rules.js', 'library.js', 'popup.html', 'popup.css', 'popup.js', 'fonts', 'icons'];
 
 rmSync(OUT, { recursive: true, force: true });
 mkdirSync(OUT, { recursive: true });
