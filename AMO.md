@@ -32,6 +32,10 @@ The toolbar badge counts your duplicates, and "Close duplicates" keeps the tab y
 
 **Keyboard:** Alt+Shift+O opens oh-my-tabs and Alt+Shift+D closes duplicates. You can change both in Manage Extension Shortcuts.
 
+**Save tabs for later (optional):** turn on the Library to save & close tabs, a group or all stale tabs, then find them again by topic. They are kept as bookmarks in an "oh-my-tabs" folder, so Firefox Sync carries them.
+
+**Stale tabs:** a group at the top lists the tabs you have not used for a week or more, to save or close in one go.
+
 **Private:** everything happens on your device. No data is collected or sent anywhere. Open source: https://github.com/pkasarda/oh-my-tabs
 ```
 
@@ -61,4 +65,5 @@ About the innerHTML warnings in popup.js (render, results bar, menu, shortcuts):
 
 | Version | Date | Changes | Status |
 |---------|------|---------|--------|
-| 1.0.0 | 2026-11-03 | First release. | Draft |
+| 1.1.0 | 2026-11-04 | Library (optional bookmarks permission), stale tabs, zZz on suspended tabs. | Draft |
+| 1.0.0 | 2026-11-03 | First release. | Submitted |

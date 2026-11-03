@@ -131,7 +131,7 @@ When developer mode is off, only the generic rules apply. The badge count can th
   - a 28 px favicon and the title, inside a button that switches to the tab, so the keyboard can reach it;
   - a short URL;
   - its window label: a small window glyph with the window's number, highlighted for the current window. Its tooltip gives the window name;
-  - `zz` when the tab is suspended; its favicon and title are dimmed;
+  - a small `zZz` on the corner of the favicon when the tab is suspended; its favicon and title are dimmed;
   - `×` (close) and `⋯`, which opens the tab menu:
     - `Move to window ▸`;
     - `Suspend this tab` (disabled for an active tab);
@@ -202,7 +202,7 @@ The windows view uses the groups view's language one level up: window → group 
 - With developer mode on, the whole UI uses bundled Fira Code (OFL, woff2) with ligatures off (`font-variant-ligatures: none`), so `->` in a title stays two characters.
 - With developer mode off, the UI uses the system sans-serif font.
 
-## 1.1: Library and stale tabs (planned)
+## 1.1: Library and stale tabs
 
 Goal: you can close tabs without losing them, so you stop keeping hundreds open "just in case". Design agreed in a grilling session. The look is in [previews/library.html](previews/library.html).
 
@@ -211,7 +211,7 @@ Goal: you can close tabs without losing them, so you stop keeping hundreds open 
 - ⚙ gets a **Features** section with two switches. Both are stored in `storage.local`:
   - **Library**, off by default.
   - **Stale tabs**, on by default, with a threshold of 3, 7, 14 or 30 days (default 7).
-- Turning **Library** on requests the optional `bookmarks` permission (`optional_permissions`).
+- Turning **Library** on requests the optional `bookmarks` permission (`optional_permissions`). The Library is on exactly while that permission is granted, so there is no separate setting to get out of sync, for example when Firefox closes the popup for the prompt.
   - The permission is never in `permissions`. Adding it there would make Chrome disable the published extension on update until the user accepts a new warning.
   - If the user declines, the switch stays off.
 - Turning **Library** off hides everything Library-related: the Library view, the save icons and the saved markers. The bookmarks stay untouched.
@@ -258,6 +258,11 @@ Goal: you can close tabs without losing them, so you stop keeping hundreds open 
   - `Close all without saving · N`.
 - Every action asks above 10 tabs.
 - Tab rows show `used 2 wk ago` when the tab was last used more than a day ago.
+
+### Also in 1.1
+
+- Group headers in the Groups and Windows views get an inline **Move group to a new window** icon.
+- The Library view hides `Close duplicates`, which is about open tabs.
 
 ### Out of 1.1
 
