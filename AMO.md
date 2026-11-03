@@ -22,7 +22,7 @@ Firefox containers are respected: the same page open in two different containers
 **Support site**: https://github.com/pkasarda/oh-my-tabs/issues
 **Support email**: oh-my-tabs@pixelcherry.eu
 **Homepage**: https://github.com/pkasarda/oh-my-tabs
-**License**: to decide (the repository has no LICENSE yet)
+**License**: MIT License (see LICENSE)
 **Privacy policy**: the text of PRIVACY.md. AMO accepts it as text, so paste it in.
 **Screenshots**: the files in store/, the same ones as for Chrome.
 

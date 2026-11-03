@@ -24,3 +24,7 @@ npm run package
 ```
 
 This writes `dist/oh-my-tabs-<version>-chrome.zip` and `dist/oh-my-tabs-<version>-firefox.zip`. The store listings, permission justifications and screenshots are in [CHROMEWEBSTORE.md](CHROMEWEBSTORE.md), [AMO.md](AMO.md) and [store/](store/). The privacy policy is [PRIVACY.md](PRIVACY.md).
+
+## License
+
+MIT, see [LICENSE](LICENSE). Fira Code is under the SIL Open Font License ([fonts/OFL.txt](fonts/OFL.txt)).
