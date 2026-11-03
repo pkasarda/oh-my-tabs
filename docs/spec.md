@@ -262,7 +262,13 @@ Goal: you can close tabs without losing them, so you stop keeping hundreds open 
 ### Also in 1.1
 
 - Group headers in the Groups and Windows views get an inline **Move group to a new window** icon.
-- A group with a single tab is not a card: in the Groups and Library views, such tabs are plain rows under `1-tab sites · N`, after the groups, as in the Windows view.
+- Lone tabs roll up before they become rows. Each tab has a group chain from the most specific group to its site:
+  - GitHub, GitLab and Bitbucket: `owner/repo` → `owner` → host.
+  - Linear: `Linear · TEAM` → `Linear · workspace` → `linear.app`.
+  - Jira and Confluence: project or space → host.
+  - Other sites: host only.
+  A tab that would be alone in its group moves one level up, repeatedly, until it shares a group or the chain ends. For example, `nrwl/nx` and `nrwl/nx-labs` with one tab each become one `nrwl` group, and lone repos of different owners meet in `github.com` (`rollUp` in rules.js, applied to open and saved tabs). Without developer mode every chain is just the host.
+- A group with a single tab after that is not a card: in the Groups and Library views, such tabs are plain rows under `1-tab sites · N`, after the groups, as in the Windows view.
 - The Library view hides `Close duplicates`, which is about open tabs.
 
 ### Out of 1.1

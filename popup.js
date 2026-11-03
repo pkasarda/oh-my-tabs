@@ -1,4 +1,4 @@
-import { groupName, findDuplicates, isWeb, duplicateKey, staleTabs } from './rules.js';
+import { groupChain, rollUp, findDuplicates, isWeb, duplicateKey, staleTabs } from './rules.js';
 import * as Library from './library.js';
 
 globalThis.browser ??= chrome;
@@ -83,9 +83,15 @@ async function load() {
   return true;
 }
 
+// Lone tabs roll up to their owner or site (rules.js rollUp), so five single repos of one org share a group.
+function groupsFor(items) {
+  return rollUp(items, item => groupChain(item.url, state.dev));
+}
+
 function analyze() {
+  const groups = groupsFor(state.tabs);
   for (const tab of state.tabs) {
-    tab.group = groupName(tab.url, state.dev);
+    tab.group = groups.get(tab);
     tab.set = null;
     tab.isDup = false;
   }
@@ -101,7 +107,8 @@ function analyze() {
   }
   // Computed once here: every row's window label needs its window's name.
   state.windowNames = new Map(state.windows.map(windowId => [windowId, nameFor(windowId)]));
-  for (const item of state.saved) item.group = groupName(item.url, state.dev);
+  const savedGroups = groupsFor(state.saved);
+  for (const item of state.saved) item.group = savedGroups.get(item);
   state.savedKeys = new Set(state.saved.map(item => duplicateKey(item.url, state.dev)).filter(Boolean));
 }
 

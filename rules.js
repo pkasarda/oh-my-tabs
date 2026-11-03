@@ -105,6 +105,48 @@ export function groupName(url, dev) {
   return siteGroupName(u);
 }
 
+const OWNER_HOSTS = new Set(['github.com', 'gitlab.com', 'bitbucket.org']);
+
+// The level above a site group: the owner of a repository, the workspace of a Linear team.
+function ownerGroup(u, group) {
+  const host = hostOf(u);
+  if (OWNER_HOSTS.has(host) && group.includes('/')) return group.split('/')[0];
+  const workspace = pathParts(u)[0];
+  if (host === 'linear.app' && workspace) return `Linear · ${workspace}`;
+  return null;
+}
+
+// The groups a URL belongs to, from the most specific to the site: acme/client → acme → github.com.
+export function groupChain(url, dev) {
+  const u = isWeb(url) ? parse(url) : null;
+  if (!u) return ['Browser'];
+  const site = hostLabel(u);
+  if (!dev) return [site];
+  const group = siteGroupName(u);
+  return [...new Set([group, ownerGroup(u, group), site].filter(Boolean))];
+}
+
+// Picks each item's group: a tab that would be alone in its group moves up its chain until it shares
+// a group with another tab, or the chain ends. Returns Map(item → group name).
+export function rollUp(items, chainOf) {
+  const chains = new Map(items.map(item => [item, chainOf(item)]));
+  const level = new Map(items.map(item => [item, 0]));
+  const nameOf = item => chains.get(item)[level.get(item)];
+  for (let changed = true; changed;) {
+    changed = false;
+    const counts = new Map();
+    for (const item of items) counts.set(nameOf(item), (counts.get(nameOf(item)) ?? 0) + 1);
+    for (const item of items) {
+      const alone = counts.get(nameOf(item)) === 1;
+      if (alone && level.get(item) < chains.get(item).length - 1) {
+        level.set(item, level.get(item) + 1);
+        changed = true;
+      }
+    }
+  }
+  return new Map(items.map(item => [item, nameOf(item)]));
+}
+
 // Rewrites u in place so that URLs showing the same thing on a known site become equal.
 function collapseForSite(u) {
   const host = hostOf(u);

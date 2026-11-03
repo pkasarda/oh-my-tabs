@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { groupName, duplicateKey, findDuplicates, staleTabs, planSave } from './rules.js';
+import { groupName, groupChain, rollUp, duplicateKey, findDuplicates, staleTabs, planSave } from './rules.js';
 
 const DEV = true;
 const PLAIN = false;
@@ -222,4 +222,40 @@ test('planSave: duplicates among the tabs are saved once; system tabs are skippe
   const plan = planSave([], tabs, DEV, null);
   assert.equal(plan.create.length, 1);
   assert.equal(plan.create[0].url, 'https://example.com/a');
+});
+
+test('groupChain goes from the most specific group to the site', () => {
+  assert.deepEqual(groupChain('https://github.com/acme/client/pull/3', DEV), ['acme/client', 'acme', 'github.com']);
+  assert.deepEqual(groupChain('https://github.com/acme', DEV), ['acme', 'github.com']);
+  assert.deepEqual(groupChain('https://gitlab.com/acme/infra/-/merge_requests/5', DEV), ['acme/infra', 'acme', 'gitlab.com']);
+  assert.deepEqual(groupChain('https://linear.app/acme/issue/WEB-1/x', DEV), ['Linear · WEB', 'Linear · acme', 'linear.app']);
+  assert.deepEqual(groupChain('https://acme.atlassian.net/browse/PAY-1', DEV), ['Jira · PAY', 'acme.atlassian.net']);
+  assert.deepEqual(groupChain('https://example.com/a', DEV), ['example.com']);
+  assert.deepEqual(groupChain('https://github.com/acme/client', PLAIN), ['github.com']);
+  assert.deepEqual(groupChain('chrome://newtab/', DEV), ['Browser']);
+});
+
+test('rollUp moves lone tabs up until they have company', () => {
+  const chains = {
+    a: ['acme/client', 'acme', 'github.com'],
+    b: ['acme/client', 'acme', 'github.com'],
+    c: ['acme/web', 'acme', 'github.com'],
+    d: ['acme/sdk', 'acme', 'github.com'],
+    e: ['foo/x', 'foo', 'github.com'],
+    f: ['bar/y', 'bar', 'github.com'],
+    g: ['example.com'],
+  };
+  const groups = rollUp(Object.keys(chains), id => chains[id]);
+  assert.deepEqual(Object.fromEntries(Object.keys(chains).map(id => [id, groups.get(id)])), {
+    a: 'acme/client', b: 'acme/client',  // two tabs: the repo stays
+    c: 'acme', d: 'acme',                // lone repos of one owner share the owner
+    e: 'github.com', f: 'github.com',    // lone owners share the site
+    g: 'example.com',                    // nowhere higher to go: stays a lone tab
+  });
+});
+
+test('rollUp: a lone tab joins an existing group of the next level', () => {
+  const chains = { a: ['github.com'], b: ['github.com'], c: ['foo/x', 'foo', 'github.com'] };
+  const groups = rollUp(Object.keys(chains), id => chains[id]);
+  assert.equal(groups.get('c'), 'github.com');
 });
