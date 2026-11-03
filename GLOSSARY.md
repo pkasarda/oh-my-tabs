@@ -53,7 +53,28 @@ _Avoid_: discarded tab, sleeping tab, hibernated tab
 A tab whose page is not a website (`chrome://`, `about:`, `file://`, extension pages). It belongs to a group but is never a duplicate.
 _Avoid_: internal tab, special tab
 
-## Developer mode
+## Library
+
+**Library**:
+The tabs you saved so you could close them, kept as browser bookmarks in the `oh-my-tabs` folder. An optional feature.
+_Avoid_: bookmarks (the user's own, which oh-my-tabs leaves alone), read later, archive, sessions
+
+**Saved tab**:
+A tab kept in the library. It is not open, or no longer needs to be. It has a title, an address, the date it was saved and at most one topic.
+_Avoid_: bookmark, saved item, entry
+
+**Topic**:
+A named shelf in the library that a saved tab can belong to, such as "Release 2.0". There is one at most per saved tab.
+_Avoid_: tag, label, folder, category
+
+**Library view**:
+The third view: saved tabs by topic and group, the way the groups view shows open tabs.
+_Avoid_: saved view, bookmarks view
+
+**Stale tab**:
+An open, unpinned tab you have not used for longer than the stale threshold (7 days by default).
+_Avoid_: old tab, inactive tab, forgotten tab
+
 
 **Developer mode**:
 A setting that turns on site rules and the monospace look. With it off, every group name is a hostname and duplicate keys use only the generic rules.

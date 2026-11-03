@@ -202,6 +202,76 @@ The windows view uses the groups view's language one level up: window → group 
 - With developer mode on, the whole UI uses bundled Fira Code (OFL, woff2) with ligatures off (`font-variant-ligatures: none`), so `->` in a title stays two characters.
 - With developer mode off, the UI uses the system sans-serif font.
 
+## 1.1: Library and stale tabs (planned)
+
+Goal: you can close tabs without losing them, so you stop keeping hundreds open "just in case". Design agreed in a grilling session. The look is in [previews/library.html](previews/library.html).
+
+### Settings: Features
+
+- ⚙ gets a **Features** section with two switches. Both are stored in `storage.local`:
+  - **Library**, off by default.
+  - **Stale tabs**, on by default, with a threshold of 3, 7, 14 or 30 days (default 7).
+- Turning **Library** on requests the optional `bookmarks` permission (`optional_permissions`).
+  - The permission is never in `permissions`. Adding it there would make Chrome disable the published extension on update until the user accepts a new warning.
+  - If the user declines, the switch stays off.
+- Turning **Library** off hides everything Library-related: the Library view, the save icons and the saved markers. The bookmarks stay untouched.
+
+### Library storage ([ADR 0003](adr/0003-library-is-browser-bookmarks.md))
+
+- The library is a bookmarks folder named `oh-my-tabs` in Other Bookmarks. It is created on first save, and found again by name if its id is lost.
+- Topics are subfolders of `oh-my-tabs`. A saved tab without a topic sits directly in `oh-my-tabs`. A saved tab has at most one topic.
+- A saved tab is a bookmark: its title and its URL. "Saved X ago" comes from `dateAdded`. Nothing else is stored, so the browser's own sync carries the whole library.
+- Duplicate keys apply. Saving a URL whose duplicate key is already in the library removes the old bookmark and creates a new one. The new one gets today's date and keeps the old topic. The library never holds two saved tabs with one duplicate key.
+- Bookmarks outside the `oh-my-tabs` folder are never read or changed.
+
+### Saving
+
+- **Save & close** (bookmark-plus icon):
+  - inline on every tab row and group header in the Groups and Windows views;
+  - in the ⋯ menus of tabs, groups and windows;
+  - as a results-bar action while searching.
+  - It saves without a topic and needs one click.
+- ⋯ menus also offer **Save** (keep the tab open) and **Save to topic ›**, a submenu of the topics plus `New topic…`.
+- An open tab whose duplicate key is in the library shows a filled bookmark icon instead of the outline one: it is safe to close.
+- Saving more than 10 tabs at once asks first, like closing.
+
+### Library view
+
+- **Library** is a third view in the view switch. It is shown only while the feature is on.
+- Topic chips sit under the header: `All · N`, one per topic with its count, and `+ New topic`.
+- The library is grouped by the usual group rules, so a saved GitHub PR sits under its `owner/repo`. Within a group, the newest saved tab comes first.
+- A row shows:
+  - the favicon, title and short URL;
+  - its topic as a pill;
+  - `saved 3 wk ago`;
+  - `↗` (open in the background), `×` (remove from the library) and `⋯` (`Move to topic ›`).
+- Clicking a row opens the tab in the current window and keeps it in the library. If a tab with the same duplicate key is already open, the click switches to it instead.
+- A group header has `↗` to open all its saved tabs (asks above 10) and `⋯` with `Remove group from library`.
+- Search covers only the view you are in: saved tabs in Library, open tabs in Groups and Windows.
+
+### Stale tabs
+
+- A stale tab is an open, unpinned tab whose `lastAccessed` is older than the threshold.
+- While the feature is on, the Groups view starts with a collapsed group, `Not used for 7+ days · N`, in the usual card style with an amber clock icon.
+- Its header has the save icon (Save & close all, only while Library is on) and `⋯`:
+  - `Save & close all · N` and `Save all, keep open · N` (Library on);
+  - `Close all without saving · N`.
+- Every action asks above 10 tabs.
+- Tab rows show `used 2 wk ago` when the tab was last used more than a day ago.
+
+### Out of 1.1
+
+- On-device AI summaries. Chrome's Summarizer API was considered and dropped: no Slovak, Chrome only, heavy hardware needs, and it would mean reading page content.
+- Tags (more than one per saved tab).
+- Importing existing bookmarks.
+- Font as its own setting (#18).
+- Themes (#19).
+
+### Store impact
+
+- `bookmarks` becomes an optional permission. PRIVACY.md and the Chrome Web Store disclosures must say that the extension reads and writes bookmarks in its own folder only, that they stay in the browser, and that the browser's own sync is what carries them.
+- AMO stays `data_collection_permissions: none`, since nothing is transmitted by the extension.
+
 ## Testing
 
 - `node --test` runs `rules.test.js`.

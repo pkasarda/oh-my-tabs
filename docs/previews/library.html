@@ -1,0 +1,201 @@
+<!doctype html>
+<html lang="en" class="mono">
+<head>
+<meta charset="utf-8">
+<meta name="color-scheme" content="light dark">
+<title>Library and stale tabs</title>
+<!-- The extension's own stylesheet, so the preview looks exactly like the popup. -->
+<link rel="stylesheet" href="../../popup.css">
+<style>
+  body { background: var(--bg); }
+  .preview-bar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding: 10px 16px; background: var(--surface); border-bottom: 1px solid var(--border); font-family: var(--sans); font-size: 13px; }
+  .preview-bar strong { margin-right: 8px; }
+  .preview-bar button { border: 1px solid var(--border); background: var(--surface-2); padding: 5px 10px; border-radius: 8px; }
+  .preview-bar button[aria-pressed="true"] { border-color: var(--accent); background: var(--accent-soft); }
+  .preview-bar p { flex-basis: 100%; margin: 2px 0 0; color: var(--muted); }
+  .stage { display: grid; justify-items: center; padding: 24px 16px; }
+  .app { border: 1px solid var(--border); border-radius: 12px; overflow: hidden; box-shadow: var(--shadow); background: var(--surface); }
+
+  /* New pieces this preview proposes. */
+  .filters { display: flex; flex-wrap: wrap; gap: 6px; padding: 8px 10px; border-bottom: 1px solid var(--border); }
+  .chip { display: inline-flex; gap: 6px; align-items: center; padding: 3px 10px; border: 1px solid var(--border); border-radius: 999px; background: var(--surface-2); color: var(--muted); font-size: 12px; cursor: pointer; }
+  .chip[aria-pressed="true"] { border-color: var(--accent); background: var(--accent-soft); color: var(--text); }
+  .chip .i { width: 14px; height: 14px; }
+  .chip.add { border-style: dashed; }
+  details.group.stale { border-color: color-mix(in oklch, #f59e0b 45%, var(--border)); }
+  details.group.stale > summary .g-name { color: light-dark(#b45309, #fbbf24); }
+  .stale-icon { display: grid; place-items: center; width: 32px; height: 32px; border-radius: 8px; background: light-dark(#fef3c7, #3b2a0b); color: light-dark(#b45309, #fbbf24); }
+  .stale-icon .i { width: 20px; height: 20px; }
+  .age { flex: none; color: var(--muted); font-size: 11.5px; white-space: nowrap; }
+  .topic-pill { flex: none; padding: 1px 8px; border-radius: 9px; font-size: 11px; background: var(--accent-soft); color: var(--accent); white-space: nowrap; }
+  .save-btn { white-space: nowrap; }
+</style>
+</head>
+<body>
+<div class="preview-bar">
+  <strong>Library preview</strong>
+  <button type="button" data-v="stale-b" aria-pressed="true">S6 · B: stale group on top</button>
+  <button type="button" data-v="stale-a" aria-pressed="false">S6 · A: stale chip</button>
+  <button type="button" data-v="library" aria-pressed="false">Library view (draft)</button>
+  <button type="button" id="theme">Light / dark</button>
+  <p id="hint"></p>
+</div>
+<div class="stage"><main class="app" id="app"></main></div>
+<div popover id="stale-menu" class="menu" role="menu" style="width:260px">
+  <button type="button" role="menuitem">Save &amp; close all · 8</button>
+  <button type="button" role="menuitem">Save all, keep open · 8</button>
+  <hr>
+  <button type="button" role="menuitem" class="danger">Close all without saving · 8</button>
+</div>
+
+<script type="module">
+const ICONS = {
+  chevron: '<path d="m9 18 6-6-6-6"/>',
+  close: '<path d="M18 6 6 18"/><path d="m6 6 12 12"/>',
+  more: '<circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/>',
+  page: '<path d="M15 3h6v6"/><path d="M10 14 21 3"/><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>',
+  settings: '<circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9 7 7M17 17l2.1 2.1M4.9 19.1 7 17M17 7l2.1-2.1"/>',
+  clock: '<circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>',
+  save: '<path d="m19 21-7-4-7 4V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16z"/><path d="M12 7v6M9 10h6"/>',
+  plus: '<path d="M5 12h14"/><path d="M12 5v14"/>',
+  open: '<path d="M15 3h6v6"/><path d="M10 14 21 3"/>',
+};
+const icon = name => `<svg class="i" viewBox="0 0 24 24" aria-hidden="true">${ICONS[name]}</svg>`;
+const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+function tile(host) {
+  let hue = 0;
+  for (const char of host) hue = (hue * 31 + char.charCodeAt(0)) % 360;
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><rect width="32" height="32" rx="7" fill="hsl(${hue} 50% 46%)"/><text x="16" y="22" text-anchor="middle" font-family="Arial" font-size="17" font-weight="700" fill="white">${host[0].toUpperCase()}</text></svg>`;
+  return `<img class="fav" alt="" src="data:image/svg+xml,${encodeURIComponent(svg)}">`;
+}
+
+// Open tabs; "days" is how long ago each was last used.
+const OPEN = [
+  ['acme/client', 'github.com', [['Checkout refactor · Pull Request #812', 'github.com/acme/client/pull/812', 0], ['Flaky e2e on CI · Issue #799', 'github.com/acme/client/issues/799', 9], ['acme/client: Web client', 'github.com/acme/client', 1], ['Release notes draft · Wiki', 'github.com/acme/client/wiki/Release-notes', 23]]],
+  ['Jira · PAY', 'jira.acme.com', [['[PAY-1421] Invoice export fails', 'jira.acme.com/browse/PAY-1421', 0], ['[PAY-1388] Retry webhook deliveries', 'jira.acme.com/browse/PAY-1388', 14], ['[PAY-1290] Currency rounding', 'jira.acme.com/browse/PAY-1290', 31]]],
+  ['acme.slite.com', 'acme.slite.com', [['Onboarding checklist', 'acme.slite.com/app/docs/aB12', 2], ['Incident runbook', 'acme.slite.com/app/docs/cD34', 40], ['Q3 retro notes', 'acme.slite.com/app/docs/eF56', 60]]],
+  ['developer.mozilla.org', 'developer.mozilla.org', [['Popover API · MDN', 'developer.mozilla.org/en-US/docs/Web/API/Popover_API', 3], ['CSS anchor positioning · MDN', 'developer.mozilla.org/en-US/docs/Web/CSS/anchor', 12]]],
+  ['news.ycombinator.com', 'news.ycombinator.com', [['Show HN: A tab manager that keeps up', 'news.ycombinator.com/item?id=4242', 18]]],
+];
+const STALE_DAYS = 7;
+
+// Saved tabs: [title, url, saved N days ago, topic].
+const SAVED = [
+  ['acme/client', 'github.com', [['Release notes draft · Wiki', 'github.com/acme/client/wiki/Release-notes', 0, 'Release 2.0'], ['Feature flags RFC · Discussion #77', 'github.com/acme/client/discussions/77', 12, 'Release 2.0'], ['Bundle size budget · Issue #650', 'github.com/acme/client/issues/650', 45, null]]],
+  ['Jira · PAY', 'jira.acme.com', [['[PAY-1290] Currency rounding', 'jira.acme.com/browse/PAY-1290', 0, 'Release 2.0'], ['[PAY-1102] Refund flow', 'jira.acme.com/browse/PAY-1102', 21, null]]],
+  ['acme.slite.com', 'acme.slite.com', [['Q3 retro notes', 'acme.slite.com/app/docs/eF56', 0, null], ['Incident runbook', 'acme.slite.com/app/docs/cD34', 3, 'Read later']]],
+  ['web.dev', 'web.dev', [['Building a tab manager UI', 'web.dev/articles/tab-ui', 30, 'Read later'], ['Popover API', 'web.dev/articles/popover-api', 60, 'Read later']]],
+];
+const TOPICS = ['Release 2.0', 'Read later'];
+
+const ago = days => (days === 0 ? 'today' : days < 7 ? `${days} d ago` : days < 30 ? `${Math.floor(days / 7)} wk ago` : `${Math.floor(days / 30)} mo ago`);
+
+function head(view) {
+  const seg = ['Groups', 'Windows', 'Library'].map(name => `<button type="button" aria-pressed="${(view === 'library') === (name === 'Library') && name !== 'Windows'}">${name}</button>`).join('');
+  const action = view === 'library'
+    ? `<button type="button" class="btn">Open all results</button>`
+    : `<button type="button" class="btn danger">Close duplicates (2)</button>`;
+  return `<div class="head">
+    <input class="search" type="search" placeholder="${view === 'library' ? 'Search saved tabs…' : 'Search tabs, URLs, groups…'}">
+    <div class="seg">${seg}</div>${action}
+    <button type="button" class="icon-btn">${icon('page')}</button><button type="button" class="icon-btn">${icon('settings')}</button>
+  </div>`;
+}
+
+function openRow([title, url, days], host) {
+  return `<li class="row"><button type="button" class="row-main">${tile(host)}<span class="t"><span class="title">${esc(title)}</span><span class="url">${esc(url)}</span></span></button>
+    <span class="age">used ${ago(days)}</span>
+    <span class="actions"><button type="button" class="icon-btn" title="Save &amp; close">${icon('save')}</button><button type="button" class="icon-btn">${icon('close')}</button><button type="button" class="icon-btn">${icon('more')}</button></span></li>`;
+}
+
+function group(name, host, rows, open = false, rowFn = openRow) {
+  return `<details class="group" ${open ? 'open' : ''}><summary>
+    <span class="chev">${icon('chevron')}</span><span class="mini-stack">${tile(host)}</span>
+    <span class="g-name">${esc(name)}</span><span class="g-meta">${rows.length}</span><span class="g-spacer"></span>
+    <button type="button" class="icon-btn" title="Save &amp; close group">${icon('save')}</button><button type="button" class="icon-btn">${icon('more')}</button>
+  </summary><ul class="rows">${rows.map(r => rowFn(r, host)).join('')}</ul></details>`;
+}
+
+const staleTabs = () => OPEN.flatMap(([name, host, rows]) => rows.filter(r => r[2] >= STALE_DAYS).map(r => [r, host]));
+
+function viewStaleB() {
+  const stale = staleTabs();
+  // Collapsed by default; the same actions as any group: save & close all, and ⋯ for close all / save all.
+  const staleCard = `<details class="group stale"><summary>
+    <span class="chev">${icon('chevron')}</span><span class="stale-icon">${icon('clock')}</span>
+    <span class="g-name">Not used for ${STALE_DAYS}+ days</span><span class="g-meta">${stale.length}</span><span class="g-spacer"></span>
+    <button type="button" class="icon-btn" title="Save &amp; close all">${icon('save')}</button>
+    <button type="button" class="icon-btn" data-stale-menu title="More">${icon('more')}</button>
+  </summary><ul class="rows">${stale.map(([r, host]) => openRow(r, host)).join('')}</ul></details>`;
+  return `${head('groups')}<div class="body"><div class="groups">${staleCard}${OPEN.map(([name, host, rows], i) => group(name, host, rows, i === 0)).join('')}</div></div>`;
+}
+
+let staleOnly = false;
+function viewStaleA() {
+  const stale = staleTabs();
+  const chips = `<div class="filters"><button type="button" class="chip" data-stale aria-pressed="${staleOnly}">${icon('clock')} Stale · ${stale.length}</button>
+    ${staleOnly ? `<button type="button" class="btn save-btn">${icon('save')} Save &amp; close all (${stale.length})</button>` : ''}</div>`;
+  const groups = OPEN.map(([name, host, rows], i) => {
+    const shown = staleOnly ? rows.filter(r => r[2] >= STALE_DAYS) : rows;
+    return shown.length ? group(name, host, shown, staleOnly || i === 0) : '';
+  }).join('');
+  return `${head('groups')}${chips}<div class="body"><div class="groups">${groups}</div></div>`;
+}
+
+let topic = 'All';
+function savedRow([title, url, days, rowTopic], host) {
+  return `<li class="row"><button type="button" class="row-main">${tile(host)}<span class="t"><span class="title">${esc(title)}</span><span class="url">${esc(url)}</span></span></button>
+    ${rowTopic ? `<span class="topic-pill">${esc(rowTopic)}</span>` : ''}<span class="age">saved ${ago(days)}</span>
+    <span class="actions"><button type="button" class="icon-btn" title="Open">${icon('open')}</button><button type="button" class="icon-btn" title="Remove from library">${icon('close')}</button><button type="button" class="icon-btn">${icon('more')}</button></span></li>`;
+}
+function viewLibrary() {
+  const count = t => SAVED.flatMap(g => g[2]).filter(r => t === 'All' || r[3] === t).length;
+  const chips = `<div class="filters">${['All', ...TOPICS].map(t => `<button type="button" class="chip" data-topic="${esc(t)}" aria-pressed="${t === topic}">${esc(t)} · ${count(t)}</button>`).join('')}
+    <button type="button" class="chip add">${icon('plus')} New topic</button></div>`;
+  const groups = SAVED.map(([name, host, rows], i) => {
+    const shown = rows.filter(r => topic === 'All' || r[3] === topic);
+    return shown.length ? group(name, host, shown, i < 2, savedRow).replace(/title="Save &amp; close group">.*?<\/button>/, 'title="Open group">' + icon('open') + '</button>') : '';
+  }).join('');
+  return `${head('library')}${chips}<div class="body"><div class="groups">${groups}</div></div>`;
+}
+
+const VIEWS = { 'stale-b': viewStaleB, 'stale-a': viewStaleA, library: viewLibrary };
+const HINTS = {
+  'stale-b': 'B: a stale group on top, collapsed. The bookmark icon saves all its tabs to the Library and closes them; ⋯ has Save & close all, Save all (keep open) and Close all.',
+  'stale-a': 'A: a "Stale" chip under the header filters the list to stale tabs; the bulk action appears while it is on.',
+  library: 'Draft of the Library view: topic chips (folders in bookmarks), the usual groups, "saved … ago", open / remove / ⋯ (move to topic).',
+};
+let view = 'stale-b';
+function render() {
+  document.getElementById('hint').textContent = HINTS[view];
+  for (const b of document.querySelectorAll('[data-v]')) b.setAttribute('aria-pressed', String(b.dataset.v === view));
+  const app = document.getElementById('app');
+  app.innerHTML = VIEWS[view]();
+}
+document.querySelector('.preview-bar').addEventListener('click', e => {
+  const b = e.target.closest('[data-v]');
+  if (b) { view = b.dataset.v; render(); }
+});
+document.getElementById('app').addEventListener('click', e => {
+  const more = e.target.closest('[data-stale-menu]');
+  if (more) {
+    e.preventDefault();
+    const menu = document.getElementById('stale-menu');
+    const r = more.getBoundingClientRect();
+    menu.style.top = `${r.bottom + 4}px`;
+    menu.style.left = `${r.right - 260}px`;
+    menu.togglePopover();
+    return;
+  }
+  if (e.target.closest('[data-stale]')) { staleOnly = !staleOnly; render(); }
+  const t = e.target.closest('[data-topic]');
+  if (t) { topic = t.dataset.topic; render(); }
+});
+document.getElementById('theme').addEventListener('click', () => {
+  const root = document.documentElement;
+  root.style.colorScheme = root.style.colorScheme === 'dark' ? 'light' : 'dark';
+});
+render();
+</script>
+</body>
+</html>
