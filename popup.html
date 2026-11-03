@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="color-scheme" content="light dark">
+<title>oh-my-tabs</title>
+<link rel="stylesheet" href="popup.css">
+<script type="module" src="popup.js"></script>
+</head>
+<body>
+<main class="app" id="app">
+  <div class="head">
+    <input class="search" id="search" type="search" placeholder="Search tabs, URLs, groups…" autocomplete="off" aria-label="Search tabs" autofocus>
+    <div class="seg" role="group" aria-label="View">
+      <button type="button" data-view="groups" aria-pressed="true">Groups</button>
+      <button type="button" data-view="windows" aria-pressed="false">Windows</button>
+    </div>
+    <button type="button" class="btn danger" id="close-dups">Close duplicates</button>
+    <button type="button" class="icon-btn" id="open-page" title="Open as page" aria-label="Open as page">⤢</button>
+    <button type="button" class="icon-btn" id="settings-button" popovertarget="settings" title="Settings" aria-label="Settings">⚙</button>
+  </div>
+  <div class="results-bar" id="results-bar"></div>
+  <div class="body" id="body"></div>
+</main>
+
+<div popover id="settings" class="settings">
+  <div>
+    <h3>Display</h3>
+    <label>Developer mode <input type="checkbox" class="switch" id="s-dev"></label>
+  </div>
+  <div>
+    <h3>Sort tabs</h3>
+    <label><input type="radio" name="sort" value="recent"> Recent</label>
+    <label><input type="radio" name="sort" value="order"> Tab order</label>
+  </div>
+  <div>
+    <h3>Shortcuts</h3>
+    <div class="shortcuts" id="shortcuts"></div>
+    <button type="button" class="btn" id="change-shortcuts">Change…</button>
+  </div>
+</div>
+
+<div popover id="move-menu" class="menu" role="menu" aria-label="Move to window"></div>
+
+<dialog id="confirm">
+  <p id="confirm-text"></p>
+  <form method="dialog">
+    <button class="btn" value="cancel">Cancel</button>
+    <button class="btn danger" value="ok" autofocus>Close tabs</button>
+  </form>
+</dialog>
+</body>
+</html>

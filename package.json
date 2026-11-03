@@ -1,0 +1,9 @@
+{
+  "name": "oh-my-tabs",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test",
+    "firefox": "node scripts/firefox.js"
+  }
+}

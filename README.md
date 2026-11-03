@@ -7,7 +7,9 @@ See [docs/spec.md](docs/spec.md) for the full spec and [GLOSSARY.md](GLOSSARY.md
 ## Install (unpacked)
 
 - **Chrome**: open `chrome://extensions`, turn on *Developer mode*, click *Load unpacked* and choose this folder.
-- **Firefox**: open `about:debugging#/runtime/this-firefox`, click *Load Temporary Add-on…* and choose `manifest.json`.
+- **Firefox**: run `npm run firefox`, open `about:debugging#/runtime/this-firefox`, click *Load Temporary Add-on…* and choose `dist/firefox/manifest.json`.
+
+In Chrome, popup changes show the next time you open it. Changes to `background.js`, `rules.js` (the badge uses it) or `manifest.json` need the reload button on `chrome://extensions`.
 
 ## Test
 
