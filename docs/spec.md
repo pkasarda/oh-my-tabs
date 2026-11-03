@@ -15,7 +15,7 @@ oh-my-tabs is a browser extension that shows every open tab sorted into groups a
   - Chrome serves them from its own cache through `/_favicon/`.
   - Firefox shows `tab.favIconUrl`.
   - A letter tile is shown when neither has an icon.
-- Firefox manifest: `gecko.id` is `oh-my-tabs@pkasarda` and `data_collection_permissions` is `{"required": ["none"]}`. The extension sends no data anywhere.
+- Firefox manifest: `gecko.id` is `oh-my-tabs@pixelcherry.eu` (`oh-my-tabs@pkasarda` belonged to a deleted AMO listing and can never be reused) and `data_collection_permissions` is `{"required": ["none"]}`. The extension sends no data anywhere.
 - Plain JS modules, hand-written CSS, no build step ([ADR 0002](adr/0002-vanilla-js-no-build.md)).
 - It never touches the browser's native tab groups ([ADR 0001](adr/0001-groups-are-a-view-not-browser-tab-groups.md)).
 - UI text is English. Light or dark follows `prefers-color-scheme`.
