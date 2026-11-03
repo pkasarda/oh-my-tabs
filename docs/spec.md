@@ -126,9 +126,18 @@ When developer mode is off, only the generic rules apply. The badge count can th
 ### Windows view (secondary)
 
 - Windows are stacked vertically, one full-width card each.
-- A card shows the window name and the tab count.
-  - The window name is the window's biggest group plus how many other groups it holds, e.g. `pkasarda/oh-my-tabs & 3 more`.
+- A card header shows the window name, `This window` or `Window N`, and the window actions.
+  - The window name is the window's biggest group plus how many other groups it holds, e.g. `pkasarda/oh-my-tabs & 3 more`. Clicking it brings the window to the front.
   - The current window is highlighted.
+  - Actions:
+    - `New tab`.
+    - `Minimize`, which becomes `Restore` on a minimized window. Restoring focuses the window, which returns it to its previous state.
+    - `Close window`. It asks for confirmation above 10 tabs.
+- Under the header, a stats line reads like `59 tabs · 12 sites · 3 dups · active 5 h ago · oldest used 4 wk ago`.
+  - Sites are distinct web hostnames.
+  - The times come from the tabs' `lastAccessed`.
+  - A monitor icon's tooltip gives the window state and size, e.g. `maximized · 2560×985`.
+- In the groups view, clicking a tab's window label switches to the windows view and scrolls to that window.
 - Each group in a window is a stack showing up to 5 overlapping 32 px favicons plus `+N`, with the group name under it.
 - On hover (after a 60 ms delay) or keyboard focus, the stack spreads out into a panel that lies over the card. The panel shows the group name and every favicon, wrapping onto more rows as needed. Nothing else in the window moves.
 - The animation is a FLIP on `translate` only: 200 ms, `cubic-bezier(0.23, 1, 0.32, 1)`, a 12 ms stagger. With `prefers-reduced-motion` it opens without motion.
@@ -157,6 +166,9 @@ When developer mode is off, only the generic rules apply. The badge count can th
 ## Out of v1 (roadmap issues)
 
 - Tab actions: pin, discard, sort and mute.
+- Window actions:
+  - Save a window for later (sessions).
+  - Name or color a window. Window ids change on browser restart, so names need a stable key.
 - More site rules: Datadog, Sentry, Vercel, Stack Overflow, …
 - Publishing to AMO and the Chrome Web Store.
 - A real icon.

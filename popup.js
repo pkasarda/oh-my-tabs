@@ -1,4 +1,4 @@
-import { groupName, findDuplicates } from './rules.js';
+import { groupName, findDuplicates, isWeb } from './rules.js';
 
 globalThis.browser ??= chrome;
 
@@ -11,7 +11,7 @@ const VISIBLE_IN_STACK = 5;
 const state = {
   ...SETTINGS,
   query: '', selected: -1,
-  tabs: [], windows: [], currentWindow: null, ownTabId: null, duplicates: 0,
+  tabs: [], windows: [], windowInfo: new Map(), currentWindow: null, ownTabId: null, duplicates: 0,
   openGroups: new Set(), openKeepers: new Set(),
 };
 
@@ -30,6 +30,9 @@ const ICONS = {
   closeCopies: '<path d="m12 12 6 6"/><path d="m12 18 6-6"/><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/>',
   chevron: '<path d="m9 18 6-6-6-6"/>',
   plus: '<path d="M5 12h14"/><path d="M12 5v14"/>',
+  minimize: '<path d="M5 12h14"/>',
+  restore: '<rect width="20" height="16" x="2" y="4" rx="2"/><path d="M2 8h20"/>',
+  monitor: '<rect width="20" height="14" x="2" y="3" rx="2"/><path d="M8 21h8"/><path d="M12 17v4"/>',
 };
 
 function icon(name) {
@@ -53,6 +56,7 @@ async function load() {
   ]);
   windows.sort((a, b) => a.id - b.id);
   state.windows = windows.map(w => w.id);
+  state.windowInfo = new Map(windows.map(w => [w.id, { state: w.state, width: w.width, height: w.height }]));
   state.currentWindow = current.id;
   state.tabs = windows.flatMap(w => w.tabs).filter(tab => tab.id !== state.ownTabId);
   for (const tab of state.tabs) tab.url ||= tab.pendingUrl ?? '';
@@ -109,6 +113,36 @@ function windowName(windowId) {
   return rest > 0 ? `${groups[0][0]} & ${rest} more` : groups[0][0];
 }
 
+// "5 h ago", "4 wk ago": short enough for the window stats line.
+function ago(timestamp) {
+  const seconds = (Date.now() - timestamp) / 1000;
+  if (seconds < 60) return 'just now';
+  const units = [[60, 'min'], [24, 'h'], [7, 'd'], [4.35, 'wk'], [12, 'mo'], [Infinity, 'y']];
+  let value = seconds / 60;
+  for (const [size, unit] of units) {
+    if (value < size) return `${Math.floor(value)} ${unit} ago`;
+    value /= size;
+  }
+  return '';
+}
+
+function plural(count, word) {
+  return `${count} ${word}${count === 1 ? '' : 's'}`;
+}
+
+function windowStats(windowId) {
+  const tabs = tabsIn(windowId);
+  const sites = new Set(tabs.filter(tab => isWeb(tab.url)).map(tab => new URL(tab.url).hostname.replace(/^www\./, '')));
+  const dups = tabs.filter(tab => tab.isDup).length;
+  const used = tabs.map(tab => tab.lastAccessed).filter(Number.isFinite);
+  const parts = [plural(tabs.length, 'tab'), plural(sites.size, 'site')];
+  if (dups) parts.push(`<span class="dup-count">${plural(dups, 'dup')}</span>`);
+  if (used.length) parts.push(`active ${ago(Math.max(...used))}`, `oldest used ${ago(Math.min(...used))}`);
+  const info = state.windowInfo.get(windowId);
+  const shape = `${info.state} · ${info.width}×${info.height}`;
+  return `${parts.join(' · ')} <span class="win-shape" title="${esc(shape)}" aria-label="${esc(shape)}">${icon('monitor')}</span>`;
+}
+
 // ---------- favicons ----------
 function tileSrc(text) {
   let hue = 0;
@@ -151,11 +185,14 @@ document.addEventListener('error', event => {
 }, true);
 
 // ---------- rendering ----------
-function windowLabel(windowId) {
+// interactive: a button that shows the window in the Windows view (not inside the move menu's buttons).
+function windowLabel(windowId, { interactive = false } = {}) {
   const n = state.windows.indexOf(windowId) + 1;
   const current = windowId === state.currentWindow;
   const title = `Window ${n}${current ? ' (this window)' : ''}: ${windowName(windowId)}`;
-  return `<span class="wl-icon${current ? ' cur' : ''}" title="${esc(title)}">${n}</span>`;
+  const cls = `wl-icon${current ? ' cur' : ''}`;
+  if (!interactive) return `<span class="${cls}" title="${esc(title)}">${n}</span>`;
+  return `<button type="button" class="${cls}" data-show-window="${windowId}" title="${esc(title)} · show window" aria-label="Show window ${n}">${n}</button>`;
 }
 
 function shortUrl(url) {
@@ -179,7 +216,7 @@ function rowHtml(tab, nested = false) {
     ${favicon(tab)}
     <span class="t"><span class="title">${esc(tab.title || tab.url)}</span><span class="url">${esc(shortUrl(tab.url))}</span></span>
     ${copiesButton(tab)}
-    ${windowLabel(tab.windowId)}
+    ${windowLabel(tab.windowId, { interactive: true })}
     <span class="actions">
       <button type="button" class="icon-btn" data-move-tab="${tab.id}" title="Move to…" aria-label="Move to window">${icon('move')}</button>
       <button type="button" class="icon-btn" data-close="${tab.id}" title="Close tab" aria-label="Close tab">${icon('close')}</button>
@@ -244,8 +281,19 @@ function renderWindows(list) {
       </div>`;
     }).join('');
     const current = windowId === state.currentWindow;
-    return `<section class="win${current ? ' cur' : ''}" data-drop-w="${windowId}">
-      <div class="win-head"><span class="win-name" title="${esc(windowName(windowId))}">${esc(windowName(windowId))}</span><span class="win-count">${current ? 'This window' : `Window ${n}`} · ${members.length} tab${members.length === 1 ? '' : 's'}</span></div>
+    const minimized = state.windowInfo.get(windowId).state === 'minimized';
+    const name = esc(windowName(windowId));
+    return `<section class="win${current ? ' cur' : ''}" id="win-${windowId}" data-drop-w="${windowId}">
+      <div class="win-head">
+        <button type="button" class="win-name" data-focus-window="${windowId}" title="${name} · bring to front">${name}</button>
+        <span class="win-count">${current ? 'This window' : `Window ${n}`}</span>
+        <span class="win-actions">
+          <button type="button" class="icon-btn" data-new-tab="${windowId}" title="New tab in this window" aria-label="New tab in this window">${icon('plus')}</button>
+          <button type="button" class="icon-btn" data-minimize="${windowId}" title="${minimized ? 'Restore' : 'Minimize'} this window" aria-label="${minimized ? 'Restore' : 'Minimize'} this window">${icon(minimized ? 'restore' : 'minimize')}</button>
+          <button type="button" class="icon-btn" data-close-window="${windowId}" title="Close this window" aria-label="Close this window">${icon('close')}</button>
+        </span>
+      </div>
+      <div class="win-stats">${windowStats(windowId)}</div>
       <div class="stacks">${stacks}</div>
     </section>`;
   }).join('');
@@ -356,8 +404,49 @@ moveMenu.addEventListener('keydown', event => {
 });
 
 // ---------- list events ----------
+// Window actions in the Windows view, and the window glyph that leads there.
+async function handleWindowClick(target) {
+  const show = target.closest('[data-show-window]');
+  if (show) {
+    await saveSetting('view', 'windows');
+    render();
+    const card = document.getElementById(`win-${show.dataset.showWindow}`);
+    card?.scrollIntoView({ block: 'start' });
+    card?.querySelector('.win-name').focus();
+    return true;
+  }
+  const focus = target.closest('[data-focus-window]');
+  if (focus) {
+    await browser.windows.update(Number(focus.dataset.focusWindow), { focused: true });
+    if (!IS_PAGE) window.close();
+    return true;
+  }
+  const newTab = target.closest('[data-new-tab]');
+  if (newTab) {
+    await browser.tabs.create({ windowId: Number(newTab.dataset.newTab) });
+    return true;
+  }
+  const minimize = target.closest('[data-minimize]');
+  if (minimize) {
+    const windowId = Number(minimize.dataset.minimize);
+    // Focusing a minimized window restores it to its previous state.
+    if (state.windowInfo.get(windowId).state === 'minimized') await browser.windows.update(windowId, { focused: true });
+    else await browser.windows.update(windowId, { state: 'minimized' });
+    refresh();
+    return true;
+  }
+  const closeWindow = target.closest('[data-close-window]');
+  if (closeWindow) {
+    const windowId = Number(closeWindow.dataset.closeWindow);
+    if (await confirmClose(tabsIn(windowId).length)) await browser.windows.remove(windowId);
+    return true;
+  }
+  return false;
+}
+
 body.addEventListener('click', async event => {
   const target = event.target;
+  if (await handleWindowClick(target)) return;
   const closeGroupDups = target.closest('[data-close-group-dups]');
   if (closeGroupDups) {
     // Never asks: every keeper stays open, so no page is lost.
