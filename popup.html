@@ -16,8 +16,8 @@
       <button type="button" data-view="windows" aria-pressed="false">Windows</button>
     </div>
     <button type="button" class="btn danger" id="close-dups">Close duplicates</button>
-    <button type="button" class="icon-btn" id="open-page" title="Open as page" aria-label="Open as page" data-icon="page"></button>
-    <button type="button" class="icon-btn" id="settings-button" popovertarget="settings" title="Settings" aria-label="Settings" data-icon="settings"></button>
+    <button type="button" class="icon-btn" id="open-page" data-tip="Open as page" aria-label="Open as page" data-icon="page"></button>
+    <button type="button" class="icon-btn" id="settings-button" popovertarget="settings" data-tip="Settings" aria-label="Settings" data-icon="settings"></button>
   </div>
   <div class="results-bar" id="results-bar"></div>
   <div class="body" id="body"></div>
@@ -41,6 +41,8 @@
 </div>
 
 <div popover id="move-menu" class="menu" role="menu" aria-label="Move to window"></div>
+
+<div popover="manual" id="tip" class="tip" role="tooltip"></div>
 
 <dialog id="confirm">
   <p id="confirm-text"></p>

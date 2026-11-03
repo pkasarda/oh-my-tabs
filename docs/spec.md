@@ -89,6 +89,11 @@ When developer mode is off, only the generic rules apply. The badge count can th
 
 `popup.html` serves as the popup and also as a full page in a tab (`Open as page`). The full page uses a wider layout and leaves its own tab out of the list. While open, the UI re-renders whenever a tab event fires.
 
+- Tooltips are oh-my-tabs' own (`data-tip`), never native `title` attributes, whose tooltip shows only after about a second.
+  - The first tooltip shows after 150 ms. Moving on to the next one within 400 ms shows it at once.
+  - Tooltips also show on keyboard focus.
+- Everything clickable has a pointer cursor.
+
 ### Header
 
 - Search field, focused on open.

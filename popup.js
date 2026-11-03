@@ -137,7 +137,7 @@ function windowStats(windowId) {
   if (used.length) parts.push(`active ${ago(Math.max(...used))}`, `oldest used ${ago(Math.min(...used))}`);
   const info = state.windowInfo.get(windowId);
   const shape = `${info.state} · ${info.width}×${info.height}`;
-  return `${parts.join(' · ')} <span class="win-shape" title="${esc(shape)}" aria-label="${esc(shape)}">${icon('monitor')}</span>`;
+  return `${parts.join(' · ')} <span class="win-shape" data-tip="${esc(shape)}" aria-label="${esc(shape)}">${icon('monitor')}</span>`;
 }
 
 // ---------- favicons ----------
@@ -188,8 +188,8 @@ function windowLabel(windowId, { interactive = false } = {}) {
   const current = windowId === state.currentWindow;
   const title = `Window ${n}${current ? ' (this window)' : ''}: ${windowName(windowId)}`;
   const cls = `wl-icon${current ? ' cur' : ''}`;
-  if (!interactive) return `<span class="${cls}" title="${esc(title)}">${n}</span>`;
-  return `<button type="button" class="${cls}" data-show-window="${windowId}" title="${esc(title)} · show window" aria-label="Show window ${n}">${n}</button>`;
+  if (!interactive) return `<span class="${cls}" data-tip="${esc(title)}">${n}</span>`;
+  return `<button type="button" class="${cls}" data-show-window="${windowId}" data-tip="${esc(title)} · show window" aria-label="Show window ${n}">${n}</button>`;
 }
 
 function shortUrl(url) {
@@ -207,10 +207,10 @@ function copiesButton(tab) {
   // A copy shown on its own row: its keeper is not in this list (another window in the Windows view).
   if (tab.isDup) {
     const n = state.windows.indexOf(tab.set.keeper.windowId) + 1;
-    return `<span class="copy-pill" title="Copy of a tab in window ${n}">copy</span>`;
+    return `<span class="copy-pill" data-tip="Copy of a tab in window ${n}">copy</span>`;
   }
   const copies = tab.set.size - 1;
-  return `<button type="button" class="copies" data-copies="${tab.id}" title="Show copies">+${copies} ${copies === 1 ? 'copy' : 'copies'}</button>`;
+  return `<button type="button" class="copies" data-copies="${tab.id}" data-tip="Show copies">+${copies} ${copies === 1 ? 'copy' : 'copies'}</button>`;
 }
 
 function rowHtml(tab, nested = false) {
@@ -220,8 +220,8 @@ function rowHtml(tab, nested = false) {
     ${nested ? '' : copiesButton(tab)}
     ${windowLabel(tab.windowId, { interactive: true })}
     <span class="actions">
-      <button type="button" class="icon-btn" data-move-tab="${tab.id}" title="Move to…" aria-label="Move to window">${icon('move')}</button>
-      <button type="button" class="icon-btn" data-close="${tab.id}" title="Close tab" aria-label="Close tab">${icon('close')}</button>
+      <button type="button" class="icon-btn" data-move-tab="${tab.id}" data-tip="Move to…" aria-label="Move to window">${icon('move')}</button>
+      <button type="button" class="icon-btn" data-close="${tab.id}" data-tip="Close tab" aria-label="Close tab">${icon('close')}</button>
     </span>
   </li>`;
 }
@@ -253,9 +253,9 @@ function renderGroups(list) {
         <span class="g-meta">${members.length}</span>
         ${dups ? `<span class="dup-count">${dups} dup${dups === 1 ? '' : 's'}</span>` : ''}
         <span class="g-spacer"></span>
-        ${dups ? `<button type="button" class="icon-btn" data-close-group-dups="${esc(name)}" title="Close duplicates in group" aria-label="Close duplicates in group">${icon('closeCopies')}</button>` : ''}
-        <button type="button" class="icon-btn" data-move-group="${esc(name)}" title="Move group to…" aria-label="Move group to window">${icon('move')}</button>
-        <button type="button" class="icon-btn" data-close-group="${esc(name)}" title="Close group" aria-label="Close group">${icon('close')}</button>
+        ${dups ? `<button type="button" class="icon-btn" data-close-group-dups="${esc(name)}" data-tip="Close duplicates in group" aria-label="Close duplicates in group">${icon('closeCopies')}</button>` : ''}
+        <button type="button" class="icon-btn" data-move-group="${esc(name)}" data-tip="Move group to…" aria-label="Move group to window">${icon('move')}</button>
+        <button type="button" class="icon-btn" data-close-group="${esc(name)}" data-tip="Close group" aria-label="Close group">${icon('close')}</button>
       </summary>
       <ul class="rows">${groupRows(sortTabs(members))}</ul>
     </details>`;
@@ -299,10 +299,10 @@ function renderWindows(list) {
         <span class="mini-stack">${groups.slice(0, 4).map(([, [first]]) => favicon(first)).join('')}</span>
         <span class="win-title"><span class="g-name">${esc(windowName(windowId))}</span><span class="win-stats">${windowStats(windowId)}</span></span>
         <span class="g-spacer"></span>
-        <button type="button" class="icon-btn" data-focus-window="${windowId}" title="Bring this window to the front" aria-label="Bring this window to the front">${icon('page')}</button>
-        <button type="button" class="icon-btn" data-new-tab="${windowId}" title="New tab in this window" aria-label="New tab in this window">${icon('plus')}</button>
-        <button type="button" class="icon-btn" data-minimize="${windowId}" title="${minimized ? 'Restore' : 'Minimize'} this window" aria-label="${minimized ? 'Restore' : 'Minimize'} this window">${icon(minimized ? 'restore' : 'minimize')}</button>
-        <button type="button" class="icon-btn" data-close-window="${windowId}" title="Close this window" aria-label="Close this window">${icon('close')}</button>
+        <button type="button" class="icon-btn" data-focus-window="${windowId}" data-tip="Bring this window to the front" aria-label="Bring this window to the front">${icon('page')}</button>
+        <button type="button" class="icon-btn" data-new-tab="${windowId}" data-tip="New tab in this window" aria-label="New tab in this window">${icon('plus')}</button>
+        <button type="button" class="icon-btn" data-minimize="${windowId}" data-tip="${minimized ? 'Restore' : 'Minimize'} this window" aria-label="${minimized ? 'Restore' : 'Minimize'} this window">${icon(minimized ? 'restore' : 'minimize')}</button>
+        <button type="button" class="icon-btn" data-close-window="${windowId}" data-tip="Close this window" aria-label="Close this window">${icon('close')}</button>
         <span class="win-count">${current ? 'This window' : `Window ${n}`}</span>
       </summary>
       <div class="win-body">
@@ -631,6 +631,57 @@ body.addEventListener('drop', event => {
   const ids = event.dataTransfer.getData('text/plain').split(',').filter(Boolean).map(Number);
   moveTabs(ids, win.dataset.dropW === 'new' ? 'new' : Number(win.dataset.dropW));
 });
+
+// ---------- tooltips ----------
+// Our own instead of title attributes, whose native tooltip shows only after about a second.
+// The first one waits a moment; while moving from one to the next they show at once.
+const tip = $('#tip');
+const TIP_DELAY = 150;
+const TIP_WARM = 400;
+let tipFor = null;
+let tipTimer;
+let tipWarmUntil = 0;
+
+function placeTip(target) {
+  const anchor = target.getBoundingClientRect();
+  const box = tip.getBoundingClientRect();
+  let top = anchor.bottom + 6;
+  if (top + box.height > innerHeight - 4) top = anchor.top - box.height - 6;
+  const left = Math.min(Math.max(4, anchor.left + anchor.width / 2 - box.width / 2), innerWidth - box.width - 4);
+  tip.style.top = `${top}px`;
+  tip.style.left = `${left}px`;
+}
+
+function hideTip() {
+  clearTimeout(tipTimer);
+  tipFor = null;
+  if (!tip.matches(':popover-open')) return;
+  tip.hidePopover();
+  tipWarmUntil = Date.now() + TIP_WARM;
+}
+
+function tipTo(target) {
+  if (target === tipFor) return;
+  hideTip();
+  if (!target) return;
+  tipFor = target;
+  const delay = Date.now() < tipWarmUntil ? 0 : TIP_DELAY;
+  tipTimer = setTimeout(() => {
+    if (!target.isConnected) return;
+    tip.textContent = target.dataset.tip;
+    tip.showPopover();
+    placeTip(target);
+  }, delay);
+}
+
+document.addEventListener('pointerover', event => tipTo(event.target.closest('[data-tip]')));
+document.documentElement.addEventListener('pointerleave', hideTip);
+document.addEventListener('focusin', event => {
+  const target = event.target.closest('[data-tip]');
+  if (target?.matches(':focus-visible')) tipTo(target);
+});
+document.addEventListener('focusout', hideTip);
+for (const type of ['pointerdown', 'keydown', 'scroll', 'wheel']) document.addEventListener(type, hideTip, true);
 
 // ---------- start ----------
 for (const event of ['onCreated', 'onRemoved', 'onUpdated', 'onMoved', 'onAttached', 'onDetached', 'onReplaced']) {
