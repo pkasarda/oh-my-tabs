@@ -25,7 +25,7 @@
 </style>
 </head>
 <body>
-<h1>oh-my-tabs · icon options, round 2</h1>
+<h1>oh-my-tabs · icons</h1>
 <p class="lead">Each icon at 128, 48, 32 and 16 px, and in a light and a dark toolbar with the badge (red = duplicates, blue-gray = tab count). Judge them at 16 px: that is what you see every day.</p>
 <div class="grid" id="grid"></div>
 
@@ -41,75 +41,26 @@ const cursor = (x, y, color) => `<rect x="${x}" y="${y}" width="22" height="8" r
 
 const ICONS = {
   A1: {
-    name: 'A1 · OMT',
+    name: 'A1 · OMT (chosen: default icon)',
     note: 'The current style with OMT. Strong at 128 and 48; at 16 the three letters are only a texture.',
     svg: `<rect width="128" height="128" rx="28" fill="#4f46e5"/>
       <text x="64" y="78" text-anchor="middle" font-family="Menlo, ui-monospace, monospace" font-size="42" font-weight="700" letter-spacing="-1" fill="#fff">OMT</text>`,
   },
   A2: {
-    name: 'A2 · omt in a terminal',
+    name: 'A2 · omt in a terminal (chosen: developer mode)',
     note: 'OMT typed at a prompt: ➜ and a blinking-cursor bar. Ties the name to oh-my-zsh.',
     svg: `<rect width="128" height="128" rx="28" fill="#111827"/>
       ${prompt(20, 42, '#22c55e', 9)}
       <text x="46" y="69" font-family="Menlo, ui-monospace, monospace" font-size="34" font-weight="700" fill="#fff">omt</text>
       ${cursor(48, 84, '#22c55e')}`,
   },
-  B2: {
-    name: 'B2 · Tab strip',
-    note: 'Real tab shapes: three tabs in a strip, the active one opening into the window. Reads as "tabs" instantly.',
-    svg: `${grad('gB2', '#6366f1', '#4338ca')}<rect width="128" height="128" rx="28" fill="url(#gB2)"/>
-      <path d="${tab(62, 30, 50, 22)}" fill="#fff" opacity=".35"/>
-      <path d="${tab(38, 30, 50, 22)}" fill="#fff" opacity=".55"/>
-      <path d="${tab(10, 30, 52, 22)}" fill="#fff"/>
-      <rect x="10" y="51" width="108" height="50" rx="9" fill="#fff"/>`,
-  },
-  B3: {
-    name: 'B3 · Grouped tabs',
-    note: 'The same strip, each tab in a group color: "your tabs, grouped". Colorful, still simple.',
-    svg: `<rect width="128" height="128" rx="28" fill="#1e1b4b"/>
-      <path d="${tab(62, 30, 50, 22)}" fill="#f59e0b"/>
-      <path d="${tab(38, 30, 50, 22)}" fill="#22c55e"/>
-      <path d="${tab(10, 30, 52, 22)}" fill="#a5b4fc"/>
-      <rect x="10" y="51" width="108" height="50" rx="9" fill="#a5b4fc"/>`,
-  },
-  C2: {
-    name: 'C2 · Tabs + prompt (dark)',
-    note: 'B meets C: a browser window with tabs, and the oh-my-zsh ➜ prompt inside it.',
-    svg: `<rect width="128" height="128" rx="28" fill="#111827"/>
-      <path d="${tab(62, 26, 50, 22)}" fill="#374151"/>
-      <path d="${tab(38, 26, 50, 22)}" fill="#4b5563"/>
-      <path d="${tab(10, 26, 52, 22)}" fill="#e5e7eb"/>
-      <rect x="10" y="47" width="108" height="56" rx="9" fill="#e5e7eb"/>
-      ${prompt(32, 61, '#16a34a')}
-      ${cursor(58, 82, '#111827')}`,
-  },
-  C3: {
-    name: 'C3 · Tabs + prompt (indigo)',
-    note: 'The same window on the brand indigo: friendlier than C2, keeps the prompt.',
-    svg: `${grad('gC3', '#6366f1', '#4338ca')}<rect width="128" height="128" rx="28" fill="url(#gC3)"/>
-      <path d="${tab(62, 26, 50, 22)}" fill="#fff" opacity=".35"/>
-      <path d="${tab(38, 26, 50, 22)}" fill="#fff" opacity=".55"/>
-      <path d="${tab(10, 26, 52, 22)}" fill="#fff"/>
-      <rect x="10" y="47" width="108" height="56" rx="9" fill="#fff"/>
-      ${prompt(32, 61, '#16a34a')}
-      ${cursor(58, 82, '#4338ca')}`,
-  },
   B: {
-    name: 'B · Stacked tabs (round 1)',
-    note: 'For comparison.',
+    name: 'B · Stacked tabs (backup)',
+    note: 'Round 1, kept as a backup.',
     svg: `${grad('gB', '#6366f1', '#4338ca')}<rect width="128" height="128" rx="28" fill="url(#gB)"/>
       <path d="M38 30h26a8 8 0 0 1 7.4 5l3.2 8H98a8 8 0 0 1 8 8v8H30V38a8 8 0 0 1 8-8z" fill="#fff" opacity=".35"/>
       <path d="M30 44h26a8 8 0 0 1 7.4 5l3.2 8H90a8 8 0 0 1 8 8v8H22V52a8 8 0 0 1 8-8z" fill="#fff" opacity=".6"/>
       <path d="M22 58h26a8 8 0 0 1 7.4 5l3.2 8H98a8 8 0 0 1 8 8v19a8 8 0 0 1-8 8H22a8 8 0 0 1-8-8V66a8 8 0 0 1 8-8z" fill="#fff"/>`,
-  },
-  C: {
-    name: 'C · Prompt arrow (round 1)',
-    note: 'For comparison.',
-    svg: `<rect width="128" height="128" rx="28" fill="#111827"/>
-      <path d="M22 64h34M42 46l18 18-18 18" fill="none" stroke="#22c55e" stroke-width="12" stroke-linecap="round" stroke-linejoin="round"/>
-      <rect x="72" y="40" width="36" height="10" rx="5" fill="#e5e7eb"/>
-      <rect x="72" y="59" width="28" height="10" rx="5" fill="#9ca3af"/>
-      <rect x="72" y="78" width="36" height="10" rx="5" fill="#6b7280"/>`,
   },
 };
 

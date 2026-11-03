@@ -34,7 +34,7 @@ scripts/package.js   npm run package: the Chrome and Firefox zips for the stores
 store/               store screenshots and promo tile
 PRIVACY.md           privacy policy linked from both stores
 fonts/               Fira Code (woff2), the developer-mode font
-icons/               placeholder icon
+icons/               icon-* (default) and dev-* (developer mode), 16–128 px
 ```
 
 ## Rules (`rules.js`)
@@ -83,6 +83,7 @@ When developer mode is off, only the generic rules apply. The badge count can th
   - Recomputed from the open tabs on `tabs.onCreated`, `onRemoved`, `onReplaced`, `onActivated`, on `onUpdated` when `changeInfo.url` is set, and when developer mode changes. Recomputes are debounced by 150 ms, so a burst of closes ends in one count. Tabs that were just removed are left out, because Firefox can still list them.
   - A full recompute is cheap at 400+ tabs.
 - **Tooltip** (`action.setTitle`): `3 duplicates`, followed by up to 3 lines like `acme/oh-my-tabs #42 ×2`.
+- **Icon**: `OMT` on indigo (`icons/icon-*.png`). While developer mode is on, the toolbar icon is `omt` at a green prompt (`icons/dev-*.png`). It is set on install, on browser start and when the setting changes. Stores and `chrome://extensions` always show the default icon.
 - **Context menu on the toolbar icon**: `Close duplicates`.
 - **Commands**:
   - `_execute_action`: `Alt+Shift+O`.
@@ -213,5 +214,4 @@ The windows view uses the groups view's language one level up: window → group 
   - Save a window for later (sessions).
   - Name or color a window. Window ids change on browser restart, so names need a stable key.
 - More site rules: Datadog, Sentry, Vercel, Stack Overflow, …
-- A real icon.
 - Translations (i18n).

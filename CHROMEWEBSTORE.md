@@ -61,7 +61,7 @@ English
 
 | Asset | Dimensions | Status | Filename |
 |-------|-----------|--------|----------|
-| Store Icon | 128×128 PNG | 🟡 Placeholder ("ot"), see issue #12 | icons/icon-128.png |
+| Store Icon | 128×128 PNG | ✅ Ready ("OMT"; the toolbar shows "omt" at a prompt while developer mode is on) | icons/icon-128.png |
 | Screenshot 1 | 1280×800 | ✅ Ready | store/screenshot-1-groups.png |
 | Screenshot 2 | 1280×800 | ✅ Ready | store/screenshot-2-duplicates.png |
 | Screenshot 3 | 1280×800 | ✅ Ready | store/screenshot-3-windows.png |

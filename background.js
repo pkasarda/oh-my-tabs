@@ -9,6 +9,7 @@ const MENU_CLOSE_DUPLICATES = 'close-duplicates';
 // Only lives for one burst of events, so the worker still keeps no state between them.
 const justRemoved = new Set();
 
+const ICON_SIZES = [16, 32, 48, 128];
 const DUPLICATES_COLOR = '#d4483b';
 const TABS_COLOR = '#5b6478';
 
@@ -45,6 +46,17 @@ async function updateBadge() {
   await browser.action.setTitle({ title: [`${count} duplicate${count === 1 ? '' : 's'}`, ...lines].join('\n') });
 }
 
+// The toolbar icon says which mode is on: OMT normally, "omt" at a prompt in developer mode.
+async function updateIcon() {
+  const { dev } = await browser.storage.local.get(SETTINGS);
+  const prefix = dev ? 'dev' : 'icon';
+  await browser.action.setIcon({ path: Object.fromEntries(ICON_SIZES.map(size => [size, `icons/${prefix}-${size}.png`])) });
+}
+
+function refreshIcon() {
+  updateIcon().catch(error => console.error('oh-my-tabs: icon update failed', error));
+}
+
 // Never asks: every keeper stays open, so no page is lost.
 async function closeDuplicates() {
   const sets = await duplicateSets();
@@ -76,8 +88,12 @@ function refresh() {
 browser.runtime.onInstalled.addListener(() => {
   browser.contextMenus.create({ id: MENU_CLOSE_DUPLICATES, title: 'Close duplicates', contexts: ['action'] });
   refresh();
+  refreshIcon();
 });
-browser.runtime.onStartup.addListener(refresh);
+browser.runtime.onStartup.addListener(() => {
+  refresh();
+  refreshIcon();
+});
 
 browser.contextMenus.onClicked.addListener(info => {
   if (info.menuItemId === MENU_CLOSE_DUPLICATES) closeDuplicates();
@@ -105,5 +121,7 @@ browser.tabs.onUpdated.addListener((tabId, changeInfo) => {
 // lastAccessed decides the keeper, which the tooltip names.
 browser.tabs.onActivated.addListener(refresh);
 browser.storage.onChanged.addListener(changes => {
-  if (changes.dev) refresh();
+  if (!changes.dev) return;
+  refresh();
+  refreshIcon();
 });
