@@ -341,10 +341,24 @@ function groupRows(list) {
   return html.join('');
 }
 
+// A group with one tab is one click too many: such tabs are listed as plain rows under "1-tab sites".
+function splitSingles(groups) {
+  return {
+    multi: groups.filter(([, members]) => members.length > 1),
+    singles: groups.filter(([, members]) => members.length === 1).map(([, [only]]) => only),
+  };
+}
+
+function singlesHtml(singles, row) {
+  if (singles.length === 0) return '';
+  return `<div class="singles-head">1-tab sites · ${singles.length}</div><ul class="rows singles">${singles.map(row).join('')}</ul>`;
+}
+
 function renderGroups(list) {
   const groups = groupsOf(list);
   if (groups.length === 0) return '<div class="empty">No tabs match.</div>';
-  const html = groups.map(([name, members]) => {
+  const { multi, singles } = splitSingles(groups);
+  const html = multi.map(([name, members]) => {
     const open = state.query || state.openGroups.has(name);
     const dups = members.filter(tab => tab.isDup).length;
     return `<details class="group" data-key="${esc(name)}" ${open ? 'open' : ''}>
@@ -363,7 +377,8 @@ function renderGroups(list) {
       <ul class="rows">${groupRows(sortTabs(members))}</ul>
     </details>`;
   }).join('');
-  return `<div class="groups">${staleGroupHtml()}${html}</div>`;
+  const rows = singlesHtml(sortTabs(singles), tab => rowHtml(tab, false, singles));
+  return `<div class="groups">${staleGroupHtml()}${html}${rows}</div>`;
 }
 
 // Open, unpinned tabs not used for a while, oldest first, in a group of their own (collapsed by default).
@@ -415,7 +430,8 @@ function renderLibrary(list) {
   }
   const groups = groupsOf(list);
   if (groups.length === 0) return `${filters}<div class="empty">No saved tabs match.</div>`;
-  const html = groups.map(([name, members]) => {
+  const { multi, singles } = splitSingles(groups);
+  const html = multi.map(([name, members]) => {
     const key = `lib:${name}`;
     const open = state.query || state.topic !== 'All' || state.openGroups.has(key);
     members.sort((a, b) => b.dateAdded - a.dateAdded);
@@ -432,7 +448,8 @@ function renderLibrary(list) {
       <ul class="rows">${members.map(savedRowHtml).join('')}</ul>
     </details>`;
   }).join('');
-  return `${filters}<div class="groups">${html}</div>`;
+  const rows = singlesHtml(singles.sort((a, b) => b.dateAdded - a.dateAdded), savedRowHtml);
+  return `${filters}<div class="groups">${html}${rows}</div>`;
 }
 
 // Windows view (option E): a window looks like a group and opens into its groups, which open into tabs.
@@ -463,8 +480,7 @@ function renderWindows(list) {
     if (members.length === 0) return '';
     const n = state.windows.indexOf(windowId) + 1;
     const groups = groupsOf(members);
-    const multi = groups.filter(([, groupTabs]) => groupTabs.length > 1);
-    const singles = groups.filter(([, groupTabs]) => groupTabs.length === 1).map(([, [tab]]) => tab);
+    const { multi, singles } = splitSingles(groups);
     const current = windowId === state.currentWindow;
     const minimized = state.windowInfo.get(windowId).state === 'minimized';
     const key = `w:${windowId}`;
@@ -481,7 +497,7 @@ function renderWindows(list) {
       </summary>
       <div class="win-body">
         ${multi.map(([name, groupTabs]) => windowGroupHtml(windowId, name, groupTabs)).join('')}
-        ${singles.length ? `<div class="singles-head">1-tab sites · ${singles.length}</div><ul class="rows singles">${sortTabs(singles).map(tab => rowHtml(tab, false, singles)).join('')}</ul>` : ''}
+        ${singlesHtml(sortTabs(singles), tab => rowHtml(tab, false, singles))}
       </div>
     </details>`;
   }).join('');

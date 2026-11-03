@@ -262,6 +262,7 @@ Goal: you can close tabs without losing them, so you stop keeping hundreds open 
 ### Also in 1.1
 
 - Group headers in the Groups and Windows views get an inline **Move group to a new window** icon.
+- A group with a single tab is not a card: in the Groups and Library views, such tabs are plain rows under `1-tab sites · N`, after the groups, as in the Windows view.
 - The Library view hides `Close duplicates`, which is about open tabs.
 
 ### Out of 1.1
