@@ -259,6 +259,22 @@ Goal: you can close tabs without losing them, so you stop keeping hundreds open 
 - Every action asks above 10 tabs.
 - Tab rows show `used 2 wk ago` when the tab was last used more than a day ago.
 
+### Undo and the never list (1.1)
+
+- **Undo.** The last bulk close can be undone from a bar at the bottom of the popup, `Closed N tabs · Undo`, shown for 10 seconds.
+  - Bulk closes are Close group, Close results, Close window, Close all stale and every Save & close.
+  - Close duplicates has no undo, since every keeper stays open. A single × has none either; the browser's Reopen closed tab covers it.
+  - Before closing, the popup remembers each tab's URL, window, index and pinned state. Undo reopens them in the background in their window, or in the current window if that one is gone. A closed window comes back as a new window.
+  - More than 10 tabs reopen suspended: Firefox creates them discarded, Chrome discards them right after creating them.
+  - Back/forward history is not kept, and no new permission is needed. Saved tabs stay in the Library after an undo.
+  - Only the last bulk close is remembered, and only while the popup is open.
+- **Never list.** Sites that are never stale and never suspended in bulk.
+  - It is edited in ⚙ → Features (one site per line) and in a tab's ⋯ menu (`Never stale or suspend this site`, or `Allow stale and suspend for this site` when the site is listed).
+  - `slack.com` covers slack.com and its subdomains; `app.slack.com` covers that subdomain and the ones below it. Typed or pasted URLs are cleaned to their host (`neverEntry` in rules.js).
+  - It is stored in `storage.local`, not `storage.sync`, which would count as data sent off the device.
+  - Tabs playing sound are treated like pinned tabs: never stale, never suspended in bulk. `Suspend this tab` still works on any single tab.
+- **Store copy** leads with privacy: "Your tabs grouped by repo, project or site, with smart duplicate cleanup. No account, nothing leaves your device." That line is also the manifest description.
+
 ### Also in 1.1
 
 - Group headers in the Groups and Windows views get an inline **Move group to a new window** icon.

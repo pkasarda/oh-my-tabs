@@ -9,12 +9,12 @@ Upload `dist/oh-my-tabs-1.0.0-firefox.zip`, built by `npm run package`. It needs
 **Name**: oh-my-tabs
 **Add-on URL slug**: oh-my-tabs
 **Summary** (≤ 250 characters):
-Your tabs grouped by repo, Jira project or Linear team, with duplicates found even when the URLs differ. Search, move, suspend and close tabs across all windows.
+Your tabs grouped by repo, project or site, with smart duplicate cleanup and undo. Save tabs for later as bookmarks. No account, nothing leaves your device.
 
 **Description** (AMO supports some Markdown, no headings):
 
 ```
-**oh-my-tabs shows all your open tabs, from every window, grouped by site or project, and finds the duplicate tabs other tools miss.**
+**No account, no cloud, nothing leaves your device.** oh-my-tabs shows all your open tabs, from every window, grouped by site or project, and finds the duplicate tabs other tools miss. Closed a group by mistake? Undo brings it back.
 
 **Groups that match how you work:** with developer mode (on by default), tabs are grouped per GitHub, GitLab or Bitbucket repository, per Jira or Confluence project and per Linear team. Without it, by site. The biggest groups come first.
 

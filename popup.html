@@ -22,6 +22,7 @@
   </div>
   <div class="results-bar" id="results-bar"></div>
   <div class="body" id="body"></div>
+  <div class="undo-bar" id="undo-bar" role="status" hidden><span id="undo-text"></span><button type="button" class="btn" id="undo-button">Undo</button></div>
 </main>
 
 <div popover id="settings" class="settings">
@@ -39,6 +40,8 @@
       <select id="s-stale-days" aria-label="Stale after">
         <option value="3">3</option><option value="7">7</option><option value="14">14</option><option value="30">30</option>
       </select> days</label>
+    <label class="never-field" for="s-never">Never stale or suspend <span class="hint-text">one site per line; slack.com covers its subdomains</span></label>
+    <textarea id="s-never" rows="3" spellcheck="false" autocomplete="off" placeholder="slack.com"></textarea>
   </div>
   <div>
     <h3>Sort tabs</h3>

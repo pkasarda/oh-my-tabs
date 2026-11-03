@@ -1,9 +1,9 @@
-import { groupChain, rollUp, findDuplicates, isWeb, duplicateKey, staleTabs } from './rules.js';
+import { groupChain, rollUp, findDuplicates, isWeb, duplicateKey, staleTabs, isNeverListed, neverEntry } from './rules.js';
 import * as Library from './library.js';
 
 globalThis.browser ??= chrome;
 
-const SETTINGS = { dev: true, sort: 'recent', view: 'groups', stale: true, staleDays: 7 };
+const SETTINGS = { dev: true, sort: 'recent', view: 'groups', stale: true, staleDays: 7, never: [] };
 const DAY = 24 * 60 * 60 * 1000;
 const IS_PAGE = new URLSearchParams(location.search).has('page');
 const IS_FIREFOX = typeof browser.runtime.getBrowserInfo === 'function';
@@ -124,7 +124,7 @@ function savedMatches(item) {
 }
 
 function staleIds() {
-  return staleTabs(state.tabs, Date.now(), state.staleDays).map(tab => tab.id);
+  return staleTabs(state.tabs, Date.now(), state.staleDays, state.never).map(tab => tab.id);
 }
 
 function matches(tab) {
@@ -391,7 +391,7 @@ function renderGroups(list) {
 // Open, unpinned tabs not used for a while, oldest first, in a group of their own (collapsed by default).
 function staleGroupHtml() {
   if (!state.stale || state.query) return '';
-  const stale = staleTabs(state.tabs, Date.now(), state.staleDays).sort((a, b) => a.lastAccessed - b.lastAccessed);
+  const stale = staleTabs(state.tabs, Date.now(), state.staleDays, state.never).sort((a, b) => a.lastAccessed - b.lastAccessed);
   if (stale.length === 0) return '';
   const open = state.openGroups.has('stale');
   const save = state.libraryOn ? `<button type="button" class="icon-btn" data-save-stale data-tip="Save & close all" aria-label="Save & close all stale tabs">${icon('save')}</button>` : '';
@@ -624,13 +624,17 @@ async function confirmMany(count, verb = 'Close') {
 }
 
 // Browsers cannot suspend the active tab of a window; those and already suspended tabs are skipped.
-function suspendable(ids) {
-  return state.tabs.filter(tab => ids.includes(tab.id) && !tab.active && !tab.discarded).map(tab => tab.id);
+// In bulk, tabs playing sound and never-listed sites are kept awake too; "Suspend this tab" still works on them.
+function suspendable(ids, { bulk = true } = {}) {
+  return state.tabs
+    .filter(tab => ids.includes(tab.id) && !tab.active && !tab.discarded)
+    .filter(tab => !bulk || (!tab.audible && !isNeverListed(tab.url, state.never)))
+    .map(tab => tab.id);
 }
 
-async function suspendTabs(ids) {
+async function suspendTabs(ids, { bulk = true } = {}) {
   await load();
-  const targets = suspendable(ids);
+  const targets = suspendable(ids, { bulk });
   if (!(await confirmMany(targets.length, 'Suspend'))) return;
   // One at a time: Chrome's tabs.discard takes a single tab.
   for (const id of targets) await browser.tabs.discard(id).catch(() => {});
@@ -651,7 +655,7 @@ async function saveTabs(ids, { close = true, topic = null } = {}) {
   if (tabs.length === 0) return;
   if (!(await confirmMany(tabs.length, close ? 'Save & close' : 'Save'))) return;
   await Library.save(tabs, state.dev, topic);
-  if (close) await browser.tabs.remove(tabs.map(tab => tab.id));
+  if (close) await closeWithUndo(tabs.map(tab => tab.id));
   refresh();
 }
 
@@ -716,9 +720,26 @@ function moveItems(ids) {
   return [...windows, ...(windows.length ? ['-'] : []), { icon: 'plus', label: 'New window', run: () => moveTabs(ids, 'new') }];
 }
 
-function suspendItem(label, ids) {
-  const count = suspendable(ids).length;
-  return { icon: 'suspend', label: count > 1 ? `${label} · ${count}` : label, disabled: count === 0, run: () => suspendTabs(ids) };
+function suspendItem(label, ids, { bulk = true } = {}) {
+  const count = suspendable(ids, { bulk }).length;
+  return { icon: 'suspend', label: count > 1 ? `${label} · ${count}` : label, disabled: count === 0, run: () => suspendTabs(ids, { bulk }) };
+}
+
+// Adds the tab's site to the never list, or takes off every entry that covers it.
+function neverItem(tab) {
+  if (!isWeb(tab.url)) return null;
+  if (isNeverListed(tab.url, state.never)) {
+    const keep = state.never.filter(entry => !isNeverListed(tab.url, [entry]));
+    return { icon: 'clock', label: 'Allow stale and suspend for this site', run: () => saveNever(keep) };
+  }
+  return { icon: 'clock', label: 'Never stale or suspend this site', run: () => saveNever([...state.never, neverEntry(tab.url)]) };
+}
+
+async function saveNever(entries) {
+  const clean = [...new Set(entries.map(neverEntry).filter(Boolean))];
+  await saveSetting('never', clean);
+  $('#s-never').value = clean.join('\n');
+  render();
 }
 
 // Strips separators left at the start or end, or doubled, when optional items are missing.
@@ -754,7 +775,7 @@ function staleMenu() {
       { icon: 'save', label: `Save all, keep open${n}`, run: () => saveTabs(ids, { close: false }) },
       '-',
     ] : []),
-    { icon: 'close', label: `Close all without saving${n}`, danger: true, run: async () => { if (await confirmMany(ids.length)) await browser.tabs.remove(ids); } },
+    { icon: 'close', label: `Close all without saving${n}`, danger: true, run: async () => { if (await confirmMany(ids.length)) await closeWithUndo(ids); } },
   ]);
 }
 
@@ -787,9 +808,11 @@ function rowMenu(tab) {
     '-',
     tab.active
       ? { icon: 'suspend', label: 'Suspend this tab (it is active)', disabled: true }
-      : suspendItem('Suspend this tab', [tab.id]),
+      : suspendItem('Suspend this tab', [tab.id], { bulk: false }),
     suspendItem('Suspend other tabs in this group', others),
-  ]);
+    '-',
+    neverItem(tab),
+  ].filter(Boolean));
 }
 
 function groupMenu(name, windowId) {
@@ -799,7 +822,7 @@ function groupMenu(name, windowId) {
     { icon: 'move', label: 'Move group to', items: moveItems(ids) },
     suspendItem('Suspend group', ids),
     '-',
-    { icon: 'close', label: 'Close group', danger: true, run: async () => { if (await confirmMany(ids.length)) await browser.tabs.remove(ids); } },
+    { icon: 'close', label: 'Close group', danger: true, run: async () => { if (await confirmMany(ids.length)) await closeWithUndo(ids); } },
   ];
 }
 
@@ -811,7 +834,7 @@ function windowMenu(windowId) {
     { icon: 'plus', label: 'New tab', run: () => browser.tabs.create({ windowId }) },
     suspendItem('Suspend window', ids),
     '-',
-    { icon: 'close', label: 'Close window', danger: true, run: async () => { if (await confirmMany(ids.length)) await browser.windows.remove(windowId); } },
+    { icon: 'close', label: 'Close window', danger: true, run: async () => { if (await confirmMany(ids.length)) await closeWindowWithUndo(windowId); } },
   ];
 }
 
@@ -1057,7 +1080,7 @@ $('#results-bar').addEventListener('click', async event => {
   const ids = state.tabs.filter(matches).map(tab => tab.id);
   if (event.target.id === 'save-results') await saveTabs(ids);
   if (event.target.id === 'move-results') await moveTabs(ids, 'new');
-  if (event.target.id === 'close-results' && await confirmMany(ids.length)) await browser.tabs.remove(ids);
+  if (event.target.id === 'close-results' && await confirmMany(ids.length)) await closeWithUndo(ids);
 });
 
 $('#close-dups').addEventListener('click', () => closeDuplicates());
@@ -1130,6 +1153,7 @@ $('#s-stale').addEventListener('change', async event => {
   await saveSetting('stale', event.target.checked);
   render();
 });
+$('#s-never').addEventListener('change', event => saveNever(event.target.value.split('\n')));
 $('#s-stale-days').addEventListener('change', async event => {
   await saveSetting('staleDays', Number(event.target.value));
   render();
@@ -1186,6 +1210,73 @@ body.addEventListener('drop', event => {
   const ids = event.dataTransfer.getData(DRAG_TYPE).split(',').filter(Boolean).map(Number);
   if (ids.length === 0 || ids.some(Number.isNaN)) return;
   moveTabs(ids, win.dataset.dropW === 'new' ? 'new' : Number(win.dataset.dropW));
+});
+
+// ---------- undo ----------
+// The last bulk close (not Close duplicates, which loses nothing) can be undone while the popup stays open.
+// Its tabs reopen in the background where they were; their back/forward history is not kept.
+const UNDO_SECONDS = 10;
+let undo = null;
+let undoTimer;
+
+function snapshotOf(ids) {
+  return state.tabs
+    .filter(tab => ids.includes(tab.id))
+    .sort((a, b) => a.index - b.index)
+    .map(tab => ({ url: tab.url, windowId: tab.windowId, index: tab.index, pinned: tab.pinned }));
+}
+
+function showBar(text, withUndo) {
+  $('#undo-text').textContent = text;
+  $('#undo-button').hidden = !withUndo;
+  $('#undo-bar').hidden = false;
+  clearTimeout(undoTimer);
+  undoTimer = setTimeout(() => {
+    $('#undo-bar').hidden = true;
+    undo = null;
+  }, (withUndo ? UNDO_SECONDS : 2) * 1000);
+}
+
+async function closeWithUndo(ids) {
+  const tabs = snapshotOf(ids);
+  if (tabs.length === 0) return;
+  await browser.tabs.remove(ids);
+  undo = { tabs, newWindow: false };
+  showBar(`Closed ${plural(tabs.length, 'tab')}`, true);
+}
+
+// A closed window comes back as a new window.
+async function closeWindowWithUndo(windowId) {
+  const tabs = snapshotOf(tabsIn(windowId).map(tab => tab.id));
+  await browser.windows.remove(windowId);
+  undo = { tabs, newWindow: true };
+  showBar(`Closed a window with ${plural(tabs.length, 'tab')}`, true);
+}
+
+async function reopen({ tabs, newWindow }) {
+  if (newWindow) {
+    await browser.windows.create({ url: tabs.map(tab => tab.url), focused: false });
+    return;
+  }
+  const open = new Set((await browser.windows.getAll({ windowTypes: ['normal'] })).map(w => w.id));
+  // More than a handful reopen suspended, so dozens of pages don't all load at once.
+  const sleep = tabs.length > CONFIRM_ABOVE;
+  for (const saved of tabs) {
+    const options = { url: saved.url, index: saved.index, pinned: saved.pinned, active: false };
+    options.windowId = open.has(saved.windowId) ? saved.windowId : state.currentWindow;
+    if (sleep && IS_FIREFOX && !saved.pinned) options.discarded = true;
+    const tab = await browser.tabs.create(options).catch(() => null);
+    if (tab && sleep && !IS_FIREFOX && !saved.pinned) browser.tabs.discard(tab.id).catch(() => {});
+  }
+}
+
+$('#undo-button').addEventListener('click', async () => {
+  const last = undo;
+  undo = null;
+  if (!last) return;
+  await reopen(last);
+  showBar(`Reopened ${plural(last.tabs.length, 'tab')}`, false);
+  refresh();
 });
 
 // ---------- tooltips ----------
@@ -1264,6 +1355,7 @@ async function start() {
   document.querySelector(`[name="sort"][value="${state.sort}"]`).checked = true;
   $('#s-stale').checked = state.stale;
   $('#s-stale-days').value = String(state.staleDays);
+  $('#s-never').value = state.never.join('\n');
   state.libraryOn = await Library.isEnabled().catch(() => false);
   $('#s-library').checked = state.libraryOn;
   if (state.libraryOn) listenToBookmarks();

@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { groupName, groupChain, rollUp, duplicateKey, findDuplicates, staleTabs, planSave } from './rules.js';
+import { groupName, groupChain, rollUp, duplicateKey, findDuplicates, staleTabs, planSave, isNeverListed, neverEntry } from './rules.js';
 
 const DEV = true;
 const PLAIN = false;
@@ -277,4 +277,33 @@ test('rollUp with domains: lone slack.com subdomains share slack.com', () => {
   const urls = ['https://acme.slack.com/a', 'https://app.slack.com/b', 'https://api.slack.com/c', 'https://example.org/'];
   const groups = rollUp(urls, url => groupChain(url, DEV));
   assert.deepEqual(urls.map(url => groups.get(url)), ['slack.com', 'slack.com', 'slack.com', 'example.org']);
+});
+
+test('never list: an entry covers its host and every subdomain', () => {
+  const never = ['slack.com', 'app.example.org'];
+  assert.ok(isNeverListed('https://slack.com/', never));
+  assert.ok(isNeverListed('https://acme.slack.com/messages', never));
+  assert.ok(isNeverListed('https://app.example.org/x', never));
+  assert.ok(isNeverListed('https://eu.app.example.org/x', never));
+  assert.ok(!isNeverListed('https://example.org/', never));
+  assert.ok(!isNeverListed('https://notslack.com/', never));
+  assert.ok(!isNeverListed('chrome://newtab/', never));
+});
+
+test('never list: entries are cleaned up from whatever was typed or pasted', () => {
+  assert.equal(neverEntry('  https://www.Slack.com/messages?x=1 '), 'slack.com');
+  assert.equal(neverEntry('app.example.org'), 'app.example.org');
+  assert.equal(neverEntry('*.example.org'), 'example.org');
+  assert.equal(neverEntry('not a host'), null);
+  assert.equal(neverEntry(''), null);
+});
+
+test('staleTabs skips audible tabs and never-listed sites', () => {
+  const now = 100 * DAY;
+  const tabs = [
+    { id: 1, url: 'https://a.example/', lastAccessed: now - 9 * DAY },
+    { id: 2, url: 'https://music.example/', lastAccessed: now - 9 * DAY, audible: true },
+    { id: 3, url: 'https://app.slack.com/', lastAccessed: now - 9 * DAY },
+  ];
+  assert.deepEqual(staleTabs(tabs, now, 7, ['slack.com']).map(t => t.id), [1]);
 });

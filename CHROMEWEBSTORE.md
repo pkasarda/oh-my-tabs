@@ -9,13 +9,15 @@ Upload `dist/oh-my-tabs-1.0.0-chrome.zip`, built by `npm run package`.
 **Extension Name**
 oh-my-tabs
 
-**Short Description** (101 of 132 characters)
-Your tabs grouped by repo, Jira project or Linear team, with duplicates found even when the URLs differ.
+**Short Description** (113 of 132 characters)
+Your tabs grouped by repo, project or site, with smart duplicate cleanup. No account, nothing leaves your device.
 
 **Detailed Description** (plain text, paste as is)
 
 ```
-oh-my-tabs shows all your open tabs, from every window, sorted into groups you recognize. It finds duplicate tabs that other tools miss, and lets you close or tidy them in one click.
+No account, no cloud, nothing leaves your device: oh-my-tabs works entirely in your browser.
+
+oh-my-tabs shows all your open tabs, from every window, sorted into groups you recognize. It finds duplicate tabs that other tools miss, and lets you close or tidy them in one click. Closed a group by mistake? Undo brings it back.
 
 GROUPS THAT MATCH HOW YOU WORK
 Tabs are grouped by site. With developer mode, which is on by default, they are grouped by project instead: one group per GitHub, GitLab or Bitbucket repository, per Jira or Confluence project, per Linear team. Groups are sorted by size, so the projects with the most tabs come first.
@@ -45,7 +47,7 @@ SAVE TABS FOR LATER (OPTIONAL)
 Turn on the Library to save & close tabs, a group or every tab you have not used for a week, and find them again later. Saved tabs are kept as bookmarks in an "oh-my-tabs" folder, so your browser syncs them to your other devices. Sort them into topics. Opening a saved tab that is already open switches to it instead of opening it twice.
 
 STALE TABS
-A group at the top lists the tabs you have not used for 7 days or more (you can choose 3, 7, 14 or 30), so you can save or close them in one go.
+A group at the top lists the tabs you have not used for 7 days or more (you can choose 3, 7, 14 or 30), so you can save or close them in one go. Tabs playing sound, pinned tabs and the sites on your "never" list are always left alone.
 
 PRIVATE BY DESIGN
 oh-my-tabs works entirely on your device. It reads the titles and addresses of your open tabs to group them. It never reads page content and never sends anything anywhere. It has no analytics and no accounts. Your settings stay in local browser storage.

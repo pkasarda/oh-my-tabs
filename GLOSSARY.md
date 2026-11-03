@@ -72,7 +72,11 @@ The third view: saved tabs by topic and group, the way the groups view shows ope
 _Avoid_: saved view, bookmarks view
 
 **Stale tab**:
-An open, unpinned tab you have not used for longer than the stale threshold (7 days by default).
+An open, unpinned tab you have not used for longer than the stale threshold (7 days by default). A tab playing sound, or on a site in the never list, is never stale.
+
+**Never list**:
+The sites oh-my-tabs never marks as stale and never suspends in bulk. An entry covers its subdomains.
+_Avoid_: allowlist, whitelist, exceptions
 _Avoid_: old tab, inactive tab, forgotten tab
 
 

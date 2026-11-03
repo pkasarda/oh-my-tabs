@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "oh-my-tabs",
   "version": "1.1.0",
-  "description": "Your tabs grouped by repo, Jira project or Linear team, with duplicates found even when the URLs differ.",
+  "description": "Your tabs grouped by repo, project or site, with smart duplicate cleanup. No account, nothing leaves your device.",
   "minimum_chrome_version": "123",
   "permissions": ["tabs", "storage", "contextMenus", "favicon"],
   "optional_permissions": ["bookmarks"],

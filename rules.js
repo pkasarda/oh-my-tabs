@@ -249,10 +249,28 @@ export function findDuplicates(tabs, dev) {
 
 const DAY = 24 * 60 * 60 * 1000;
 
-// Open web tabs, not pinned, last used more than `days` ago.
-export function staleTabs(tabs, now, days) {
+// The never list: sites that are never stale and never suspended in bulk. "slack.com" covers slack.com and every
+// subdomain; "app.slack.com" covers that subdomain and the ones below it.
+export function neverEntry(text) {
+  const raw = text.trim().toLowerCase().replace(/^\*\./, '');
+  if (!raw) return null;
+  const u = parse(raw.includes('://') ? raw : `https://${raw}`);
+  if (!u || !u.hostname.includes('.') || /\s/.test(raw)) return null;
+  return u.hostname.replace(/^www\./, '');
+}
+
+export function isNeverListed(url, never) {
+  const u = isWeb(url) ? parse(url) : null;
+  if (!u) return false;
+  const host = u.hostname.replace(/^www\./, '');
+  return never.some(entry => host === entry || host.endsWith(`.${entry}`));
+}
+
+// Open web tabs last used more than `days` ago. Pinned tabs, tabs playing sound and never-listed sites are kept.
+export function staleTabs(tabs, now, days, never = []) {
   const cutoff = now - days * DAY;
-  return tabs.filter(tab => !tab.pinned && isWeb(tab.url ?? '') && tab.lastAccessed < cutoff);
+  return tabs.filter(tab => !tab.pinned && !tab.audible && isWeb(tab.url ?? '') && tab.lastAccessed < cutoff
+    && !isNeverListed(tab.url, never));
 }
 
 // What saving `tabs` to the library means, given what is saved already.
