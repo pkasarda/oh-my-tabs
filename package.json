@@ -1,0 +1,12 @@
+{
+  "name": "oh-my-tabs",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test",
+    "firefox": "node scripts/firefox.js",
+    "package": "node scripts/package.js"
+  },
+  "version": "1.0.0",
+  "license": "MIT"
+}

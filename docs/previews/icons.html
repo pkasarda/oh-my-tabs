@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>Icon options</title>
+<style>
+  body { margin: 0; padding: 24px 16px 48px; font: 14px/1.4 system-ui, sans-serif; background: light-dark(#f6f7f9, #15171c); color: light-dark(#1f2328, #e6e8ec); }
+  h1 { font-size: 18px; margin: 0 0 4px; }
+  p.lead { margin: 0 0 20px; color: light-dark(#5b6478, #9aa3b2); }
+  .grid { display: grid; gap: 14px; max-width: 980px; }
+  .card { display: grid; grid-template-columns: 220px 1fr; gap: 20px; align-items: center; padding: 16px; border: 1px solid light-dark(#dde1e7, #2c3039); border-radius: 14px; background: light-dark(#fff, #1c1f26); }
+  .card h2 { font-size: 15px; margin: 0 0 4px; }
+  .card p { margin: 0; color: light-dark(#5b6478, #9aa3b2); font-size: 13px; }
+  .sizes { display: flex; gap: 18px; align-items: flex-end; flex-wrap: wrap; }
+  .sizes figure { margin: 0; display: grid; justify-items: center; gap: 6px; font-size: 11px; color: light-dark(#5b6478, #9aa3b2); }
+  .bar { display: flex; gap: 10px; align-items: center; padding: 8px 12px; border-radius: 10px; }
+  .bar.light { background: #dee1e6; }
+  .bar.dark { background: #35363a; }
+  .slot { position: relative; width: 28px; height: 28px; display: grid; place-items: center; }
+  .slot .badge { position: absolute; right: -6px; bottom: -3px; padding: 0 4px; min-width: 14px; height: 13px; border-radius: 7px; font: 700 9px/13px system-ui, sans-serif; color: #fff; text-align: center; }
+  .other { width: 16px; height: 16px; border-radius: 4px; opacity: .55; }
+  svg { display: block; }
+</style>
+</head>
+<body>
+<h1>oh-my-tabs · icons</h1>
+<p class="lead">Each icon at 128, 48, 32 and 16 px, and in a light and a dark toolbar with the badge (red = duplicates, blue-gray = tab count). Judge them at 16 px: that is what you see every day.</p>
+<div class="grid" id="grid"></div>
+
+<script type="module">
+// Every icon is a 128×128 SVG; the same drawing is shown at each size.
+// A browser tab: rounded top corners and the flared bottom corners of a real tab strip.
+const tab = (x, y, w, h, r = 8) =>
+  `M${x} ${y + h}q${r} 0 ${r}-${r}V${y + r}q0-${r} ${r}-${r}H${x + w - 3 * r}q${r} 0 ${r} ${r}V${y + h - r}q0 ${r} ${r} ${r}Z`;
+const grad = (id, a, b) => `<defs><linearGradient id="${id}" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="${a}"/><stop offset="1" stop-color="${b}"/></linearGradient></defs>`;
+const prompt = (x, y, color, width = 10) =>
+  `<path d="M${x} ${y}l14 14-14 14" fill="none" stroke="${color}" stroke-width="${width}" stroke-linecap="round" stroke-linejoin="round"/>`;
+const cursor = (x, y, color) => `<rect x="${x}" y="${y}" width="22" height="8" rx="4" fill="${color}"/>`;
+
+const ICONS = {
+  A1: {
+    name: 'A1 · OMT (chosen: default icon)',
+    note: 'The current style with OMT. Strong at 128 and 48; at 16 the three letters are only a texture.',
+    svg: `<rect width="128" height="128" rx="28" fill="#4f46e5"/>
+      <text x="64" y="78" text-anchor="middle" font-family="Menlo, ui-monospace, monospace" font-size="42" font-weight="700" letter-spacing="-1" fill="#fff">OMT</text>`,
+  },
+  A2: {
+    name: 'A2 · omt in a terminal (chosen: developer mode)',
+    note: 'OMT typed at a prompt: ➜ and a blinking-cursor bar. Ties the name to oh-my-zsh.',
+    svg: `<rect width="128" height="128" rx="28" fill="#111827"/>
+      ${prompt(20, 42, '#22c55e', 9)}
+      <text x="46" y="69" font-family="Menlo, ui-monospace, monospace" font-size="34" font-weight="700" fill="#fff">omt</text>
+      ${cursor(48, 84, '#22c55e')}`,
+  },
+  B: {
+    name: 'B · Stacked tabs (backup)',
+    note: 'Round 1, kept as a backup.',
+    svg: `${grad('gB', '#6366f1', '#4338ca')}<rect width="128" height="128" rx="28" fill="url(#gB)"/>
+      <path d="M38 30h26a8 8 0 0 1 7.4 5l3.2 8H98a8 8 0 0 1 8 8v8H30V38a8 8 0 0 1 8-8z" fill="#fff" opacity=".35"/>
+      <path d="M30 44h26a8 8 0 0 1 7.4 5l3.2 8H90a8 8 0 0 1 8 8v8H22V52a8 8 0 0 1 8-8z" fill="#fff" opacity=".6"/>
+      <path d="M22 58h26a8 8 0 0 1 7.4 5l3.2 8H98a8 8 0 0 1 8 8v19a8 8 0 0 1-8 8H22a8 8 0 0 1-8-8V66a8 8 0 0 1 8-8z" fill="#fff"/>`,
+  },
+};
+
+const svg = (key, size) => `<svg width="${size}" height="${size}" viewBox="0 0 128 128" role="img" aria-label="${ICONS[key].name}">${ICONS[key].svg.replaceAll('id="g', `id="${key}${size}g`).replaceAll('url(#g', `url(#${key}${size}g`)}</svg>`;
+const bar = (key, tone, badge, color) => `<div class="bar ${tone}">
+  <span class="other" style="background:#a855f7"></span><span class="other" style="background:#0ea5e9"></span>
+  <span class="slot">${svg(key, 16)}<span class="badge" style="background:${color}">${badge}</span></span>
+  <span class="other" style="background:#64748b"></span></div>`;
+
+document.getElementById('grid').innerHTML = Object.keys(ICONS).map(key => `<section class="card">
+  <div><h2>${ICONS[key].name}</h2><p>${ICONS[key].note}</p></div>
+  <div class="sizes">
+    ${[128, 48, 32, 16].map(size => `<figure>${svg(key, size)}<figcaption>${size}</figcaption></figure>`).join('')}
+    <figure>${bar(key, 'light', '3', '#d4483b')}<figcaption>light toolbar</figcaption></figure>
+    <figure>${bar(key, 'dark', '389', '#5b6478')}<figcaption>dark toolbar</figcaption></figure>
+  </div>
+</section>`).join('');
+</script>
+</body>
+</html>

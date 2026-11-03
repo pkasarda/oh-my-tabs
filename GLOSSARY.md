@@ -17,12 +17,8 @@ The main view: groups and their tabs from all windows together. Each tab carries
 _Avoid_: list view, tab view
 
 **Windows view**:
-The secondary view: one card per browser window, each holding that window's groups as stacks.
+The secondary view: one collapsible card per browser window, which opens into that window's groups, which open into tabs.
 _Avoid_: window manager, overview
-
-**Stack**:
-The compact picture of one group: the favicons of its tabs laid over each other, spreading out side by side when pointed at or focused.
-_Avoid_: deck, pile, cluster
 
 **Window name**:
 A name oh-my-tabs makes up for a browser window from the groups it holds, because browsers do not name their windows.
@@ -35,7 +31,7 @@ _Avoid_: window number, window badge
 ## Duplicates
 
 **Duplicate key**:
-What remains of a tab's URL after removing the parts that do not change which page it is, such as `#hash`, `utm_*` parameters or `/files` under a pull request. Tabs with the same duplicate key show the same thing.
+What remains of a tab's URL after removing the parts that do not change which page it is, such as a `#hash` anchor, `utm_*` parameters or `/files` under a pull request. Tabs with the same duplicate key show the same thing.
 _Avoid_: canonical URL, normalized URL
 
 **Duplicate set**:
@@ -48,6 +44,10 @@ _Avoid_: original, primary, master
 **Duplicate**:
 Any tab in a duplicate set other than its keeper. "Close duplicates" closes exactly these.
 _Avoid_: dupe, copy
+
+**Suspended tab**:
+An open tab whose page the browser has unloaded to free memory. It stays in the list and reloads when you switch to it.
+_Avoid_: discarded tab, sleeping tab, hibernated tab
 
 **System tab**:
 A tab whose page is not a website (`chrome://`, `about:`, `file://`, extension pages). It belongs to a group but is never a duplicate.
