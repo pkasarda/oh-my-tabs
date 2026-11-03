@@ -4,6 +4,8 @@
   "type": "module",
   "scripts": {
     "test": "node --test",
-    "firefox": "node scripts/firefox.js"
-  }
+    "firefox": "node scripts/firefox.js",
+    "package": "node scripts/package.js"
+  },
+  "version": "1.0.0"
 }

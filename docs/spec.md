@@ -30,6 +30,9 @@ rules.js             pure: URL → group name, URL → duplicate key, keeper cho
 rules.test.js        node --test
 package.json         "type": "module" for node, the test and firefox scripts
 scripts/firefox.js   copies the extension to dist/firefox with a Firefox manifest
+scripts/package.js   npm run package: the Chrome and Firefox zips for the stores
+store/               store screenshots and promo tile
+PRIVACY.md           privacy policy linked from both stores
 fonts/               Fira Code (woff2), the developer-mode font
 icons/               placeholder icon
 ```
@@ -210,6 +213,5 @@ The windows view uses the groups view's language one level up: window → group 
   - Save a window for later (sessions).
   - Name or color a window. Window ids change on browser restart, so names need a stable key.
 - More site rules: Datadog, Sentry, Vercel, Stack Overflow, …
-- Publishing to AMO and the Chrome Web Store.
 - A real icon.
 - Translations (i18n).
