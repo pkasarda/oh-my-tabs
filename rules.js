@@ -12,8 +12,22 @@ export function isWeb(url) {
   return url.startsWith('http://') || url.startsWith('https://');
 }
 
+function parse(url) {
+  try {
+    return new URL(url);
+  } catch {
+    return null;
+  }
+}
+
+// For matching site rules: the hostname without www.
 function hostOf(u) {
   return u.hostname.replace(/^www\./, '');
+}
+
+// For showing: also keeps a non-default port, so localhost:3000 and localhost:5173 stay apart.
+function hostLabel(u) {
+  return u.host.replace(/^www\./, '');
 }
 
 function pathParts(u) {
@@ -36,55 +50,58 @@ function isSlite(host) {
 
 function jiraKey(u, parts) {
   const selected = u.searchParams.get('selectedIssue');
-  if (selected) return selected;
-  if (parts[0] === 'browse') return parts[1] ?? null;
+  let key = null;
+  if (selected) key = selected;
+  else if (parts[0] === 'browse') key = parts[1];
   // Self-hosted: /projects/PAY/issues/PAY-1421
-  if (parts[0] === 'projects' && parts[2] === 'issues') return parts[3] ?? null;
-  return null;
+  else if (parts[0] === 'projects' && parts[2] === 'issues') key = parts[3];
+  // Jira treats keys case-insensitively: pay-1421 is PAY-1421.
+  return key ? key.toUpperCase() : null;
 }
 
 function siteGroupName(u) {
   const host = hostOf(u);
+  const label = hostLabel(u);
   const parts = pathParts(u);
 
   if (host === 'github.com') {
-    if (parts.length === 0 || RESERVED_GITHUB.has(parts[0])) return host;
-    if (parts[0] === 'orgs') return parts[1] ?? host;
+    if (parts.length === 0 || RESERVED_GITHUB.has(parts[0])) return label;
+    if (parts[0] === 'orgs') return parts[1] ?? label;
     if (parts.length === 1) return parts[0];
     return `${parts[0]}/${parts[1]}`;
   }
   if (host === 'gitlab.com') {
     const end = parts.indexOf('-');
     const project = end === -1 ? parts : parts.slice(0, end);
-    return project.length > 0 ? project.join('/') : host;
+    return project.length > 0 ? project.join('/') : label;
   }
   if (host === 'bitbucket.org') {
-    if (parts.length < 2) return host;
+    if (parts.length < 2) return label;
     return `${parts[0]}/${parts[1]}`;
   }
   if (host === 'linear.app') {
     if (parts[1] === 'issue' && parts[2]) return `Linear · ${parts[2].split('-')[0]}`;
     if (parts[1] === 'team' && parts[2]) return `Linear · ${parts[2]}`;
-    return parts[0] ? `Linear · ${parts[0]}` : host;
+    return parts[0] ? `Linear · ${parts[0]}` : label;
   }
   if (isConfluence(host, parts)) {
     if (parts[1] === 'spaces' && parts[2]) return `Confluence · ${parts[2]}`;
-    return host;
+    return label;
   }
   if (isJira(host, parts)) {
     const key = jiraKey(u, parts);
     if (key) return `Jira · ${key.split('-')[0]}`;
     const projects = parts.indexOf('projects');
     if (projects !== -1 && parts[projects + 1]) return `Jira · ${parts[projects + 1]}`;
-    return host;
+    return label;
   }
-  return host;
+  return label;
 }
 
 export function groupName(url, dev) {
-  if (!isWeb(url)) return 'Browser';
-  const u = new URL(url);
-  if (!dev) return hostOf(u);
+  const u = isWeb(url) ? parse(url) : null;
+  if (!u) return 'Browser';
+  if (!dev) return hostLabel(u);
   return siteGroupName(u);
 }
 
@@ -122,10 +139,16 @@ function collapseForSite(u) {
   if (isSlite(host) && parts[0] === 'app' && parts[1] === 'docs') keepPath(3);
 }
 
+// A hash that looks like an app route (#/settings, #!/a, Gmail's #inbox/AAA) names a different page;
+// a plain anchor (#intro, #L10-L20, #issuecomment-1) only scrolls the same one.
+function isRouteHash(hash) {
+  return hash.startsWith('#/') || hash.startsWith('#!') || hash.slice(1).includes('/');
+}
+
 export function duplicateKey(url, dev) {
-  if (!isWeb(url)) return null;
-  const u = new URL(url);
-  u.hash = '';
+  const u = isWeb(url) ? parse(url) : null;
+  if (!u) return null;
+  if (!isRouteHash(u.hash)) u.hash = '';
   for (const key of [...u.searchParams.keys()]) {
     if (key.startsWith('utm_')) u.searchParams.delete(key);
   }
@@ -139,10 +162,11 @@ export function duplicateKey(url, dev) {
 export function findDuplicates(tabs, dev) {
   const byKey = new Map();
   for (const tab of tabs) {
-    const key = duplicateKey(tab.url, dev);
+    // A tab that is still loading has only its pendingUrl.
+    const key = duplicateKey(tab.url || tab.pendingUrl || '', dev);
     if (!key) continue;
-    // Private and normal tabs never match each other.
-    const scopedKey = tab.incognito ? `private:${key}` : key;
+    // Private and normal tabs never match each other, nor do tabs in different Firefox containers.
+    const scopedKey = `${tab.incognito ? 'private' : 'normal'}|${tab.cookieStoreId ?? ''}|${key}`;
     if (!byKey.has(scopedKey)) byKey.set(scopedKey, []);
     byKey.get(scopedKey).push(tab);
   }

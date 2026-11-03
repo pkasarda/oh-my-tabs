@@ -21,7 +21,8 @@ manifest.permissions = manifest.permissions.filter(permission => permission !== 
 manifest.browser_specific_settings = {
   gecko: {
     id: 'oh-my-tabs@pkasarda',
-    strict_min_version: '125.0',
+    // 137: commands.openShortcutSettings, used by Settings → Change shortcuts.
+    strict_min_version: '137.0',
     data_collection_permissions: { required: ['none'] },
   },
 };

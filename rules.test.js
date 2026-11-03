@@ -17,6 +17,26 @@ test('generic duplicate key ignores hash, utm_* params, param order and a traili
   assert.equal(duplicateKey('https://example.com/', PLAIN), 'https://example.com/');
 });
 
+test('a hash that looks like an app route is kept, plain anchors are dropped', () => {
+  assert.ok(!sameTab('https://mail.google.com/mail/u/0/#inbox/AAA', 'https://mail.google.com/mail/u/0/#inbox/BBB', PLAIN));
+  assert.ok(!sameTab('https://app.example.com/#/settings', 'https://app.example.com/#/billing', PLAIN));
+  assert.ok(!sameTab('https://example.com/#!/a', 'https://example.com/#!/b', PLAIN));
+  assert.ok(sameTab('https://github.com/a/b/blob/main/x.js#L10-L20', 'https://github.com/a/b/blob/main/x.js', PLAIN));
+  assert.ok(sameTab('https://example.com/docs#intro', 'https://example.com/docs#usage', PLAIN));
+});
+
+test('malformed web URLs never throw', () => {
+  assert.equal(duplicateKey('http://[::1', DEV), null);
+  assert.equal(groupName('http://[::1', DEV), 'Browser');
+  assert.deepEqual(findDuplicates([{ id: 1, url: 'http://[::1', lastAccessed: 1 }, { id: 2, url: 'http://[::1', lastAccessed: 2 }], DEV), []);
+});
+
+test('group names keep a non-default port', () => {
+  assert.equal(groupName('http://localhost:3000/', PLAIN), 'localhost:3000');
+  assert.equal(groupName('http://localhost:5173/app', DEV), 'localhost:5173');
+  assert.equal(groupName('https://example.com:443/', PLAIN), 'example.com');
+});
+
 test('generic duplicate key keeps every other query parameter', () => {
   assert.ok(!sameTab('https://www.google.com/search?q=foo', 'https://www.google.com/search?q=bar', PLAIN));
 });
@@ -80,6 +100,8 @@ test('Jira groups by project key and treats ?selectedIssue as the issue', () => 
   assert.ok(sameTab('https://acme.atlassian.net/browse/PAY-1421', 'https://acme.atlassian.net/jira/software/projects/PAY/boards/12?selectedIssue=PAY-1421'));
   assert.ok(sameTab('https://acme.atlassian.net/browse/PAY-1421', 'https://acme.atlassian.net/browse/PAY-1421?focusedCommentId=99'));
   assert.ok(!sameTab('https://acme.atlassian.net/browse/PAY-1421', 'https://acme.atlassian.net/browse/PAY-1388'));
+  assert.equal(groupName('https://acme.atlassian.net/browse/pay-1421', DEV), 'Jira · PAY');
+  assert.ok(sameTab('https://acme.atlassian.net/browse/pay-1421', 'https://acme.atlassian.net/browse/PAY-1421'));
 });
 
 test('self-hosted Jira (jira.* hosts) follows the same rules', () => {
@@ -140,4 +162,23 @@ test('findDuplicates never matches private tabs with normal tabs, nor system tab
     { id: 4, url: 'chrome://newtab/', lastAccessed: 4 },
   ];
   assert.equal(findDuplicates(tabs, DEV).length, 0);
+});
+
+test('findDuplicates keeps Firefox containers apart', () => {
+  const tabs = [
+    { id: 1, url: 'https://github.com/', lastAccessed: 1, cookieStoreId: 'firefox-container-1' },
+    { id: 2, url: 'https://github.com/', lastAccessed: 2, cookieStoreId: 'firefox-container-2' },
+    { id: 3, url: 'https://github.com/', lastAccessed: 3, cookieStoreId: 'firefox-container-2' },
+  ];
+  const sets = findDuplicates(tabs, DEV);
+  assert.equal(sets.length, 1);
+  assert.deepEqual(sets[0].copies.map(t => t.id), [2]);
+});
+
+test('findDuplicates uses pendingUrl while a tab is still loading', () => {
+  const tabs = [
+    { id: 1, url: 'https://example.com/a', lastAccessed: 1 },
+    { id: 2, url: '', pendingUrl: 'https://example.com/a', lastAccessed: 2 },
+  ];
+  assert.equal(findDuplicates(tabs, DEV).length, 1);
 });

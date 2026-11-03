@@ -31,7 +31,7 @@ _Avoid_: window number, window badge
 ## Duplicates
 
 **Duplicate key**:
-What remains of a tab's URL after removing the parts that do not change which page it is, such as `#hash`, `utm_*` parameters or `/files` under a pull request. Tabs with the same duplicate key show the same thing.
+What remains of a tab's URL after removing the parts that do not change which page it is, such as a `#hash` anchor, `utm_*` parameters or `/files` under a pull request. Tabs with the same duplicate key show the same thing.
 _Avoid_: canonical URL, normalized URL
 
 **Duplicate set**:

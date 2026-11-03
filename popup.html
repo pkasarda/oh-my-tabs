@@ -26,7 +26,8 @@
 <div popover id="settings" class="settings">
   <div>
     <h3>Display</h3>
-    <label>Developer mode <input type="checkbox" class="switch" id="s-dev"></label>
+    <label>Developer mode <input type="checkbox" class="switch" id="s-dev" aria-describedby="s-dev-hint"></label>
+    <p class="hint-text" id="s-dev-hint">Groups and duplicates per repo, Jira project or Linear team; monospace look.</p>
   </div>
   <div>
     <h3>Sort tabs</h3>
@@ -48,7 +49,7 @@
 
 <div popover="manual" id="tip" class="tip" role="tooltip"></div>
 
-<dialog id="confirm">
+<dialog id="confirm" aria-labelledby="confirm-text">
   <p id="confirm-text"></p>
   <form method="dialog">
     <button class="btn" value="cancel">Cancel</button>

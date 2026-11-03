@@ -10,7 +10,7 @@ const CONFIRM_ABOVE = 10;
 const state = {
   ...SETTINGS,
   query: '', selected: -1,
-  tabs: [], windows: [], windowInfo: new Map(), currentWindow: null, ownTabId: null, duplicates: 0,
+  tabs: [], windows: [], windowInfo: new Map(), windowNames: new Map(), currentWindow: null, ownTabId: null, duplicates: 0,
   openGroups: new Set(), openKeepers: new Set(),
 };
 
@@ -49,11 +49,15 @@ function fold(text) {
 }
 
 // ---------- data ----------
+// Returns false when a newer load started meanwhile; only the latest one updates the state.
+let loadToken = 0;
 async function load() {
+  const token = ++loadToken;
   const [windows, current] = await Promise.all([
     browser.windows.getAll({ populate: true, windowTypes: ['normal'] }),
     browser.windows.getCurrent(),
   ]);
+  if (token !== loadToken) return false;
   windows.sort((a, b) => a.id - b.id);
   state.windows = windows.map(w => w.id);
   state.windowInfo = new Map(windows.map(w => [w.id, { state: w.state, width: w.width, height: w.height }]));
@@ -61,6 +65,7 @@ async function load() {
   state.tabs = windows.flatMap(w => w.tabs).filter(tab => tab.id !== state.ownTabId);
   for (const tab of state.tabs) tab.url ||= tab.pendingUrl ?? '';
   analyze();
+  return true;
 }
 
 function analyze() {
@@ -79,6 +84,8 @@ function analyze() {
     }
     state.duplicates += copies.length;
   }
+  // Computed once here: every row's window label needs its window's name.
+  state.windowNames = new Map(state.windows.map(windowId => [windowId, nameFor(windowId)]));
 }
 
 function matches(tab) {
@@ -106,11 +113,15 @@ function tabsIn(windowId) {
 }
 
 // The window's biggest group plus how many others it holds.
-function windowName(windowId) {
+function nameFor(windowId) {
   const groups = groupsOf(tabsIn(windowId));
   if (groups.length === 0) return 'Empty window';
   const rest = groups.length - 1;
   return rest > 0 ? `${groups[0][0]} & ${rest} more` : groups[0][0];
+}
+
+function windowName(windowId) {
+  return state.windowNames.get(windowId) ?? nameFor(windowId);
 }
 
 // "5 h ago", "4 wk ago": short enough for the window stats line.
@@ -175,7 +186,21 @@ function hostLabel(url) {
 }
 
 function favicon(tab) {
-  return `<img class="fav" src="${esc(faviconSrc(tab))}" alt="" data-host="${esc(hostLabel(tab.url))}" draggable="false">`;
+  return `<img class="fav" src="${esc(faviconSrc(tab))}" alt="" data-host="${esc(hostLabel(tab.url))}" draggable="false" loading="lazy">`;
+}
+
+// Header mini stacks show different favicons only: four GitHub icons in a row say nothing.
+function distinctFavicons(tabs, max = 4) {
+  const seen = new Set();
+  const picked = [];
+  for (const tab of tabs) {
+    const host = hostLabel(tab.url);
+    if (seen.has(host)) continue;
+    seen.add(host);
+    picked.push(favicon(tab));
+    if (picked.length === max) break;
+  }
+  return picked.join('');
 }
 
 // A favicon that fails to load (privileged URL, no icon) becomes a letter tile.
@@ -212,24 +237,29 @@ function moreButton(kind, attrs, label) {
   return `<button type="button" class="icon-btn" data-menu="${kind}" ${attrs} aria-haspopup="menu" aria-expanded="false" data-tip="${label}" aria-label="${label}">${icon('more')}</button>`;
 }
 
-function copiesButton(tab) {
+// list: the rows rendered together, where the copies would nest.
+function copiesButton(tab, list) {
   if (!tab.set) return '';
   // A copy shown on its own row: its keeper is not in this list (another window in the Windows view).
   if (tab.isDup) {
     const n = state.windows.indexOf(tab.set.keeper.windowId) + 1;
     return `<span class="copy-pill" data-tip="Copy of a tab in window ${n}">copy</span>`;
   }
-  const copies = tab.set.size - 1;
-  return `<button type="button" class="copies" data-copies="${tab.id}" data-tip="Show copies">+${copies} ${copies === 1 ? 'copy' : 'copies'}</button>`;
+  const copies = list.filter(t => t.isDup && t.set.keeper === tab).length;
+  if (copies === 0) return '';
+  const open = state.openKeepers.has(tab.id);
+  return `<button type="button" class="copies" data-copies="${tab.id}" aria-expanded="${open}" data-tip="${open ? 'Hide' : 'Show'} copies">+${copies} ${copies === 1 ? 'copy' : 'copies'}</button>`;
 }
 
-function rowHtml(tab, nested = false) {
+function rowHtml(tab, nested = false, list = []) {
   const suspended = tab.discarded ? '<span class="zz-pill" data-tip="Suspended: reloads when you switch to it">zz</span>' : '';
   return `<li class="row${nested ? ' nested' : ''}${tab.discarded ? ' suspended' : ''}" data-id="${tab.id}">
-    ${favicon(tab)}
-    <span class="t"><span class="title">${esc(tab.title || tab.url)}</span><span class="url">${esc(shortUrl(tab.url))}</span></span>
+    <button type="button" class="row-main" data-switch="${tab.id}">
+      ${favicon(tab)}
+      <span class="t"><span class="title">${esc(tab.title || tab.url)}</span><span class="url">${esc(shortUrl(tab.url))}</span></span>
+    </button>
     ${suspended}
-    ${nested ? '' : copiesButton(tab)}
+    ${nested ? '' : copiesButton(tab, list)}
     ${windowLabel(tab.windowId, { interactive: true })}
     <span class="actions">
       <button type="button" class="icon-btn" data-close="${tab.id}" data-tip="Close tab" aria-label="Close tab">${icon('close')}</button>
@@ -240,12 +270,13 @@ function rowHtml(tab, nested = false) {
 
 // Duplicates sit under their keeper and show only when the keeper's "+N copies" is opened.
 function groupRows(list) {
+  const shown = new Set(list);
   const html = [];
   for (const tab of list) {
-    if (tab.isDup && list.includes(tab.set.keeper)) continue;
-    html.push(rowHtml(tab));
+    if (tab.isDup && shown.has(tab.set.keeper)) continue;
+    html.push(rowHtml(tab, false, list));
     if (tab.set && !tab.isDup && state.openKeepers.has(tab.id)) {
-      for (const copy of list.filter(t => t.isDup && t.set.keeper === tab)) html.push(rowHtml(copy, true));
+      for (const copy of list.filter(t => t.isDup && t.set.keeper === tab)) html.push(rowHtml(copy, true, list));
     }
   }
   return html.join('');
@@ -260,7 +291,7 @@ function renderGroups(list) {
     return `<details class="group" data-key="${esc(name)}" ${open ? 'open' : ''}>
       <summary>
         <span class="chev">${icon('chevron')}</span>
-        <span class="mini-stack">${members.slice(0, 4).map(tab => favicon(tab)).join('')}</span>
+        <span class="mini-stack">${distinctFavicons(members)}</span>
         <span class="g-name">${esc(name)}</span>
         <span class="g-meta">${members.length}</span>
         ${dups ? `<span class="dup-count">${dups} dup${dups === 1 ? '' : 's'}</span>` : ''}
@@ -283,7 +314,7 @@ function windowGroupHtml(windowId, name, members) {
   return `<details class="group" data-key="${esc(key)}" ${open ? 'open' : ''}>
     <summary draggable="true" data-drag-group="${esc(name)}" data-w="${windowId}">
       <span class="chev">${icon('chevron')}</span>
-      <span class="mini-stack">${members.slice(0, 4).map(tab => favicon(tab)).join('')}</span>
+      <span class="mini-stack">${distinctFavicons(members)}</span>
       <span class="g-name">${esc(name)}</span>
       <span class="g-meta">${members.length}</span>
       ${dups ? `<span class="dup-count">${dups} dup${dups === 1 ? '' : 's'}</span>` : ''}
@@ -309,7 +340,7 @@ function renderWindows(list) {
     return `<details class="group win${current ? ' cur' : ''}" id="win-${windowId}" data-key="${key}" data-drop-w="${windowId}" ${open ? 'open' : ''}>
       <summary>
         <span class="chev">${icon('chevron')}</span>
-        <span class="mini-stack">${groups.slice(0, 4).map(([, [first]]) => favicon(first)).join('')}</span>
+        <span class="mini-stack">${distinctFavicons(groups.map(([, [first]]) => first))}</span>
         <span class="win-title"><span class="g-name">${esc(windowName(windowId))}</span><span class="win-stats">${windowStats(windowId)}</span></span>
         <span class="g-spacer"></span>
         <button type="button" class="icon-btn" data-minimize="${windowId}" data-tip="${minimized ? 'Restore' : 'Minimize'} this window" aria-label="${minimized ? 'Restore' : 'Minimize'} this window">${icon(minimized ? 'restore' : 'minimize')}</button>
@@ -318,10 +349,11 @@ function renderWindows(list) {
       </summary>
       <div class="win-body">
         ${multi.map(([name, groupTabs]) => windowGroupHtml(windowId, name, groupTabs)).join('')}
-        ${singles.length ? `<div class="singles-head">1-tab sites · ${singles.length}</div><ul class="rows singles">${sortTabs(singles).map(tab => rowHtml(tab)).join('')}</ul>` : ''}
+        ${singles.length ? `<div class="singles-head">1-tab sites · ${singles.length}</div><ul class="rows singles">${sortTabs(singles).map(tab => rowHtml(tab, false, singles)).join('')}</ul>` : ''}
       </div>
     </details>`;
   }).join('');
+  if (!cards.trim()) return '<div class="empty">No tabs match.</div>';
   return `<div class="windows">${cards}<div class="win-new" data-drop-w="new">${icon('plus')} Drop here for a new window</div></div>`;
 }
 
@@ -333,7 +365,7 @@ function render() {
   closeDups.textContent = `Close duplicates (${state.duplicates})`;
   closeDups.disabled = state.duplicates === 0;
 
-  $('#results-bar').innerHTML = state.query ? `<span>${list.length} results</span>
+  $('#results-bar').innerHTML = state.query ? `<span role="status">${plural(list.length, 'result')}</span>
     <button type="button" class="btn" id="move-results" ${list.length ? '' : 'disabled'}>Move results (${list.length}) to new window</button>
     <button type="button" class="btn danger" id="close-results" ${list.length ? '' : 'disabled'}>Close results (${list.length})</button>` : '';
 
@@ -341,20 +373,39 @@ function render() {
     button.setAttribute('aria-pressed', String(button.dataset.view === state.view));
   }
   const scroll = body.scrollTop;
+  const focused = focusKey(document.activeElement);
   body.innerHTML = state.view === 'groups' ? renderGroups(list) : renderWindows(list);
   // In the Windows view a tab row can be dragged onto another window.
   for (const row of body.querySelectorAll('.windows .row')) row.draggable = true;
   body.scrollTop = scroll;
+  if (focused) [...body.querySelectorAll('button, summary')].find(el => focusKey(el) === focused)?.focus({ preventScroll: true });
   highlightSelection();
 }
 
+// Identifies a focused control by what it acts on, so focus survives a re-render.
+function focusKey(element) {
+  if (!element || !body.contains(element)) return null;
+  const owner = element.matches('summary') ? element.parentElement.dataset.key : '';
+  return `${element.tagName}|${JSON.stringify({ ...element.dataset })}|${owner}`;
+}
+
+// While a menu or dialog is open a re-render would pull the list out from under it; refresh once it closes.
 let refreshTimer;
+let refreshPending = false;
 function refresh() {
   clearTimeout(refreshTimer);
   refreshTimer = setTimeout(async () => {
-    await load();
-    render();
+    if ($('#menu').matches(':popover-open') || $('#confirm').open) {
+      refreshPending = true;
+      return;
+    }
+    refreshPending = false;
+    if (await load()) render();
   }, 50);
+}
+
+function refreshIfPending() {
+  if (refreshPending) refresh();
 }
 
 // ---------- actions ----------
@@ -390,6 +441,8 @@ async function confirmMany(count, verb = 'Close') {
   const consequence = verb === 'Close' ? 'This cannot be undone from oh-my-tabs.' : 'They reload when you switch to them.';
   $('#confirm-text').textContent = `${verb} ${count} tabs? ${consequence}`;
   $('#confirm-ok').textContent = `${verb} tabs`;
+  // Esc closes without a value, which would otherwise leave the previous "ok" in place.
+  dialog.returnValue = '';
   dialog.showModal();
   await new Promise(resolve => dialog.addEventListener('close', resolve, { once: true }));
   return dialog.returnValue === 'ok';
@@ -401,11 +454,20 @@ function suspendable(ids) {
 }
 
 async function suspendTabs(ids) {
+  await load();
   const targets = suspendable(ids);
   if (!(await confirmMany(targets.length, 'Suspend'))) return;
   // One at a time: Chrome's tabs.discard takes a single tab.
   for (const id of targets) await browser.tabs.discard(id).catch(() => {});
   refresh();
+}
+
+// Recomputes duplicates from the current tabs first: a copy may have navigated away since the last render.
+// Never asks: every keeper stays open, so no page is lost.
+async function closeDuplicates(filter = () => true) {
+  await load();
+  const ids = state.tabs.filter(tab => tab.isDup && filter(tab)).map(tab => tab.id);
+  if (ids.length > 0) await browser.tabs.remove(ids);
 }
 
 async function saveSetting(key, value) {
@@ -555,7 +617,9 @@ menu.addEventListener('toggle', event => {
   menuTrigger.setAttribute('aria-expanded', 'false');
   if (menu.contains(document.activeElement) || document.activeElement === document.body) menuTrigger.focus({ focusVisible: false });
   menuTrigger = null;
+  refreshIfPending();
 });
+$('#confirm').addEventListener('close', refreshIfPending);
 
 // ---------- list events ----------
 // Window actions in the Windows view, and the window glyph that leads there.
@@ -595,10 +659,9 @@ body.addEventListener('click', async event => {
   }
   const closeGroupDups = target.closest('[data-close-group-dups]');
   if (closeGroupDups) {
-    // Never asks: every keeper stays open, so no page is lost.
     event.preventDefault();
     const name = closeGroupDups.dataset.closeGroupDups;
-    browser.tabs.remove(state.tabs.filter(tab => tab.group === name && tab.isDup && matches(tab)).map(tab => tab.id));
+    closeDuplicates(tab => tab.group === name && matches(tab));
     return;
   }
   const close = target.closest('[data-close]');
@@ -631,8 +694,13 @@ search.addEventListener('input', () => {
   state.selected = state.query ? 0 : -1;
   render();
 });
+// Rows inside collapsed groups are in the DOM but not on screen.
+function visibleRows() {
+  return [...body.querySelectorAll('.row')].filter(row => row.checkVisibility());
+}
+
 search.addEventListener('keydown', event => {
-  const rows = [...body.querySelectorAll('.row')];
+  const rows = visibleRows();
   if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
     event.preventDefault();
     const step = event.key === 'ArrowDown' ? 1 : -1;
@@ -648,7 +716,8 @@ search.addEventListener('keydown', event => {
 });
 
 function highlightSelection() {
-  const rows = [...body.querySelectorAll('.row')];
+  body.querySelector('.row.sel')?.classList.remove('sel');
+  const rows = visibleRows();
   rows.forEach((row, i) => row.classList.toggle('sel', i === state.selected));
   rows[state.selected]?.scrollIntoView({ block: 'nearest' });
 }
@@ -659,10 +728,7 @@ $('#results-bar').addEventListener('click', async event => {
   if (event.target.id === 'close-results' && await confirmMany(ids.length)) await browser.tabs.remove(ids);
 });
 
-// Never asks: every keeper stays open, so no page is lost.
-$('#close-dups').addEventListener('click', () => {
-  browser.tabs.remove(state.tabs.filter(tab => tab.isDup).map(tab => tab.id));
-});
+$('#close-dups').addEventListener('click', () => closeDuplicates());
 
 // ---------- header and settings ----------
 for (const button of document.querySelectorAll('[data-view]')) {
@@ -715,18 +781,20 @@ async function renderShortcuts() {
 }
 
 // ---------- drag and drop between windows ----------
+// A type of our own, so text or links dropped from a page are never read as tab ids.
+const DRAG_TYPE = 'application/x-oh-my-tabs';
 body.addEventListener('dragstart', event => {
   const row = event.target.closest('.row');
   const group = event.target.closest('[data-drag-group]');
   let ids = [];
   if (row) ids = [Number(row.dataset.id)];
   else if (group) ids = groupTabIds(group.dataset.dragGroup, Number(group.dataset.w));
-  event.dataTransfer.setData('text/plain', ids.join(','));
+  event.dataTransfer.setData(DRAG_TYPE, ids.join(','));
   event.dataTransfer.effectAllowed = 'move';
 });
 body.addEventListener('dragover', event => {
   const win = event.target.closest('[data-drop-w]');
-  if (!win) return;
+  if (!win || !event.dataTransfer.types.includes(DRAG_TYPE)) return;
   event.preventDefault();
   body.querySelectorAll('.drop').forEach(el => el !== win && el.classList.remove('drop'));
   win.classList.add('drop');
@@ -740,7 +808,8 @@ body.addEventListener('drop', event => {
   if (!win) return;
   event.preventDefault();
   win.classList.remove('drop');
-  const ids = event.dataTransfer.getData('text/plain').split(',').filter(Boolean).map(Number);
+  const ids = event.dataTransfer.getData(DRAG_TYPE).split(',').filter(Boolean).map(Number);
+  if (ids.length === 0 || ids.some(Number.isNaN)) return;
   moveTabs(ids, win.dataset.dropW === 'new' ? 'new' : Number(win.dataset.dropW));
 });
 
@@ -766,6 +835,7 @@ function placeTip(target) {
 
 function hideTip() {
   clearTimeout(tipTimer);
+  tipFor?.removeAttribute('aria-describedby');
   tipFor = null;
   if (!tip.matches(':popover-open')) return;
   tip.hidePopover();
@@ -781,6 +851,7 @@ function tipTo(target) {
   tipTimer = setTimeout(() => {
     if (!target.isConnected) return;
     tip.textContent = target.dataset.tip;
+    target.setAttribute('aria-describedby', 'tip');
     tip.showPopover();
     placeTip(target);
   }, delay);
@@ -796,9 +867,14 @@ document.addEventListener('focusout', hideTip);
 for (const type of ['pointerdown', 'keydown', 'scroll', 'wheel']) document.addEventListener(type, hideTip, true);
 
 // ---------- start ----------
-for (const event of ['onCreated', 'onRemoved', 'onUpdated', 'onMoved', 'onAttached', 'onDetached', 'onReplaced']) {
+for (const event of ['onCreated', 'onRemoved', 'onMoved', 'onAttached', 'onDetached', 'onReplaced', 'onActivated']) {
   browser.tabs[event].addListener(refresh);
 }
+// Only changes the list shows; loading progress and the like would re-render for nothing.
+const SHOWN_CHANGES = ['url', 'title', 'favIconUrl', 'discarded', 'pinned'];
+browser.tabs.onUpdated.addListener((tabId, changeInfo) => {
+  if (SHOWN_CHANGES.some(key => key in changeInfo)) refresh();
+});
 browser.windows.onCreated.addListener(refresh);
 browser.windows.onRemoved.addListener(refresh);
 

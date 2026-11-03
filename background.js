@@ -5,11 +5,16 @@ globalThis.browser ??= chrome;
 const SETTINGS = { dev: true };
 const MENU_CLOSE_DUPLICATES = 'close-duplicates';
 
-// Everything is recomputed from the open tabs on each event: the worker keeps no state.
+// Firefox can still list a tab in windows.getAll while its onRemoved runs; skip those.
+// Only lives for one burst of events, so the worker still keeps no state between them.
+const justRemoved = new Set();
+
+// Everything is recomputed from the open tabs on each event.
 async function duplicateSets() {
   const { dev } = await browser.storage.local.get(SETTINGS);
   const windows = await browser.windows.getAll({ populate: true, windowTypes: ['normal'] });
-  return findDuplicates(windows.flatMap(w => w.tabs), dev);
+  const tabs = windows.flatMap(w => w.tabs).filter(tab => !justRemoved.has(tab.id));
+  return findDuplicates(tabs, dev);
 }
 
 function truncate(text, length) {
@@ -44,8 +49,18 @@ async function moveToNewWindow(ids) {
   if (rest.length > 0) await browser.tabs.move(rest, { windowId: created.id, index: -1 });
 }
 
+// Closing 30 duplicates fires 30 events; one recompute after they settle avoids a stale count winning.
+let refreshTimer;
 function refresh() {
-  updateBadge().catch(error => console.error('oh-my-tabs: badge update failed', error));
+  clearTimeout(refreshTimer);
+  refreshTimer = setTimeout(async () => {
+    try {
+      await updateBadge();
+    } catch (error) {
+      console.error('oh-my-tabs: badge update failed', error);
+    }
+    justRemoved.clear();
+  }, 150);
 }
 
 browser.runtime.onInstalled.addListener(() => {
@@ -67,7 +82,10 @@ browser.commands.onCommand.addListener(command => {
 });
 
 browser.tabs.onCreated.addListener(refresh);
-browser.tabs.onRemoved.addListener(refresh);
+browser.tabs.onRemoved.addListener(tabId => {
+  justRemoved.add(tabId);
+  refresh();
+});
 browser.tabs.onReplaced.addListener(refresh);
 browser.tabs.onUpdated.addListener((tabId, changeInfo) => {
   if (changeInfo.url) refresh();

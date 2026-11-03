@@ -4,7 +4,7 @@ oh-my-tabs is a browser extension that shows every open tab sorted into groups a
 
 ## Platform
 
-- Desktop Chrome 123+ and Firefox 125+ (Manifest V3). Chrome 123 is the floor for CSS `light-dark()` and Firefox 125 for the Popover API. Firefox for Android is out of scope.
+- Desktop Chrome 123+ and Firefox 137+ (Manifest V3). Chrome 123 is the floor for CSS `light-dark()`. Firefox 137 is the floor for `commands.openShortcutSettings`, used by Settings → Change shortcuts; it also covers the Popover API (125). Firefox for Android is out of scope.
 - `manifest.json` is the Chrome manifest, with `background.service_worker`.
 - `npm run firefox` writes `dist/firefox`: the same files with a Firefox manifest. That manifest has `background.scripts` and `browser_specific_settings`, and drops the Chrome-only keys. Chrome warns about those Firefox keys in an MV3 manifest, which is why there are two manifests.
 - `browser.*` everywhere, with `globalThis.browser ??= chrome` at the top of each entry point.
@@ -40,13 +40,14 @@ Everything here is a pure function of URLs, tab metadata and the developer-mode 
 
 ### Generic rules (always on)
 
-- **Group name**: the hostname, without a leading `www.`.
+- **Group name**: the host without a leading `www.`. A non-default port stays, so `localhost:3000` and `localhost:5173` are separate groups.
 - **Duplicate key**: the URL with these changes:
-  - the `#hash` removed;
+  - a `#hash` anchor removed (`#intro`, `#L10-L20`, `#issuecomment-1`). A hash that looks like an app route stays: one that starts with `#/` or `#!`, or contains `/`, such as Gmail's `#inbox/AAA`. Different routes are different pages;
   - `utm_*` query parameters removed;
   - the remaining query parameters sorted;
   - a trailing `/` removed from the path, except for the root path.
-- Only `http:` and `https:` tabs get a duplicate key. System tabs go into one group named `Browser` and are never duplicates.
+- Only `http:` and `https:` tabs get a duplicate key. System tabs go into one group named `Browser` and are never duplicates. A web URL that cannot be parsed is treated the same way.
+- A tab that is still loading is judged by its `pendingUrl`.
 
 ### Site rules (developer mode only)
 
@@ -58,7 +59,7 @@ A site rule applies to a URL whose host matches it. It overrides the group name 
 | GitLab | `gitlab.com` | path before `/-/` (`group/sub/project`) | `/-/merge_requests/N/*` → `/-/merge_requests/N` |
 | Bitbucket | `bitbucket.org` | `workspace/repo` | `/pull-requests/N/*` → `/pull-requests/N` |
 | Linear | `linear.app` | `Linear · TEAM` from `/ws/issue/TEAM-123` or `/ws/team/TEAM/…`, else `Linear · ws` | `/ws/issue/TEAM-123/slug` → `/ws/issue/TEAM-123` |
-| Jira | `*.atlassian.net` (not `/wiki`), or a self-hosted `jira.*` host | `Jira · ABC` from `/browse/ABC-123`, `?selectedIssue=ABC-123` or `/projects/ABC/…` | `/browse/ABC-123?…`, `…?selectedIssue=ABC-123` and `/projects/ABC/issues/ABC-123` → `/browse/ABC-123` |
+| Jira | `*.atlassian.net` (not `/wiki`), or a self-hosted `jira.*` host | `Jira · ABC` (keys are upper-cased) from `/browse/ABC-123`, `?selectedIssue=ABC-123` or `/projects/ABC/…` | `/browse/ABC-123?…`, `…?selectedIssue=ABC-123` and `/projects/ABC/issues/ABC-123` → `/browse/ABC-123` |
 | Confluence | `*.atlassian.net/wiki` | `Confluence · KEY` from `/wiki/spaces/KEY/…` | `/wiki/spaces/KEY/pages/ID/slug` → `/wiki/spaces/KEY/pages/ID` |
 | Figma | `figma.com` | generic | `/(design\|file\|board\|proto)/KEY/…?node-id=…` → `/<kind>/KEY` |
 | Google Docs | `docs.google.com` | generic | `/(document\|spreadsheets\|presentation)/d/ID/…` (with `/edit`, `/view`, `?tab=`, `#gid`) → `/<kind>/d/ID` |
@@ -69,14 +70,14 @@ When developer mode is off, only the generic rules apply. The badge count can th
 ### Duplicates
 
 - A duplicate set is every open tab, across all windows and including pinned tabs, that shares one duplicate key.
-- Normal and private (incognito) tabs never match each other.
+- Normal and private (incognito) tabs never match each other, nor do tabs in different Firefox containers (`cookieStoreId`).
 - The keeper is the tab in the set with the highest `lastAccessed`.
 - All other tabs in the set are duplicates. Counts everywhere (badge, group header, button) count duplicates only. Three identical tabs count as 2.
 
 ## Background (`background.js`)
 
 - **Badge**: the number of duplicates, empty when there are none.
-  - Recomputed from `tabs.query({})` on `tabs.onCreated`, `onRemoved`, `onReplaced`, on `onUpdated` when `changeInfo.url` is set, and when developer mode changes.
+  - Recomputed from the open tabs on `tabs.onCreated`, `onRemoved`, `onReplaced`, `onActivated`, on `onUpdated` when `changeInfo.url` is set, and when developer mode changes. Recomputes are debounced by 150 ms, so a burst of closes ends in one count. Tabs that were just removed are left out, because Firefox can still list them.
   - A full recompute is cheap at 400+ tabs.
 - **Tooltip** (`action.setTitle`): `3 duplicates`, followed by up to 3 lines like `acme/oh-my-tabs #42 ×2`.
 - **Context menu on the toolbar icon**: `Close duplicates`.
@@ -101,7 +102,7 @@ When developer mode is off, only the generic rules apply. The badge count can th
 - `Close duplicates (N)` button, disabled at 0.
 - `Open as page`.
 - ⚙ menu (popover):
-  - Developer mode toggle (default on).
+  - Developer mode toggle (default on), with a one-line explanation of what it changes.
   - Sort tabs: `Recent` (default) or `Tab order`.
   - `Suspend all other tabs`: every tab except each window's active tab. It asks for confirmation above 10 tabs.
   - Current shortcuts, read from `commands.getAll()`, with `not set` when a shortcut is unassigned.
@@ -120,9 +121,10 @@ When developer mode is off, only the generic rules apply. The badge count can th
     - `Close group`. It asks for confirmation when it would close more than 10 tabs.
 - While searching, group actions apply only to the group's results.
 - Groups start collapsed, except the group holding the current tab.
+- Header mini stacks show up to 4 *different* favicons.
 - Tabs within a group are sorted by `Recent` (`lastAccessed`, descending) or by `Tab order` (window, then index).
 - A tab row shows:
-  - a 28 px favicon and the title;
+  - a 28 px favicon and the title, inside a button that switches to the tab, so the keyboard can reach it;
   - a short URL;
   - its window label: a small window glyph with the window's number, highlighted for the current window. Its tooltip gives the window name;
   - `zz` when the tab is suspended; its favicon and title are dimmed;
@@ -131,7 +133,7 @@ When developer mode is off, only the generic rules apply. The badge count can th
     - `Suspend this tab` (disabled for an active tab);
     - `Suspend other tabs in this group`.
 - Duplicates are nested under their keeper.
-  - The keeper row shows `+N copies`. Clicking it expands the copies, indented beneath the keeper.
+  - The keeper row shows `+N copies` (`aria-expanded`). N counts only the copies in the same list, and the button is hidden at 0. Clicking it expands the copies, indented beneath the keeper.
   - Each copy always shows its window label, because a copy can be in any window.
 - Clicking a row switches to that tab and focuses its window.
 
@@ -157,8 +159,19 @@ The windows view uses the groups view's language one level up: window → group 
 - Open, the card lists the window's groups with two or more tabs as nested group cards that open into tab rows. Groups with a single tab are plain tab rows under `1-tab sites · N`.
 - Tab rows inside a window card hide their window label, except copies nested under a keeper.
 - A copy whose keeper is in another window cannot nest under it. It shows a `copy` marker, whose tooltip names the keeper's window.
-- Drag a tab row or a group header onto another window card, or onto `Drop here for a new window`, to move it (native drag and drop). `Move to window ▸` in the menus does the same from the keyboard.
+- Drag a tab row or a group header onto another window card, or onto `Drop here for a new window`, to move it (native drag and drop, with its own data type `application/x-oh-my-tabs`, so text dropped from a page is ignored). `Move to window ▸` in the menus does the same from the keyboard.
 - In the groups view, clicking a tab's window label switches to the windows view, opens that window and scrolls to it.
+
+### Updates and safety
+
+- The popup re-renders on tab events that change what it shows: created, removed, moved, attached, detached, replaced or activated tabs, and `url`, `title`, `favIconUrl`, `discarded` or `pinned` changes.
+- Updates are debounced by 50 ms, and only the latest load is applied.
+- While a menu or the confirm dialog is open, the refresh waits until it closes.
+- Focus survives a re-render: the focused control is found again by what it acts on.
+- `Close duplicates` and `Suspend` first reload the current tabs, so they never act on a copy that has since navigated away.
+- The confirm dialog resets its result before opening, so Esc always cancels.
+- Search keys `↑`/`↓` move only between visible rows. The result count is announced (`role="status"`).
+- Tooltips link to their target with `aria-describedby`.
 
 ### Menus and suspending
 
