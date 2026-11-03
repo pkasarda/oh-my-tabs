@@ -1,0 +1,3 @@
+# Vanilla JS, no framework, no build step
+
+The UI is plain JavaScript modules, hand-written CSS and the browser's own elements: `<details>`, `<dialog>`, the Popover API and native drag and drop. There is no React, Preact, Tailwind or bundler. The UI is a single popup that opens on every click, so its load time matters. The browser already has every component this UI needs. Shipping unbundled source also means Firefox AMO review does not require separate source code and build instructions. React + shadcn and Tailwind were considered and rejected because both need a build step. If UI state ever outgrows plain render functions, Preact + htm can be vendored as ES modules and still needs no build.
