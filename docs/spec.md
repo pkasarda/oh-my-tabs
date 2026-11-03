@@ -4,7 +4,7 @@ oh-my-tabs is a browser extension that shows every open tab sorted into groups a
 
 ## Platform
 
-- Desktop Chrome 123+ and Firefox 137+ (Manifest V3). Chrome 123 is the floor for CSS `light-dark()`. Firefox 137 is the floor for `commands.openShortcutSettings`, used by Settings → Change shortcuts; it also covers the Popover API (125). Firefox for Android is out of scope.
+- Desktop Chrome 123+ and Firefox 140+ (Manifest V3). Chrome 123 is the floor for CSS `light-dark()`. Firefox 140 is the floor for `data_collection_permissions` in the manifest; it also covers `commands.openShortcutSettings` (137) and the Popover API (125). Firefox for Android is out of scope.
 - `manifest.json` is the Chrome manifest, with `background.service_worker`.
 - `npm run firefox` writes `dist/firefox`: the same files with a Firefox manifest. That manifest has `background.scripts` and `browser_specific_settings`, and drops the Chrome-only keys. Chrome warns about those Firefox keys in an MV3 manifest, which is why there are two manifests.
 - `browser.*` everywhere, with `globalThis.browser ??= chrome` at the top of each entry point.

@@ -2,7 +2,7 @@
 
 > Last Updated: 2026-11-03
 
-Upload `dist/oh-my-tabs-1.0.0-firefox.zip`, built by `npm run package`. It needs Firefox 137 or later, desktop only.
+Upload `dist/oh-my-tabs-1.0.0-firefox.zip`, built by `npm run package`. It needs Firefox 140 or later, desktop only. On upload, select Firefox only: leave **Firefox for Android unchecked**, because Android has no windows API.
 
 ## Listing
 
@@ -34,6 +34,8 @@ The manifest declares `data_collection_permissions: { required: ["none"] }`. The
 
 ```
 No build tools, bundlers, minifiers or transpilers are used. The package holds the plain source files from https://github.com/pkasarda/oh-my-tabs. The only generated file is manifest.json: scripts/firefox.js copies the Chrome manifest and adds the Firefox keys (background.scripts, browser_specific_settings), then drops Chrome-only ones. Fonts: Fira Code, SIL Open Font License, see fonts/OFL.txt. To test: open many tabs, including the same page twice (for example with and without #anchor), click the toolbar icon, and use "Close duplicates".
+
+About the innerHTML warnings in popup.js (render, results bar, menu, shortcuts): the HTML is built only from the extension's own template strings. Every value that comes from a tab or from the user (titles, URLs, group and window names, shortcut labels) passes through esc() in popup.js, which escapes & < > ". Attributes are always double-quoted, and tooltips use textContent. No remote content and no eval.
 ```
 
 ## Version History

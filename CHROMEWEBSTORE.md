@@ -51,8 +51,8 @@ Open source: https://github.com/pkasarda/oh-my-tabs. Report issues or ideas at h
 **Category**
 Productivity → Tools
 
-**Single Purpose**
-Shows your open tabs grouped by site or project and closes duplicate tabs.
+**Single Purpose** (one purpose, tab management; grouping and duplicates are how it serves it)
+oh-my-tabs is a tab manager: it shows all of the user's open tabs in one list, grouped by site or project, so they can find a tab and switch to, move, suspend or close it, including duplicate tabs.
 
 **Primary Language**
 English
