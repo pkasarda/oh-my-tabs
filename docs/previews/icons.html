@@ -25,56 +25,91 @@
 </style>
 </head>
 <body>
-<h1>oh-my-tabs · icon options</h1>
+<h1>oh-my-tabs · icon options, round 2</h1>
 <p class="lead">Each icon at 128, 48, 32 and 16 px, and in a light and a dark toolbar with the badge (red = duplicates, blue-gray = tab count). Judge them at 16 px: that is what you see every day.</p>
 <div class="grid" id="grid"></div>
 
 <script type="module">
 // Every icon is a 128×128 SVG; the same drawing is shown at each size.
+// A browser tab: rounded top corners and the flared bottom corners of a real tab strip.
+const tab = (x, y, w, h, r = 8) =>
+  `M${x} ${y + h}q${r} 0 ${r}-${r}V${y + r}q0-${r} ${r}-${r}H${x + w - 3 * r}q${r} 0 ${r} ${r}V${y + h - r}q0 ${r} ${r} ${r}Z`;
+const grad = (id, a, b) => `<defs><linearGradient id="${id}" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="${a}"/><stop offset="1" stop-color="${b}"/></linearGradient></defs>`;
+const prompt = (x, y, color, width = 10) =>
+  `<path d="M${x} ${y}l14 14-14 14" fill="none" stroke="${color}" stroke-width="${width}" stroke-linecap="round" stroke-linejoin="round"/>`;
+const cursor = (x, y, color) => `<rect x="${x}" y="${y}" width="22" height="8" rx="4" fill="${color}"/>`;
+
 const ICONS = {
-  A: {
-    name: 'A · "ot" (current)',
-    note: 'The placeholder: monospace letters on indigo. Fine at 128, turns into a blur at 16.',
+  A1: {
+    name: 'A1 · OMT',
+    note: 'The current style with OMT. Strong at 128 and 48; at 16 the three letters are only a texture.',
     svg: `<rect width="128" height="128" rx="28" fill="#4f46e5"/>
-      <text x="64" y="84" text-anchor="middle" font-family="Menlo, ui-monospace, monospace" font-size="64" font-weight="700" fill="#fff">ot</text>`,
+      <text x="64" y="78" text-anchor="middle" font-family="Menlo, ui-monospace, monospace" font-size="42" font-weight="700" letter-spacing="-1" fill="#fff">OMT</text>`,
+  },
+  A2: {
+    name: 'A2 · omt in a terminal',
+    note: 'OMT typed at a prompt: ➜ and a blinking-cursor bar. Ties the name to oh-my-zsh.',
+    svg: `<rect width="128" height="128" rx="28" fill="#111827"/>
+      ${prompt(20, 42, '#22c55e', 9)}
+      <text x="46" y="69" font-family="Menlo, ui-monospace, monospace" font-size="34" font-weight="700" fill="#fff">omt</text>
+      ${cursor(48, 84, '#22c55e')}`,
+  },
+  B2: {
+    name: 'B2 · Tab strip',
+    note: 'Real tab shapes: three tabs in a strip, the active one opening into the window. Reads as "tabs" instantly.',
+    svg: `${grad('gB2', '#6366f1', '#4338ca')}<rect width="128" height="128" rx="28" fill="url(#gB2)"/>
+      <path d="${tab(62, 30, 50, 22)}" fill="#fff" opacity=".35"/>
+      <path d="${tab(38, 30, 50, 22)}" fill="#fff" opacity=".55"/>
+      <path d="${tab(10, 30, 52, 22)}" fill="#fff"/>
+      <rect x="10" y="51" width="108" height="50" rx="9" fill="#fff"/>`,
+  },
+  B3: {
+    name: 'B3 · Grouped tabs',
+    note: 'The same strip, each tab in a group color: "your tabs, grouped". Colorful, still simple.',
+    svg: `<rect width="128" height="128" rx="28" fill="#1e1b4b"/>
+      <path d="${tab(62, 30, 50, 22)}" fill="#f59e0b"/>
+      <path d="${tab(38, 30, 50, 22)}" fill="#22c55e"/>
+      <path d="${tab(10, 30, 52, 22)}" fill="#a5b4fc"/>
+      <rect x="10" y="51" width="108" height="50" rx="9" fill="#a5b4fc"/>`,
+  },
+  C2: {
+    name: 'C2 · Tabs + prompt (dark)',
+    note: 'B meets C: a browser window with tabs, and the oh-my-zsh ➜ prompt inside it.',
+    svg: `<rect width="128" height="128" rx="28" fill="#111827"/>
+      <path d="${tab(62, 26, 50, 22)}" fill="#374151"/>
+      <path d="${tab(38, 26, 50, 22)}" fill="#4b5563"/>
+      <path d="${tab(10, 26, 52, 22)}" fill="#e5e7eb"/>
+      <rect x="10" y="47" width="108" height="56" rx="9" fill="#e5e7eb"/>
+      ${prompt(32, 61, '#16a34a')}
+      ${cursor(58, 82, '#111827')}`,
+  },
+  C3: {
+    name: 'C3 · Tabs + prompt (indigo)',
+    note: 'The same window on the brand indigo: friendlier than C2, keeps the prompt.',
+    svg: `${grad('gC3', '#6366f1', '#4338ca')}<rect width="128" height="128" rx="28" fill="url(#gC3)"/>
+      <path d="${tab(62, 26, 50, 22)}" fill="#fff" opacity=".35"/>
+      <path d="${tab(38, 26, 50, 22)}" fill="#fff" opacity=".55"/>
+      <path d="${tab(10, 26, 52, 22)}" fill="#fff"/>
+      <rect x="10" y="47" width="108" height="56" rx="9" fill="#fff"/>
+      ${prompt(32, 61, '#16a34a')}
+      ${cursor(58, 82, '#4338ca')}`,
   },
   B: {
-    name: 'B · Stacked tabs',
-    note: 'Three browser tabs stacked: "your tabs, grouped". Reads as a tab at any size.',
-    svg: `<defs><linearGradient id="gB" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#6366f1"/><stop offset="1" stop-color="#4338ca"/></linearGradient></defs>
-      <rect width="128" height="128" rx="28" fill="url(#gB)"/>
+    name: 'B · Stacked tabs (round 1)',
+    note: 'For comparison.',
+    svg: `${grad('gB', '#6366f1', '#4338ca')}<rect width="128" height="128" rx="28" fill="url(#gB)"/>
       <path d="M38 30h26a8 8 0 0 1 7.4 5l3.2 8H98a8 8 0 0 1 8 8v8H30V38a8 8 0 0 1 8-8z" fill="#fff" opacity=".35"/>
       <path d="M30 44h26a8 8 0 0 1 7.4 5l3.2 8H90a8 8 0 0 1 8 8v8H22V52a8 8 0 0 1 8-8z" fill="#fff" opacity=".6"/>
       <path d="M22 58h26a8 8 0 0 1 7.4 5l3.2 8H98a8 8 0 0 1 8 8v19a8 8 0 0 1-8 8H22a8 8 0 0 1-8-8V66a8 8 0 0 1 8-8z" fill="#fff"/>`,
   },
   C: {
-    name: 'C · Prompt arrow',
-    note: 'A nod to oh-my-zsh: its green ➜ prompt next to a short list of tabs.',
+    name: 'C · Prompt arrow (round 1)',
+    note: 'For comparison.',
     svg: `<rect width="128" height="128" rx="28" fill="#111827"/>
       <path d="M22 64h34M42 46l18 18-18 18" fill="none" stroke="#22c55e" stroke-width="12" stroke-linecap="round" stroke-linejoin="round"/>
       <rect x="72" y="40" width="36" height="10" rx="5" fill="#e5e7eb"/>
       <rect x="72" y="59" width="28" height="10" rx="5" fill="#9ca3af"/>
       <rect x="72" y="78" width="36" height="10" rx="5" fill="#6b7280"/>`,
-  },
-  D: {
-    name: 'D · Duplicate merged',
-    note: 'Two tabs, the copy dashed and fading into the one that stays: the duplicate feature.',
-    svg: `<rect width="128" height="128" rx="28" fill="#4f46e5"/>
-      <path d="M40 26h22a7 7 0 0 1 6.5 4.4L71 37h21a8 8 0 0 1 8 8v31a8 8 0 0 1-8 8H40a8 8 0 0 1-8-8V34a8 8 0 0 1 8-8z" fill="none" stroke="#fff" stroke-width="5" stroke-dasharray="9 7" opacity=".55"/>
-      <path d="M28 46h22a7 7 0 0 1 6.5 4.4L59 57h21a8 8 0 0 1 8 8v31a8 8 0 0 1-8 8H28a8 8 0 0 1-8-8V54a8 8 0 0 1 8-8z" fill="#fff"/>
-      <path d="M40 80l10 10 18-20" fill="none" stroke="#4f46e5" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/>`,
-  },
-  E: {
-    name: 'E · Grouped list',
-    note: 'The popup itself: rows with a favicon, the first group highlighted. Calm and very legible.',
-    svg: `<rect width="128" height="128" rx="28" fill="#4f46e5"/>
-      <rect x="24" y="28" width="80" height="22" rx="7" fill="#fff"/>
-      <rect x="30" y="33" width="12" height="12" rx="3" fill="#f59e0b"/>
-      <rect x="48" y="36" width="44" height="6" rx="3" fill="#4f46e5"/>
-      <rect x="30" y="62" width="12" height="12" rx="3" fill="#fff" opacity=".85"/>
-      <rect x="48" y="65" width="50" height="6" rx="3" fill="#fff" opacity=".85"/>
-      <rect x="30" y="86" width="12" height="12" rx="3" fill="#fff" opacity=".6"/>
-      <rect x="48" y="89" width="38" height="6" rx="3" fill="#fff" opacity=".6"/>`,
   },
 };
 
