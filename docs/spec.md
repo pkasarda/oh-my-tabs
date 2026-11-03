@@ -105,7 +105,12 @@ When developer mode is off, only the generic rules apply. The badge count can th
 ### Groups view (main)
 
 - Groups are sorted by tab count, descending.
-- Each group is a `<details>` element whose header reads like `acme/oh-my-tabs · 12 · 2 duplicates`, plus a `Move to…` menu for the whole group.
+- Each group is a `<details>` element whose header reads like `acme/oh-my-tabs · 12 · 2 duplicates`.
+- The group header has these actions:
+  - `Close duplicates in group`, shown only when the group has duplicates. It never asks for confirmation.
+  - `Move to…`, for the whole group.
+  - `Close group`. It asks for confirmation when it would close more than 10 tabs.
+- While searching, group actions apply only to the group's results.
 - Groups start collapsed, except the group holding the current tab.
 - Tabs within a group are sorted by `Recent` (`lastAccessed`, descending) or by `Tab order` (window, then index).
 - A tab row shows:

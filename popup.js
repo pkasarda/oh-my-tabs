@@ -27,6 +27,7 @@ const ICONS = {
   page: '<path d="M15 3h6v6"/><path d="M10 14 21 3"/><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>',
   move: '<path d="m16 3 4 4-4 4"/><path d="M20 7H4"/><path d="m8 21-4-4 4-4"/><path d="M4 17h16"/>',
   close: '<path d="M18 6 6 18"/><path d="m6 6 12 12"/>',
+  closeCopies: '<path d="m12 12 6 6"/><path d="m12 18 6-6"/><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/>',
   chevron: '<path d="m9 18 6-6-6-6"/>',
   plus: '<path d="M5 12h14"/><path d="M12 5v14"/>',
 };
@@ -213,7 +214,9 @@ function renderGroups(list) {
         <span class="g-meta">${members.length}</span>
         ${dups ? `<span class="dup-count">${dups} dup${dups === 1 ? '' : 's'}</span>` : ''}
         <span class="g-spacer"></span>
+        ${dups ? `<button type="button" class="icon-btn" data-close-group-dups="${esc(name)}" title="Close duplicates in group" aria-label="Close duplicates in group">${icon('closeCopies')}</button>` : ''}
         <button type="button" class="icon-btn" data-move-group="${esc(name)}" title="Move group to…" aria-label="Move group to window">${icon('move')}</button>
+        <button type="button" class="icon-btn" data-close-group="${esc(name)}" title="Close group" aria-label="Close group">${icon('close')}</button>
       </summary>
       <ul class="rows">${groupRows(sortTabs(members))}</ul>
     </details>`;
@@ -298,8 +301,11 @@ async function moveTabs(ids, target) {
   await browser.tabs.move(ids, { windowId: target, index: -1 });
 }
 
+// Only the tabs the list shows: while searching, a group action applies to its results.
 function groupTabIds(name, windowId = null) {
-  return state.tabs.filter(tab => tab.group === name && (windowId === null || tab.windowId === windowId)).map(tab => tab.id);
+  return state.tabs
+    .filter(tab => tab.group === name && matches(tab) && (windowId === null || tab.windowId === windowId))
+    .map(tab => tab.id);
 }
 
 async function confirmClose(count) {
@@ -350,8 +356,23 @@ moveMenu.addEventListener('keydown', event => {
 });
 
 // ---------- list events ----------
-body.addEventListener('click', event => {
+body.addEventListener('click', async event => {
   const target = event.target;
+  const closeGroupDups = target.closest('[data-close-group-dups]');
+  if (closeGroupDups) {
+    // Never asks: every keeper stays open, so no page is lost.
+    event.preventDefault();
+    const name = closeGroupDups.dataset.closeGroupDups;
+    browser.tabs.remove(state.tabs.filter(tab => tab.group === name && tab.isDup && matches(tab)).map(tab => tab.id));
+    return;
+  }
+  const closeGroup = target.closest('[data-close-group]');
+  if (closeGroup) {
+    event.preventDefault();
+    const ids = groupTabIds(closeGroup.dataset.closeGroup);
+    if (await confirmClose(ids.length)) browser.tabs.remove(ids);
+    return;
+  }
   const close = target.closest('[data-close]');
   if (close) {
     browser.tabs.remove(Number(close.dataset.close));
