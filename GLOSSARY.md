@@ -9,7 +9,7 @@ A set of open tabs that oh-my-tabs shows together under one heading, such as `ac
 _Avoid_: tab group (that is the browser's own feature, which oh-my-tabs does not touch), cluster, bucket
 
 **Group name**:
-The heading that identifies a group: the hostname by default, or a more specific name from a site rule (`owner/repo`, a Jira project key). A tab that would be alone under a specific name moves up to a broader one: its owner, then its site.
+The heading that identifies a group: the hostname by default, or a more specific name from a site rule (`owner/repo`, a Jira project key). A tab that would be alone under a specific name moves up to a broader one: its owner, then its site, then its domain (`acme.slack.com` → `slack.com`).
 _Avoid_: group key, label
 
 **Groups view**:

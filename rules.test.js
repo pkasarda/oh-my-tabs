@@ -229,7 +229,7 @@ test('groupChain goes from the most specific group to the site', () => {
   assert.deepEqual(groupChain('https://github.com/acme', DEV), ['acme', 'github.com']);
   assert.deepEqual(groupChain('https://gitlab.com/acme/infra/-/merge_requests/5', DEV), ['acme/infra', 'acme', 'gitlab.com']);
   assert.deepEqual(groupChain('https://linear.app/acme/issue/WEB-1/x', DEV), ['Linear · WEB', 'Linear · acme', 'linear.app']);
-  assert.deepEqual(groupChain('https://acme.atlassian.net/browse/PAY-1', DEV), ['Jira · PAY', 'acme.atlassian.net']);
+  assert.deepEqual(groupChain('https://acme.atlassian.net/browse/PAY-1', DEV), ['Jira · PAY', 'acme.atlassian.net', 'atlassian.net']);
   assert.deepEqual(groupChain('https://example.com/a', DEV), ['example.com']);
   assert.deepEqual(groupChain('https://github.com/acme/client', PLAIN), ['github.com']);
   assert.deepEqual(groupChain('chrome://newtab/', DEV), ['Browser']);
@@ -258,4 +258,23 @@ test('rollUp: a lone tab joins an existing group of the next level', () => {
   const chains = { a: ['github.com'], b: ['github.com'], c: ['foo/x', 'foo', 'github.com'] };
   const groups = rollUp(Object.keys(chains), id => chains[id]);
   assert.equal(groups.get('c'), 'github.com');
+});
+
+test('groupChain ends with the domain, so lone subdomains of one site meet', () => {
+  assert.deepEqual(groupChain('https://acme.slack.com/marketplace', PLAIN), ['acme.slack.com', 'slack.com']);
+  assert.deepEqual(groupChain('https://api.slack.com/apps', DEV), ['api.slack.com', 'slack.com']);
+  assert.deepEqual(groupChain('https://www.bbc.co.uk/news', PLAIN), ['bbc.co.uk']);
+  assert.deepEqual(groupChain('https://shop.bbc.co.uk/', PLAIN), ['shop.bbc.co.uk', 'bbc.co.uk']);
+  // Hosting domains: every site on them belongs to someone else.
+  assert.deepEqual(groupChain('https://alice.github.io/blog', PLAIN), ['alice.github.io']);
+  assert.deepEqual(groupChain('https://my-app.vercel.app/', PLAIN), ['my-app.vercel.app']);
+  // Ports and IP addresses stay as they are.
+  assert.deepEqual(groupChain('http://dev.localhost:3000/', PLAIN), ['dev.localhost:3000']);
+  assert.deepEqual(groupChain('http://192.168.1.10/admin', PLAIN), ['192.168.1.10']);
+});
+
+test('rollUp with domains: lone slack.com subdomains share slack.com', () => {
+  const urls = ['https://acme.slack.com/a', 'https://app.slack.com/b', 'https://api.slack.com/c', 'https://example.org/'];
+  const groups = rollUp(urls, url => groupChain(url, DEV));
+  assert.deepEqual(urls.map(url => groups.get(url)), ['slack.com', 'slack.com', 'slack.com', 'example.org']);
 });

@@ -116,14 +116,39 @@ function ownerGroup(u, group) {
   return null;
 }
 
-// The groups a URL belongs to, from the most specific to the site: acme/client → acme → github.com.
+// Two-part public suffixes (bbc.co.uk is one site) and hosting domains whose subdomains are different people's sites.
+// ponytail: a short list, not the full Public Suffix List; add an entry when a site rolls up wrongly.
+const TWO_PART_SUFFIXES = new Set([
+  'co.uk', 'org.uk', 'ac.uk', 'gov.uk', 'com.au', 'net.au', 'org.au', 'co.nz', 'co.jp', 'ne.jp', 'com.br',
+  'com.cn', 'com.hk', 'com.sg', 'co.in', 'co.za', 'com.mx', 'com.tr', 'com.pl', 'co.kr', 'co.il',
+]);
+const HOSTING_DOMAINS = new Set([
+  'github.io', 'gitlab.io', 'vercel.app', 'netlify.app', 'pages.dev', 'workers.dev', 'herokuapp.com', 'web.app',
+  'firebaseapp.com', 'appspot.com', 'azurewebsites.net', 'cloudfront.net', 'blogspot.com', 'wordpress.com',
+  'substack.com', 'notion.site', 'glitch.me', 'onrender.com', 'fly.dev',
+]);
+
+// The site a host belongs to: acme.slack.com → slack.com. Null for IPs, ports, localhost and hosting domains.
+function domainOf(u) {
+  const host = u.hostname;
+  if (u.port || /^[\d.]+$/.test(host) || host.startsWith('[') || !host.includes('.')) return null;
+  const labels = host.split('.');
+  const lastTwo = labels.slice(-2).join('.');
+  if (HOSTING_DOMAINS.has(lastTwo)) return null;
+  const size = TWO_PART_SUFFIXES.has(lastTwo) ? 3 : 2;
+  return labels.length > size ? labels.slice(-size).join('.') : null;
+}
+
+// The groups a URL belongs to, from the most specific to the site: acme/client → acme → github.com,
+// acme.slack.com → slack.com.
 export function groupChain(url, dev) {
   const u = isWeb(url) ? parse(url) : null;
   if (!u) return ['Browser'];
   const site = hostLabel(u);
-  if (!dev) return [site];
-  const group = siteGroupName(u);
-  return [...new Set([group, ownerGroup(u, group), site].filter(Boolean))];
+  const levels = dev ? [siteGroupName(u)] : [];
+  if (dev) levels.push(ownerGroup(u, levels[0]));
+  levels.push(site, domainOf(u));
+  return [...new Set(levels.filter(Boolean))];
 }
 
 // Picks each item's group: a tab that would be alone in its group moves up its chain until it shares

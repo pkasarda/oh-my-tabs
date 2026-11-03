@@ -265,9 +265,10 @@ Goal: you can close tabs without losing them, so you stop keeping hundreds open 
 - Lone tabs roll up before they become rows. Each tab has a group chain from the most specific group to its site:
   - GitHub, GitLab and Bitbucket: `owner/repo` → `owner` → host.
   - Linear: `Linear · TEAM` → `Linear · workspace` → `linear.app`.
-  - Jira and Confluence: project or space → host.
-  - Other sites: host only.
-  A tab that would be alone in its group moves one level up, repeatedly, until it shares a group or the chain ends. For example, `nrwl/nx` and `nrwl/nx-labs` with one tab each become one `nrwl` group, and lone repos of different owners meet in `github.com` (`rollUp` in rules.js, applied to open and saved tabs). Without developer mode every chain is just the host.
+  - Jira and Confluence: project or space → host → domain.
+  - Other sites: host → domain.
+  - The domain is the host's last two labels (`acme.slack.com` → `slack.com`), or three after a two-part suffix such as `co.uk`. A short list in rules.js covers these suffixes; it is not the full Public Suffix List. Hosting domains (`github.io`, `vercel.app`, `wordpress.com`, …), IP addresses, `localhost` and hosts with a port have no domain level.
+  A tab that would be alone in its group moves one level up, repeatedly, until it shares a group or the chain ends. For example, `nrwl/nx` and `nrwl/nx-labs` with one tab each become one `nrwl` group, and lone repos of different owners meet in `github.com` (`rollUp` in rules.js, applied to open and saved tabs). Without developer mode a chain is host → domain.
 - A group with a single tab after that is not a card: in the Groups and Library views, such tabs are plain rows under `1-tab sites · N`, after the groups, as in the Windows view.
 - The Library view hides `Close duplicates`, which is about open tabs.
 
