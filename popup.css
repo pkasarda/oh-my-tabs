@@ -35,17 +35,19 @@ button { cursor: pointer; }
 /* The popup is capped at 800×600 by the browser; the page fills its tab. */
 .app { position: relative; width: 780px; height: 580px; display: grid; grid-template-rows: auto auto 1fr; }
 :root.page body { background: var(--bg); }
-:root.page .app { width: min(1440px, 100%); height: 100vh; margin: 0 auto; background: var(--surface); border-inline: 1px solid var(--border); }
+:root.page .app { width: 100%; height: 100vh; background: var(--surface); }
 :root.page #open-page, :root.page .seg { display: none; }
-/* The page: a sidebar left of the list, which becomes a strip above it on narrow windows. */
-:root.page .app { grid-template: "head head" auto "side results" auto "side body" 1fr "side bulk" auto / 240px minmax(0, 1fr); }
+/* The page fills its tab: a sidebar left of the list, which becomes a strip above it on narrow windows.
+   The bulk bar shares the list's cell and floats at its bottom. */
+:root.page .app { grid-template: "head head" auto "side results" auto "side main-head" auto "side body" 1fr / 240px minmax(0, 1fr); }
 :root.page .head { grid-area: head; }
 :root.page .side { grid-area: side; }
 :root.page .results-bar { grid-area: results; }
+:root.page .main-head { grid-area: main-head; }
 :root.page .body { grid-area: body; }
-:root.page .bulk-bar { grid-area: bulk; }
+:root.page .bulk-bar { grid-area: body; align-self: end; z-index: 4; }
 @media (max-width: 720px) {
-  :root.page .app { grid-template: "head" auto "side" auto "results" auto "body" 1fr "bulk" auto / minmax(0, 1fr); border-inline: 0; }
+  :root.page .app { grid-template: "head" auto "side" auto "results" auto "main-head" auto "body" 1fr / minmax(0, 1fr); }
   :root.page .side { display: flex; gap: 2px; padding: 6px 8px; border-right: 0; border-bottom: 1px solid var(--border); overflow: auto hidden; }
   :root.page .side button { flex: none; width: auto; max-width: 200px; }
   :root.page .side .side-head { margin: 0 0 0 10px; }
@@ -183,29 +185,92 @@ details.group.stale > summary .g-name { color: light-dark(#b45309, #fbbf24); }
 
 .pick { flex: none; width: 16px; height: 16px; margin: 0; accent-color: var(--accent); cursor: pointer; }
 
-.bulk-bar { justify-self: center; display: flex; flex-wrap: wrap; gap: 8px; align-items: center; max-width: calc(100% - 16px); margin: 8px; padding: 6px 6px 6px 14px; border: 1px solid var(--border); border-radius: 10px; background: var(--raised); box-shadow: var(--shadow); font-size: 13px; }
+.bulk-bar { justify-self: center; display: flex; flex-wrap: wrap; gap: 8px; align-items: center; max-width: calc(100% - 24px); margin: 0 12px 12px; padding: 8px 10px 8px 16px; border: 1px solid var(--border); border-radius: 10px; background: var(--raised); box-shadow: var(--shadow); font-size: 13px; }
+/* Room to scroll the last rows out from under the bar. */
+:root.page .app:has(.bulk-bar:not([hidden])) .body { padding-bottom: 76px; }
 .bulk-bar[hidden], .bulk-bar .btn[hidden] { display: none; }
 #bulk-count { margin-right: 6px; font-weight: 600; }
 /* Undo shows above the bulk bar, not on it. */
-:root.page .app:has(.bulk-bar:not([hidden])) .undo-bar { bottom: 72px; }
+:root.page .app:has(.bulk-bar:not([hidden])) .undo-bar { bottom: 76px; }
 /* Centred over the list, like the bulk bar: half the 240px sidebar to the right. */
 :root.page .undo-bar { left: calc(50% + 120px); }
 @media (max-width: 720px) { :root.page .undo-bar { left: 50%; } }
 
-.board { display: flex; gap: 12px; align-items: flex-start; }
-.col { flex: 0 0 320px; display: flex; flex-direction: column; border: 1px solid var(--border); border-radius: 12px; background: var(--bg); }
+.board { display: flex; gap: 12px; align-items: stretch; min-height: 100%; padding: 12px; }
+.col { flex: 1 0 290px; max-width: 340px; display: flex; flex-direction: column; border: 1px solid var(--border); border-radius: 12px; background: var(--bg); }
 .col.drop { border-color: var(--accent); background: var(--accent-soft); }
-.col-head { display: flex; gap: 8px; align-items: center; padding: 10px 14px 8px; }
-ul.rows.col-body { display: grid; gap: 6px; padding: 0 8px 8px; }
-.col .row { flex-wrap: wrap; gap: 4px 10px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface); cursor: grab; }
+.col-head { display: flex; gap: 8px; align-items: center; padding: 10px 10px 8px 14px; }
+.col-head .g-name { font-size: 14px; }
+ul.rows.col-body { display: grid; gap: 6px; align-content: start; padding: 0 8px 8px; }
+/* A saved tab as a card: favicon, the title wrapping in full, the URL and age under it, its buttons below. */
+.col .row { --fav: 24px; flex-wrap: wrap; align-items: flex-start; gap: 4px 10px; padding: 10px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface); cursor: grab; }
 .col .row:hover { background: var(--raised); }
-.col .row-main { flex: 1 0 100%; }
+.col .row-main { flex: 1 0 100%; align-items: flex-start; }
+.col .row .t { gap: 1px; }
+.col .row .title { white-space: normal; overflow-wrap: anywhere; }
 .col .row .actions { margin-left: auto; }
 /* The column already says the topic. */
 .col .topic-pill { display: none; }
 .col-empty { padding: 24px 8px; text-align: center; color: var(--muted); font-size: 12.5px; }
-.col-new { flex-basis: 180px; flex-direction: row; gap: 8px; align-items: center; justify-content: center; min-height: 96px; border-style: dashed; color: var(--muted); }
+.col-new { flex: 0 0 180px; flex-direction: row; gap: 8px; align-items: center; justify-content: center; min-height: 96px; border-style: dashed; color: var(--muted); }
 .col-new:hover { color: var(--text); }
+
+/* ---------- the page's list: a flat tree, one full-width row per window, group and tab ---------- */
+.main-head { border-bottom: 1px solid var(--border); }
+.main-title { display: flex; gap: 10px; align-items: center; padding: 12px 18px; }
+.main-title h2 { margin: 0; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 16px; }
+.main-title .sub { flex: none; color: var(--muted); font-size: 12.5px; }
+.tree-top { display: flex; flex-wrap: wrap; gap: 4px 14px; align-items: center; padding: 6px 18px; border-top: 1px solid var(--border); color: var(--muted); font-size: 12px; }
+
+:root.page .body { padding: 0 0 16px; }
+:root.page :is(.groups, .windows, .win-body) { display: block; }
+:root.page :is(.groups, .windows) ul.rows { padding: 0; }
+:root.page :is(.groups, .windows) details.group { border: 0; border-radius: 0; background: none; }
+:root.page .windows details.win.drop { background: var(--accent-soft); }
+/* Every line: indented by its level, with a guide line per level (variant C's repeating gradient). */
+/* :where keeps this rule's specificity low, so the per-level and per-kind rules below can adjust it. */
+:root.page :is(.groups, .windows) :where(details.group > summary, .row, .singles-head) {
+  --fav: 20px; display: flex; gap: 8px; align-items: center; min-height: 34px; margin: 0;
+  padding: 1px 12px 1px calc(12px + var(--lvl, 0) * 24px); border-radius: 0;
+  background-color: transparent;
+  background-image: repeating-linear-gradient(to right, transparent 0 22px, var(--border) 22px 23px, transparent 23px 24px);
+  background-size: calc(var(--lvl, 0) * 24px + 12px) 100%; background-repeat: no-repeat;
+}
+:root.page :is(.groups, .windows) :is(details.group > summary, .row):hover { background-color: var(--surface-2); }
+:root.page :is(.groups, .windows) :is(details.group > summary:focus-visible, .row.sel, .row:has(.row-main:focus-visible)) { outline: 0; background-color: var(--raised); box-shadow: inset 0 0 0 1px var(--accent); }
+:root.page :is(.groups, .windows) .row-main:focus-visible { outline: 0; }
+:root.page :is(.groups, .windows) .icon-btn { width: 28px; height: 28px; }
+:root.page :is(.groups, .windows) .mini-stack { --fav: 22px; }
+:root.page :is(.groups, .windows) .mini-stack .fav, :root.page details[open] > summary .mini-stack .fav { background-color: var(--surface); box-shadow: 0 0 0 2px var(--surface); }
+:root.page :is(.groups, .windows) .mini-stack .fav + .fav { margin-inline-start: -8px; }
+/* Levels. Groups view: group 0, tab 1, copy 2. Windows view: window 0, group 1, tab 2, copy 3. */
+:root.page .groups .row { --lvl: 1; }
+:root.page .groups .row.nested { --lvl: 2; }
+:root.page .groups.flat .row { --lvl: 0; }
+:root.page .win-body > details.group > summary, :root.page .win-body > .singles-head { --lvl: 1; }
+:root.page .win-body .row { --lvl: 2; }
+:root.page .win-body .row.nested { --lvl: 3; }
+/* A tab row: title and muted URL on one line; badges, window label and age at the right, then the buttons. */
+:root.page :is(.groups, .windows) .row .t { display: flex; gap: 8px; align-items: baseline; }
+:root.page :is(.groups, .windows) .row .title { flex: 0 1 auto; min-width: 0; }
+:root.page :is(.groups, .windows) .row .url { flex: 1 1 0; min-width: 0; }
+:root.page :is(.groups, .windows) .row :is(.copies, .copy-pill) { order: 1; }
+:root.page :is(.groups, .windows) .row .wl-icon { order: 2; }
+:root.page :is(.groups, .windows) .row .age { order: 3; }
+:root.page :is(.groups, .windows) .row .actions { order: 4; }
+:root.page .row.nested { margin-left: 0; }
+:root.page .row.nested::before { content: none; }
+/* The 1-tab sites heading is a group-level row; its tabs sit one level in, like a group's. */
+:root.page :is(.groups, .windows) .singles-head { padding-left: calc(12px + var(--lvl, 0) * 24px + 24px); font-size: 13px; font-weight: 600; color: var(--text); }
+:root.page :is(.groups, .windows) .singles-head::after { content: none; }
+/* A window row: its own band, a rule above it, the number, the name and the stats on one line. */
+:root.page .windows details.win > summary { background-color: var(--surface-2); border-top: 1px solid var(--border); font-weight: 600; }
+:root.page .windows details.win:first-child > summary { border-top: 0; }
+:root.page .windows details.win > summary .mini-stack, :root.page .windows .win-count { display: none; }
+:root.page .win-title { display: flex; gap: 8px; align-items: baseline; min-width: 0; }
+:root.page .win-title .g-name { flex: none; }
+:root.page .win-body { padding: 0; }
+:root.page .win-new { margin: 12px; }
 
 /* ---------- undo bar and the never list ---------- */
 .undo-bar { position: absolute; left: 50%; bottom: 14px; translate: -50% 0; z-index: 5; display: flex; gap: 12px; align-items: center; padding: 6px 6px 6px 14px; border: 1px solid var(--border); border-radius: 10px; background: var(--raised); box-shadow: var(--shadow); font-size: 13px; }

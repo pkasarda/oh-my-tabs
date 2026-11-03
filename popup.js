@@ -436,10 +436,11 @@ function renderGroups(list) {
 }
 
 // Open, unpinned tabs not used for a while, oldest first, in a group of their own (collapsed by default).
-function staleGroupHtml(list = state.tabs, { open = state.openGroups.has('stale') } = {}) {
+function staleGroupHtml() {
   if (!state.stale) return '';
-  const stale = staleTabs(list, Date.now(), state.staleDays, state.never).sort((a, b) => a.lastAccessed - b.lastAccessed);
+  const stale = staleTabs(state.tabs, Date.now(), state.staleDays, state.never).sort((a, b) => a.lastAccessed - b.lastAccessed);
   if (stale.length === 0) return '';
+  const open = state.openGroups.has('stale');
   const save = state.libraryOn ? `<button type="button" class="icon-btn" data-save-stale data-tip="Save & close all" aria-label="Save & close all stale tabs">${icon('save')}</button>` : '';
   return `<details class="group stale" data-key="stale" ${open ? 'open' : ''}>
     <summary>
@@ -522,9 +523,11 @@ function renderBoard(list) {
   return `<div class="board">${columns}${add}</div>`;
 }
 
-// Page only: the stale group on its own, open.
+// Page only: the stale tabs as plain rows, oldest first; the header above names them and holds their actions.
 function renderStale(list) {
-  return `<div class="groups">${staleGroupHtml(list, { open: true }) || '<div class="empty">No stale tabs match.</div>'}</div>`;
+  const stale = staleTabs(list, Date.now(), state.staleDays, state.never).sort((a, b) => a.lastAccessed - b.lastAccessed);
+  if (stale.length === 0) return '<div class="empty">No stale tabs match.</div>';
+  return `<div class="groups flat"><ul class="rows">${stale.map(tab => rowHtml(tab)).join('')}</ul></div>`;
 }
 
 // Windows view (option E): a window looks like a group and opens into its groups, which open into tabs.
@@ -564,6 +567,7 @@ function renderWindows(list) {
     return `<details class="group win${current ? ' cur' : ''}" id="win-${windowId}" data-key="${key}" data-drop-w="${windowId}" ${open ? 'open' : ''}>
       <summary>
         <span class="chev">${icon('chevron')}</span>
+        ${IS_PAGE ? windowLabel(windowId) : ''}
         <span class="mini-stack">${distinctFavicons(groups.map(([, [first]]) => first))}</span>
         <span class="win-title"><span class="g-name">${esc(windowName(windowId))}</span><span class="win-stats">${windowStats(windowId)}</span></span>
         <span class="g-spacer"></span>
@@ -633,8 +637,44 @@ function render() {
   if (IS_PAGE) {
     renderSidebar();
     renderBulkBar();
+    renderMainHead(list);
   }
 }
+
+// The title of what the list shows, a count, and actions for all of it; the key hints under it for the tree.
+function mainTitle() {
+  const item = state.pageItem;
+  if (state.view === 'stale') return `Not used for ${state.staleDays}+ days`;
+  if (state.view === 'library') return item === null ? 'Library' : item || 'No topic';
+  if (state.view === 'windows') return item === null ? 'Windows' : windowName(Number(item));
+  return item ?? 'Groups';
+}
+
+function renderMainHead(list) {
+  const inLibrary = state.view === 'library';
+  const none = list.length ? '' : ' disabled';
+  let actions = '';
+  if (inLibrary && state.pageItem !== null) actions = `<button type="button" class="btn" data-head="open"${none}>Open all</button>`;
+  if (!inLibrary) {
+    const save = state.libraryOn ? `<button type="button" class="btn" data-head="save"${none}>Save &amp; close all</button>` : '';
+    const more = state.view === 'stale' ? moreButton('stale', '', 'More stale tab actions') : '';
+    actions = `${save}<button type="button" class="btn danger" data-head="close"${none}>Close all</button>${more}`;
+  }
+  const hints = inLibrary ? '' : `<div class="tree-top"><span><kbd>↑</kbd> <kbd>↓</kbd> move</span><span><kbd>←</kbd> <kbd>→</kbd> collapse / expand</span><span><kbd>Space</kbd> check</span><span><kbd>Enter</kbd> open</span></div>`;
+  $('#main-head').innerHTML = `<div class="main-title"><h2>${esc(mainTitle())}</h2><span class="sub">${plural(list.length, inLibrary ? 'saved tab' : 'tab')}</span><span class="g-spacer"></span>${actions}</div>${hints}`;
+}
+
+$('#main-head').addEventListener('click', async event => {
+  const more = event.target.closest('[data-menu]');
+  if (more) return openMenu(more, menuFor(more));
+  const button = event.target.closest('[data-head]');
+  if (!button) return;
+  if (button.dataset.head === 'open') return openSavedMany(state.saved.filter(savedMatches));
+  // What the list shows: matches() follows the sidebar and the search.
+  const ids = state.tabs.filter(matches).map(tab => tab.id);
+  if (button.dataset.head === 'save') await saveTabs(ids);
+  if (button.dataset.head === 'close' && await confirmMany(ids.length)) await closeWithUndo(ids);
+});
 
 // ---------- the page: sidebar, hash and bulk bar ----------
 const PAGE_VIEWS = ['groups', 'windows', 'library', 'stale'];
@@ -1671,6 +1711,7 @@ async function start() {
   Object.assign(state, await browser.storage.local.get(SETTINGS));
   if (IS_PAGE) {
     side.hidden = false;
+    $('#main-head').hidden = false;
     readHash();
   }
   $('#s-dev').checked = state.dev;
