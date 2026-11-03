@@ -11,19 +11,38 @@ Upload `dist/oh-my-tabs-1.0.0-firefox.zip`, built by `npm run package`. It needs
 **Summary** (≤ 250 characters):
 Your tabs grouped by repo, Jira project or Linear team, with duplicates found even when the URLs differ. Search, move, suspend and close tabs across all windows.
 
-**Description**: the detailed description in CHROMEWEBSTORE.md, with two changes. "Chrome's shortcut settings" becomes "Firefox's Manage Extension Shortcuts". After the duplicates section, add this paragraph:
+**Description** (AMO supports some Markdown, no headings):
 
 ```
-Firefox containers are respected: the same page open in two different containers is never treated as a duplicate.
+**oh-my-tabs shows all your open tabs, from every window, grouped by site or project, and finds the duplicate tabs other tools miss.**
+
+**Groups that match how you work:** with developer mode (on by default), tabs are grouped per GitHub, GitLab or Bitbucket repository, per Jira or Confluence project and per Linear team. Without it, by site. The biggest groups come first.
+
+**Duplicates, even when the address differs:**
+
+- #anchors, utm_ tracking parameters and trailing slashes are ignored
+- in developer mode also: the Files, Commits and Checks pages of one pull request, a Jira issue opened from a board, a Figma file at another frame, a Google Doc in edit or view mode
+- Firefox containers are respected: the same page in two containers is never a duplicate
+
+The toolbar badge counts your duplicates, and "Close duplicates" keeps the tab you used last.
+
+**Find, move, suspend:** search titles, addresses and groups (accents are ignored), move a tab or a whole group to another window, and suspend tabs to free memory.
+
+**Windows view:** every window as a card with its groups, how many tabs and sites it holds, and when you last used it.
+
+**Keyboard:** Alt+Shift+O opens oh-my-tabs and Alt+Shift+D closes duplicates. You can change both in Manage Extension Shortcuts.
+
+**Private:** everything happens on your device. No data is collected or sent anywhere. Open source: https://github.com/pkasarda/oh-my-tabs
 ```
 
-**Categories**: Tabs; Productivity
+**Experimental**: no. **Requires payment**: no.
+**Categories** (up to 3; there is no Productivity): Tabs; Web Development
 **Tags**: tabs, tab manager, duplicate tabs, developer, github
 **Support site**: https://github.com/pkasarda/oh-my-tabs/issues
 **Support email**: oh-my-tabs@pixelcherry.eu
 **Homepage**: https://github.com/pkasarda/oh-my-tabs
 **License**: MIT License (see LICENSE)
-**Privacy policy**: the text of PRIVACY.md. AMO accepts it as text, so paste it in.
+**Privacy policy**: check "This add-on has a Privacy Policy" and paste the text of PRIVACY.md.
 **Screenshots**: the files in store/, the same ones as for Chrome.
 
 ## Data collection

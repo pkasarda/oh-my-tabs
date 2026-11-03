@@ -20,7 +20,7 @@ delete manifest.minimum_chrome_version;
 manifest.permissions = manifest.permissions.filter(permission => permission !== 'favicon');
 manifest.browser_specific_settings = {
   gecko: {
-    id: 'oh-my-tabs@pkasarda',
+    id: 'oh-my-tabs@pixelcherry.eu',
     // 140: browser_specific_settings.gecko.data_collection_permissions (137 brought commands.openShortcutSettings).
     strict_min_version: '140.0',
     data_collection_permissions: { required: ['none'] },
