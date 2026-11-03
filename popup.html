@@ -20,8 +20,17 @@
     <button type="button" class="icon-btn" id="open-page" data-tip="Open as page" aria-label="Open as page" data-icon="page"></button>
     <button type="button" class="icon-btn" id="settings-button" popovertarget="settings" data-tip="Settings" aria-label="Settings" data-icon="settings"></button>
   </div>
+  <nav class="side" id="side" aria-label="Sections" hidden></nav>
   <div class="results-bar" id="results-bar"></div>
   <div class="body" id="body"></div>
+  <div class="bulk-bar" id="bulk-bar" role="group" aria-label="Checked tabs" hidden>
+    <span id="bulk-count" aria-live="polite"></span>
+    <button type="button" class="btn" data-bulk="save">Save &amp; close</button>
+    <button type="button" class="btn" data-bulk="move" aria-haspopup="menu" aria-expanded="false">Move to window ›</button>
+    <button type="button" class="btn" data-bulk="suspend">Suspend</button>
+    <button type="button" class="btn danger" data-bulk="close">Close</button>
+    <button type="button" class="btn" data-bulk="clear">Clear</button>
+  </div>
   <div class="undo-bar" id="undo-bar" role="status" hidden><span id="undo-text"></span><button type="button" class="btn" id="undo-button">Undo</button></div>
 </main>
 

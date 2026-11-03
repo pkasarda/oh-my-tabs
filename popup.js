@@ -16,11 +16,15 @@ const state = {
   openGroups: new Set(), openKeepers: new Set(),
   // Library: on while the bookmarks permission is granted; saved tabs and topics come from library.js.
   libraryOn: false, saved: [], topics: [], savedKeys: new Set(), topic: 'All',
+  // Page only: the sidebar's choice within the view (a group name, a window id, a topic or '' for no topic),
+  // the checked tab ids for the bulk bar, and the stale tab ids of the last render.
+  pageItem: null, checked: new Set(), staleShown: new Set(),
 };
 
 const $ = selector => document.querySelector(selector);
 const body = $('#body');
 const search = $('#search');
+const side = $('#side');
 
 // Stroke icons drawn from Lucide (ISC license). Text glyphs like ⚙ render tiny and differ per font.
 const ICONS = {
@@ -110,6 +114,10 @@ function analyze() {
   const savedGroups = groupsFor(state.saved);
   for (const item of state.saved) item.group = savedGroups.get(item);
   state.savedKeys = new Set(state.saved.map(item => duplicateKey(item.url, state.dev)).filter(Boolean));
+  const open = new Set(state.tabs.map(tab => tab.id));
+  for (const id of state.checked) {
+    if (!open.has(id)) state.checked.delete(id);
+  }
 }
 
 function isSaved(tab) {
@@ -118,6 +126,8 @@ function isSaved(tab) {
 
 function savedMatches(item) {
   if (state.topic !== 'All' && item.topic !== state.topic) return false;
+  // A topic picked in the page's sidebar; '' is "No topic".
+  if (IS_PAGE && state.view === 'library' && state.pageItem !== null && (item.topic ?? '') !== state.pageItem) return false;
   if (!state.query) return true;
   const query = fold(state.query);
   return [item.title, item.url, item.group, item.topic].some(text => fold(text ?? '').includes(query));
@@ -127,7 +137,19 @@ function staleIds() {
   return staleTabs(state.tabs, Date.now(), state.staleDays, state.never).map(tab => tab.id);
 }
 
+// On the page the sidebar narrows the list to one group or window, or to the stale tabs.
+function inPageSelection(tab) {
+  if (!IS_PAGE) return true;
+  if (state.view === 'stale') return state.staleShown.has(tab.id);
+  if (state.pageItem === null) return true;
+  if (state.view === 'groups') return tab.group === state.pageItem;
+  if (state.view === 'windows') return String(tab.windowId) === state.pageItem;
+  return true;
+}
+
+// Group actions, results and the bulk bar all go through here, so they act on exactly what the list shows.
 function matches(tab) {
+  if (!inPageSelection(tab)) return false;
   if (!state.query) return true;
   const query = fold(state.query);
   return fold(tab.title ?? '').includes(query) || fold(tab.url).includes(query) || fold(tab.group).includes(query);
@@ -316,9 +338,29 @@ function groupSaveButton(name, windowId = null) {
   return `<button type="button" class="icon-btn" data-save-group="${esc(name)}"${w} data-tip="Save & close group" aria-label="Save & close group">${icon('save')}</button>`;
 }
 
+// Page only: checkboxes for the bulk bar, on tab rows and on group headers (all its shown tabs).
+function pickBox(tab) {
+  if (!IS_PAGE) return '';
+  const checked = state.checked.has(tab.id) ? ' checked' : '';
+  return `<input type="checkbox" class="pick" data-pick="${tab.id}" aria-label="Select ${esc(tab.title || tab.url)}"${checked}>`;
+}
+
+function groupPickBox(name, windowId = null) {
+  if (!IS_PAGE) return '';
+  const ids = groupTabIds(name, windowId);
+  const picked = ids.filter(id => state.checked.has(id)).length;
+  const w = windowId === null ? '' : ` data-w="${windowId}"`;
+  const checked = picked > 0 && picked === ids.length ? ' checked' : '';
+  // render() turns the partial class into the indeterminate state, which has no HTML attribute.
+  // A class, not a data-* attribute: focusKey reads the dataset, and focus must survive the change.
+  const partial = picked > 0 && picked < ids.length ? ' partial' : '';
+  return `<input type="checkbox" class="pick${partial}" data-pick-group="${esc(name)}"${w} aria-label="Select all tabs in ${esc(name)}"${checked}>`;
+}
+
 function rowHtml(tab, nested = false, list = []) {
   const age = Date.now() - tab.lastAccessed > DAY ? `<span class="age">used ${ago(tab.lastAccessed)}</span>` : '';
   return `<li class="row${nested ? ' nested' : ''}${tab.discarded ? ' suspended' : ''}" data-id="${tab.id}">
+    ${pickBox(tab)}
     <button type="button" class="row-main" data-switch="${tab.id}">
       ${rowFavicon(tab)}
       <span class="t"><span class="title">${esc(tab.title || tab.url)}</span><span class="url">${esc(shortUrl(tab.url))}</span></span>
@@ -368,9 +410,12 @@ function renderGroups(list) {
   const html = multi.map(([name, members]) => {
     const open = state.query || state.openGroups.has(name);
     const dups = members.filter(tab => tab.isDup).length;
+    // On the page a group header drags onto a window or a topic in the sidebar.
+    const drag = IS_PAGE ? ` draggable="true" data-drag-group="${esc(name)}"` : '';
     return `<details class="group" data-key="${esc(name)}" ${open ? 'open' : ''}>
-      <summary>
+      <summary${drag}>
         <span class="chev">${icon('chevron')}</span>
+        ${groupPickBox(name)}
         <span class="mini-stack">${distinctFavicons(members)}</span>
         <span class="g-name">${esc(name)}</span>
         <span class="g-meta">${members.length}</span>
@@ -385,15 +430,16 @@ function renderGroups(list) {
     </details>`;
   }).join('');
   const rows = singlesHtml(sortTabs(singles), tab => rowHtml(tab, false, singles));
-  return `<div class="groups">${staleGroupHtml()}${html}${rows}</div>`;
+  // On the page the stale tabs have a sidebar section of their own.
+  const stale = state.query || IS_PAGE ? '' : staleGroupHtml();
+  return `<div class="groups">${stale}${html}${rows}</div>`;
 }
 
 // Open, unpinned tabs not used for a while, oldest first, in a group of their own (collapsed by default).
-function staleGroupHtml() {
-  if (!state.stale || state.query) return '';
-  const stale = staleTabs(state.tabs, Date.now(), state.staleDays, state.never).sort((a, b) => a.lastAccessed - b.lastAccessed);
+function staleGroupHtml(list = state.tabs, { open = state.openGroups.has('stale') } = {}) {
+  if (!state.stale) return '';
+  const stale = staleTabs(list, Date.now(), state.staleDays, state.never).sort((a, b) => a.lastAccessed - b.lastAccessed);
   if (stale.length === 0) return '';
-  const open = state.openGroups.has('stale');
   const save = state.libraryOn ? `<button type="button" class="icon-btn" data-save-stale data-tip="Save & close all" aria-label="Save & close all stale tabs">${icon('save')}</button>` : '';
   return `<details class="group stale" data-key="stale" ${open ? 'open' : ''}>
     <summary>
@@ -459,6 +505,28 @@ function renderLibrary(list) {
   return `${filters}<div class="groups">${html}${rows}</div>`;
 }
 
+// The page shows the Library as a board: "No topic" first, then a column per topic. A card dragged to another
+// column moves to that topic. A topic picked in the sidebar shows only its column.
+function renderBoard(list) {
+  const columns = [['', 'No topic'], ...state.topics.map(topic => [topic.title, topic.title])]
+    .filter(([key]) => state.pageItem === null || state.pageItem === key)
+    .map(([key, label]) => {
+      const cards = list.filter(item => (item.topic ?? '') === key).sort((a, b) => b.dateAdded - a.dateAdded);
+      const empty = `<li class="col-empty">${state.query ? 'No saved tabs match.' : 'Drop saved tabs here'}</li>`;
+      return `<section class="col" data-drop-topic="${esc(key)}" aria-label="${esc(label)}">
+        <header class="col-head"><span class="g-name">${esc(label)}</span><span class="g-meta">${cards.length}</span></header>
+        <ul class="rows col-body">${cards.map(savedRowHtml).join('') || empty}</ul>
+      </section>`;
+    }).join('');
+  const add = state.pageItem === null ? `<button type="button" class="col col-new" data-new-topic>${icon('plus')} New topic</button>` : '';
+  return `<div class="board">${columns}${add}</div>`;
+}
+
+// Page only: the stale group on its own, open.
+function renderStale(list) {
+  return `<div class="groups">${staleGroupHtml(list, { open: true }) || '<div class="empty">No stale tabs match.</div>'}</div>`;
+}
+
 // Windows view (option E): a window looks like a group and opens into its groups, which open into tabs.
 // Groups with one tab are plain tab rows under "1-tab sites".
 function windowGroupHtml(windowId, name, members) {
@@ -468,6 +536,7 @@ function windowGroupHtml(windowId, name, members) {
   return `<details class="group" data-key="${esc(key)}" ${open ? 'open' : ''}>
     <summary draggable="true" data-drag-group="${esc(name)}" data-w="${windowId}">
       <span class="chev">${icon('chevron')}</span>
+      ${groupPickBox(name, windowId)}
       <span class="mini-stack">${distinctFavicons(members)}</span>
       <span class="g-name">${esc(name)}</span>
       <span class="g-meta">${members.length}</span>
@@ -512,8 +581,21 @@ function renderWindows(list) {
   return `<div class="windows">${cards}<div class="win-new" data-drop-w="new">${icon('plus')} Drop here for a new window</div></div>`;
 }
 
+// Back to Groups when the view in use went away; on the page through setPage, so the hash follows.
+function leaveView() {
+  if (IS_PAGE) setPage('groups', null);
+  else state.view = 'groups';
+}
+
 function render() {
-  if (state.view === 'library' && !state.libraryOn) state.view = 'groups';
+  if (state.view === 'library' && !state.libraryOn) leaveView();
+  if (state.view === 'stale' && !state.stale) leaveView();
+  if (IS_PAGE) {
+    state.staleShown = new Set(state.stale ? staleIds() : []);
+    // The last stale tab was closed or used: its sidebar entry is gone too.
+    if (state.view === 'stale' && state.staleShown.size === 0) leaveView();
+    if (!pageItemExists()) setPage(state.view, null);
+  }
   const inLibrary = state.view === 'library';
   const list = inLibrary ? state.saved.filter(savedMatches) : state.tabs.filter(matches);
   document.documentElement.classList.toggle('mono', state.dev);
@@ -539,14 +621,169 @@ function render() {
   }
   const scroll = body.scrollTop;
   const focused = focusKey(document.activeElement);
-  const views = { groups: renderGroups, windows: renderWindows, library: renderLibrary };
+  const views = { groups: renderGroups, windows: renderWindows, library: IS_PAGE ? renderBoard : renderLibrary, stale: renderStale };
   body.innerHTML = views[state.view](list);
-  // In the Windows view a tab row can be dragged onto another window.
-  for (const row of body.querySelectorAll('.windows .row')) row.draggable = true;
+  // In the Windows view a tab row can be dragged onto another window; on the page every row can be dragged,
+  // onto a window or a topic in the sidebar, and a saved card onto another topic.
+  for (const row of body.querySelectorAll(IS_PAGE ? '.row' : '.windows .row')) row.draggable = true;
+  for (const box of body.querySelectorAll('.pick.partial')) box.indeterminate = true;
   body.scrollTop = scroll;
-  if (focused) [...body.querySelectorAll('button, summary')].find(el => focusKey(el) === focused)?.focus({ preventScroll: true });
+  if (focused) [...body.querySelectorAll('button, summary, input')].find(el => focusKey(el) === focused)?.focus({ preventScroll: true });
   highlightSelection();
+  if (IS_PAGE) {
+    renderSidebar();
+    renderBulkBar();
+  }
 }
+
+// ---------- the page: sidebar, hash and bulk bar ----------
+const PAGE_VIEWS = ['groups', 'windows', 'library', 'stale'];
+
+// The page's selection lives in the hash, so a reload keeps it: #groups, #windows/12, #library/Read%20later.
+// "No topic" is the empty item: #library/.
+function setPage(view, item) {
+  state.view = view;
+  state.pageItem = item;
+  if (item !== null && view === 'groups') state.openGroups.add(item);
+  if (item !== null && view === 'windows') state.openGroups.add(`w:${item}`);
+  const hash = item === null ? view : `${view}/${encodeURIComponent(item)}`;
+  history.replaceState(null, '', `#${hash}`);
+}
+
+function readHash() {
+  const [view, item] = location.hash.slice(1).split('/');
+  if (!PAGE_VIEWS.includes(view)) return;
+  let decoded = null;
+  try {
+    if (item !== undefined) decoded = decodeURIComponent(item);
+  } catch {
+    // A hand-edited or cut-off hash such as #groups/%E0: show the whole view.
+  }
+  setPage(view, decoded);
+}
+
+function selectPage(view, item) {
+  setPage(view, item);
+  body.scrollTop = 0;
+  render();
+}
+
+// A group, window or topic picked earlier can be gone since (closed, emptied, a stale link).
+function pageItemExists() {
+  const item = state.pageItem;
+  if (item === null) return true;
+  if (state.view === 'groups') return state.tabs.some(tab => tab.group === item);
+  if (state.view === 'windows') return state.windows.some(windowId => String(windowId) === item);
+  if (state.view === 'library') return item === '' || state.topics.some(topic => topic.title === item);
+  return false;
+}
+
+// item null is the section heading, which shows the whole view. drop: the attribute that makes it a drop target.
+function sideButton(view, item, label, count, { lead = '', drop = '', tip = '' } = {}) {
+  const current = state.view === view && state.pageItem === item;
+  const cls = item === null ? 'side-head' : 'side-item';
+  const data = item === null ? '' : ` data-item="${esc(item)}"`;
+  const tipAttr = tip ? ` data-tip="${esc(tip)}"` : '';
+  return `<button type="button" class="${cls}" data-section="${view}"${data}${drop}${tipAttr} aria-current="${current}">${lead}<span class="nm">${esc(label)}</span><span class="n">${count}</span></button>`;
+}
+
+function renderSidebar() {
+  const focused = side.contains(document.activeElement) ? document.activeElement.dataset : null;
+  const groups = groupsOf(state.tabs);
+  const parts = [
+    sideButton('groups', null, 'Groups', groups.length),
+    ...groups.map(([name, members]) => sideButton('groups', name, name, members.length, { lead: favicon(members[0]) })),
+    sideButton('windows', null, 'Windows', state.windows.length),
+    ...state.windows.map(windowId => sideButton('windows', String(windowId), windowName(windowId), tabsIn(windowId).length,
+      { lead: windowLabel(windowId), drop: ` data-drop-w="${windowId}"` })),
+  ];
+  if (state.libraryOn) {
+    const topicIcon = `<span class="topic-icon">${icon('save')}</span>`;
+    const topics = [['', 'No topic'], ...state.topics.map(topic => [topic.title, topic.title])];
+    parts.push(
+      sideButton('library', null, 'Library', state.saved.length),
+      ...topics.map(([key, label]) => sideButton('library', key, label, state.saved.filter(item => (item.topic ?? '') === key).length,
+        { lead: topicIcon, drop: ` data-drop-topic="${esc(key)}"` })),
+    );
+  }
+  if (state.staleShown.size > 0) {
+    parts.push(sideButton('stale', null, 'Stale', state.staleShown.size, { tip: `Not used for ${state.staleDays}+ days` }));
+  }
+  side.innerHTML = parts.join('');
+  if (!focused) return;
+  const same = [...side.querySelectorAll('button')].find(el => el.dataset.section === focused.section && el.dataset.item === focused.item);
+  same?.focus({ preventScroll: true });
+}
+
+// Checked tabs the list shows: a check hidden by the sidebar or the search stays, but is not acted on.
+function checkedShown() {
+  return state.tabs.filter(tab => state.checked.has(tab.id) && matches(tab)).map(tab => tab.id);
+}
+
+function renderBulkBar() {
+  const count = checkedShown().length;
+  $('#bulk-bar').hidden = count === 0 || state.view === 'library';
+  // Only on a change: the count is a live region, and render() runs on every tab event.
+  const text = `${count} selected`;
+  if ($('#bulk-count').textContent !== text) $('#bulk-count').textContent = text;
+  $('[data-bulk="save"]').hidden = !state.libraryOn;
+}
+
+function togglePick(box) {
+  let ids = [Number(box.dataset.pick)];
+  if (box.dataset.pickGroup !== undefined) ids = groupTabIds(box.dataset.pickGroup, box.dataset.w ? Number(box.dataset.w) : null);
+  const all = ids.every(id => state.checked.has(id));
+  for (const id of ids) {
+    if (all) state.checked.delete(id);
+    else state.checked.add(id);
+  }
+  render();
+}
+
+// The bar hides with the selection; focus that was on it goes to the search box instead of the page.
+function clearPicks() {
+  state.checked.clear();
+  render();
+  if (document.activeElement === document.body || $('#bulk-bar').contains(document.activeElement)) search.focus();
+}
+
+// Each action clears the selection once it ran; a cancelled confirmation keeps it.
+// One at a time: a double click must not save or close the same tabs twice.
+let bulkBusy = false;
+async function bulkAction(button) {
+  const ids = checkedShown();
+  const action = button.dataset.bulk;
+  if (action === 'clear') return clearPicks();
+  if (action === 'move') {
+    const items = moveItems(ids).map(item => item === '-' ? item : { ...item, run: async () => { await item.run(); clearPicks(); } });
+    return openMenu(button, items);
+  }
+  if (bulkBusy) return;
+  bulkBusy = true;
+  try {
+    let done = false;
+    if (action === 'save') done = await saveTabs(ids);
+    if (action === 'suspend') done = await suspendTabs(ids);
+    if (action === 'close' && await confirmMany(ids.length)) {
+      await closeWithUndo(ids);
+      done = true;
+    }
+    if (done) clearPicks();
+  } finally {
+    bulkBusy = false;
+  }
+}
+
+$('#bulk-bar').addEventListener('click', event => {
+  const button = event.target.closest('[data-bulk]');
+  if (button) bulkAction(button);
+});
+
+side.addEventListener('click', event => {
+  const button = event.target.closest('[data-section]');
+  if (!button) return;
+  selectPage(button.dataset.section, button.dataset.item ?? null);
+});
 
 // Identifies a focused control by what it acts on, so focus survives a re-render.
 function focusKey(element) {
@@ -632,13 +869,15 @@ function suspendable(ids, { bulk = true } = {}) {
     .map(tab => tab.id);
 }
 
+// Returns false when the confirmation was cancelled.
 async function suspendTabs(ids, { bulk = true } = {}) {
   await load();
   const targets = suspendable(ids, { bulk });
-  if (!(await confirmMany(targets.length, 'Suspend'))) return;
+  if (!(await confirmMany(targets.length, 'Suspend'))) return false;
   // One at a time: Chrome's tabs.discard takes a single tab.
   for (const id of targets) await browser.tabs.discard(id).catch(() => {});
   refresh();
+  return true;
 }
 
 // Recomputes duplicates from the current tabs first: a copy may have navigated away since the last render.
@@ -650,13 +889,15 @@ async function closeDuplicates(filter = () => true) {
 }
 
 // Saves web tabs to the library and, with close, closes the ones it saved. Asks above 10.
+// Returns false when there was nothing to save or the confirmation was cancelled.
 async function saveTabs(ids, { close = true, topic = null } = {}) {
   const tabs = state.tabs.filter(tab => ids.includes(tab.id) && isWeb(tab.url));
-  if (tabs.length === 0) return;
-  if (!(await confirmMany(tabs.length, close ? 'Save & close' : 'Save'))) return;
+  if (tabs.length === 0) return false;
+  if (!(await confirmMany(tabs.length, close ? 'Save & close' : 'Save'))) return false;
   await Library.save(tabs, state.dev, topic);
   if (close) await closeWithUndo(tabs.map(tab => tab.id));
   refresh();
+  return true;
 }
 
 // Opening a saved tab that is already open switches to it, so the Library never makes duplicates.
@@ -939,9 +1180,13 @@ $('#topic-dialog').addEventListener('close', refreshIfPending);
 async function handleWindowClick(target, event) {
   const show = target.closest('[data-show-window]');
   if (show) {
-    await saveSetting('view', 'windows');
-    state.openGroups.add(`w:${show.dataset.showWindow}`);
-    render();
+    // On the page the sidebar picks that window; the popup switches to the Windows view.
+    if (IS_PAGE) selectPage('windows', show.dataset.showWindow);
+    else {
+      await saveSetting('view', 'windows');
+      state.openGroups.add(`w:${show.dataset.showWindow}`);
+      render();
+    }
     const card = document.getElementById(`win-${show.dataset.showWindow}`);
     card?.scrollIntoView({ block: 'start' });
     card?.querySelector('summary').focus();
@@ -962,6 +1207,13 @@ async function handleWindowClick(target, event) {
 
 body.addEventListener('click', async event => {
   const target = event.target;
+  const pick = target.closest('.pick');
+  if (pick) {
+    // The state decides, and inside a <summary> the click must not also toggle the group.
+    event.preventDefault();
+    togglePick(pick);
+    return;
+  }
   if (await handleWindowClick(target, event)) return;
   const more = target.closest('[data-menu]');
   if (more) {
@@ -1040,6 +1292,44 @@ body.addEventListener('toggle', event => {
   if (details.open) state.openGroups.add(details.dataset.key);
   else state.openGroups.delete(details.dataset.key);
 }, true);
+
+// On the page the list is a keyboard tree: ↑/↓ move between visible rows and group headers, → opens a group,
+// ← closes it or goes up to the header it sits in, Space checks the tab or group. Enter keeps its meaning.
+body.addEventListener('keydown', event => {
+  const current = event.target;
+  if (!IS_PAGE || !current.matches('summary, .row-main')) return;
+  const isHeader = current.matches('summary');
+  const details = isHeader ? current.parentElement : null;
+  const stops = [...body.querySelectorAll('summary, .row-main')].filter(el => el.checkVisibility());
+  const i = stops.indexOf(current);
+  if (event.key === 'ArrowDown') stops[i + 1]?.focus();
+  else if (event.key === 'ArrowUp') stops[i - 1]?.focus();
+  else if (event.key === 'ArrowRight' && isHeader) {
+    if (details.open) stops[i + 1]?.focus();
+    else details.open = true;
+  } else if (event.key === 'ArrowLeft') {
+    if (isHeader && details.open) details.open = false;
+    else (isHeader ? details.parentElement : current).closest('details')?.querySelector(':scope > summary').focus();
+  } else if (event.key === ' ') {
+    const box = pickFor(current);
+    if (!box) return;
+    togglePick(box);
+  } else return;
+  event.preventDefault();
+});
+
+// The checkbox Space toggles for a focused tab row or group header; saved rows have none.
+function pickFor(element) {
+  if (!IS_PAGE || !element.matches('summary, .row-main')) return null;
+  if (element.matches('summary')) return element.querySelector(':scope > .pick');
+  return element.closest('.row').querySelector('.pick');
+}
+
+// Browsers activate a button (and a summary) on Space's keyup; cancelling keydown alone may not stop that,
+// which would also switch to the tab. Focus is still on the same element after the re-render.
+body.addEventListener('keyup', event => {
+  if (event.key === ' ' && pickFor(event.target)) event.preventDefault();
+});
 
 // ---------- search ----------
 search.addEventListener('input', () => {
@@ -1179,38 +1469,66 @@ async function renderShortcuts() {
     .join('');
 }
 
-// ---------- drag and drop between windows ----------
+// ---------- drag and drop between windows (and, on the page, onto topics) ----------
 // A type of our own, so text or links dropped from a page are never read as tab ids.
 const DRAG_TYPE = 'application/x-oh-my-tabs';
+// Saved cards on the page's board carry bookmark ids under a type of their own: they go to a topic, never a window.
+const SAVED_DRAG_TYPE = 'application/x-oh-my-tabs-saved';
 body.addEventListener('dragstart', event => {
+  const card = event.target.closest('.row[data-saved]');
+  if (card) {
+    event.dataTransfer.setData(SAVED_DRAG_TYPE, card.dataset.saved);
+    event.dataTransfer.effectAllowed = 'move';
+    return;
+  }
   const row = event.target.closest('.row');
   const group = event.target.closest('[data-drag-group]');
   let ids = [];
   if (row) ids = [Number(row.dataset.id)];
-  else if (group) ids = groupTabIds(group.dataset.dragGroup, Number(group.dataset.w));
+  else if (group) ids = groupTabIds(group.dataset.dragGroup, group.dataset.w ? Number(group.dataset.w) : null);
   event.dataTransfer.setData(DRAG_TYPE, ids.join(','));
   event.dataTransfer.effectAllowed = 'move';
 });
-body.addEventListener('dragover', event => {
-  const win = event.target.closest('[data-drop-w]');
-  if (!win || !event.dataTransfer.types.includes(DRAG_TYPE)) return;
-  event.preventDefault();
-  body.querySelectorAll('.drop').forEach(el => el !== win && el.classList.remove('drop'));
-  win.classList.add('drop');
-});
-body.addEventListener('dragleave', event => {
-  const win = event.target.closest('[data-drop-w]');
-  if (win && !win.contains(event.relatedTarget)) win.classList.remove('drop');
-});
-body.addEventListener('drop', event => {
-  const win = event.target.closest('[data-drop-w]');
-  if (!win) return;
-  event.preventDefault();
-  win.classList.remove('drop');
-  const ids = event.dataTransfer.getData(DRAG_TYPE).split(',').filter(Boolean).map(Number);
-  if (ids.length === 0 || ids.some(Number.isNaN)) return;
-  moveTabs(ids, win.dataset.dropW === 'new' ? 'new' : Number(win.dataset.dropW));
-});
+
+// Tabs drop on a window (move) or a topic (save & close into it); saved cards only on a topic.
+function dropZone(event) {
+  const types = event.dataTransfer.types;
+  if (types.includes(SAVED_DRAG_TYPE)) return event.target.closest('[data-drop-topic]');
+  if (types.includes(DRAG_TYPE)) return event.target.closest('[data-drop-w], [data-drop-topic]');
+  return null;
+}
+
+// The sidebar is outside the list, so both listen.
+for (const area of [body, side]) {
+  area.addEventListener('dragover', event => {
+    const zone = dropZone(event);
+    if (!zone) return;
+    event.preventDefault();
+    document.querySelectorAll('.drop').forEach(el => el !== zone && el.classList.remove('drop'));
+    zone.classList.add('drop');
+  });
+  area.addEventListener('dragleave', event => {
+    const zone = dropZone(event);
+    if (zone && !zone.contains(event.relatedTarget)) zone.classList.remove('drop');
+  });
+  area.addEventListener('drop', event => {
+    const zone = dropZone(event);
+    if (!zone) return;
+    event.preventDefault();
+    zone.classList.remove('drop');
+    const topic = zone.dataset.dropTopic;
+    const saved = event.dataTransfer.getData(SAVED_DRAG_TYPE);
+    if (saved) {
+      moveSaved([saved], topic || null);
+      return;
+    }
+    const ids = event.dataTransfer.getData(DRAG_TYPE).split(',').filter(Boolean).map(Number);
+    if (ids.length === 0 || ids.some(Number.isNaN)) return;
+    // "No topic" is the empty topic.
+    if (topic !== undefined) saveTabs(ids, { topic: topic || null });
+    else moveTabs(ids, zone.dataset.dropW === 'new' ? 'new' : Number(zone.dataset.dropW));
+  });
+}
 
 // ---------- undo ----------
 // The last bulk close (not Close duplicates, which loses nothing) can be undone while the popup stays open.
@@ -1351,6 +1669,10 @@ async function start() {
     state.ownTabId = (await browser.tabs.getCurrent())?.id ?? null;
   }
   Object.assign(state, await browser.storage.local.get(SETTINGS));
+  if (IS_PAGE) {
+    side.hidden = false;
+    readHash();
+  }
   $('#s-dev').checked = state.dev;
   document.querySelector(`[name="sort"][value="${state.sort}"]`).checked = true;
   $('#s-stale').checked = state.stale;
