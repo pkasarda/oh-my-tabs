@@ -29,6 +29,9 @@ const ICONS = {
   plus: '<path d="M5 12h14"/><path d="M12 5v14"/>',
   minimize: '<path d="M5 12h14"/>',
   restore: '<rect width="20" height="16" x="2" y="4" rx="2"/><path d="M2 8h20"/>',
+  more: '<circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/>',
+  suspend: '<path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/>',
+  back: '<path d="m15 18-6-6 6-6"/>',
   monitor: '<rect width="20" height="14" x="2" y="3" rx="2"/><path d="M8 21h8"/><path d="M12 17v4"/>',
 };
 
@@ -134,6 +137,8 @@ function windowStats(windowId) {
   const used = tabs.map(tab => tab.lastAccessed).filter(Number.isFinite);
   const parts = [plural(tabs.length, 'tab'), plural(sites.size, 'site')];
   if (dups) parts.push(`<span class="dup-count">${plural(dups, 'dup')}</span>`);
+  const suspended = tabs.filter(tab => tab.discarded).length;
+  if (suspended) parts.push(`${suspended} suspended`);
   if (used.length) parts.push(`active ${ago(Math.max(...used))}`, `oldest used ${ago(Math.min(...used))}`);
   const info = state.windowInfo.get(windowId);
   const shape = `${info.state} · ${info.width}×${info.height}`;
@@ -202,6 +207,11 @@ function shortUrl(url) {
   }
 }
 
+// The ⋯ button that opens a row, group or window menu; data-* says which and for what.
+function moreButton(kind, attrs, label) {
+  return `<button type="button" class="icon-btn" data-menu="${kind}" ${attrs} aria-haspopup="menu" aria-expanded="false" data-tip="${label}" aria-label="${label}">${icon('more')}</button>`;
+}
+
 function copiesButton(tab) {
   if (!tab.set) return '';
   // A copy shown on its own row: its keeper is not in this list (another window in the Windows view).
@@ -214,14 +224,16 @@ function copiesButton(tab) {
 }
 
 function rowHtml(tab, nested = false) {
-  return `<li class="row${nested ? ' nested' : ''}" data-id="${tab.id}">
+  const suspended = tab.discarded ? '<span class="zz-pill" data-tip="Suspended: reloads when you switch to it">zz</span>' : '';
+  return `<li class="row${nested ? ' nested' : ''}${tab.discarded ? ' suspended' : ''}" data-id="${tab.id}">
     ${favicon(tab)}
     <span class="t"><span class="title">${esc(tab.title || tab.url)}</span><span class="url">${esc(shortUrl(tab.url))}</span></span>
+    ${suspended}
     ${nested ? '' : copiesButton(tab)}
     ${windowLabel(tab.windowId, { interactive: true })}
     <span class="actions">
-      <button type="button" class="icon-btn" data-move-tab="${tab.id}" data-tip="Move to…" aria-label="Move to window">${icon('move')}</button>
       <button type="button" class="icon-btn" data-close="${tab.id}" data-tip="Close tab" aria-label="Close tab">${icon('close')}</button>
+      ${moreButton('row', `data-id="${tab.id}"`, 'More tab actions')}
     </span>
   </li>`;
 }
@@ -254,8 +266,7 @@ function renderGroups(list) {
         ${dups ? `<span class="dup-count">${dups} dup${dups === 1 ? '' : 's'}</span>` : ''}
         <span class="g-spacer"></span>
         ${dups ? `<button type="button" class="icon-btn" data-close-group-dups="${esc(name)}" data-tip="Close duplicates in group" aria-label="Close duplicates in group">${icon('closeCopies')}</button>` : ''}
-        <button type="button" class="icon-btn" data-move-group="${esc(name)}" data-tip="Move group to…" aria-label="Move group to window">${icon('move')}</button>
-        <button type="button" class="icon-btn" data-close-group="${esc(name)}" data-tip="Close group" aria-label="Close group">${icon('close')}</button>
+        ${moreButton('group', `data-group="${esc(name)}"`, 'More group actions')}
       </summary>
       <ul class="rows">${groupRows(sortTabs(members))}</ul>
     </details>`;
@@ -276,6 +287,8 @@ function windowGroupHtml(windowId, name, members) {
       <span class="g-name">${esc(name)}</span>
       <span class="g-meta">${members.length}</span>
       ${dups ? `<span class="dup-count">${dups} dup${dups === 1 ? '' : 's'}</span>` : ''}
+      <span class="g-spacer"></span>
+      ${moreButton('group', `data-group="${esc(name)}" data-w="${windowId}"`, 'More group actions')}
     </summary>
     <ul class="rows">${groupRows(sortTabs(members))}</ul>
   </details>`;
@@ -299,10 +312,8 @@ function renderWindows(list) {
         <span class="mini-stack">${groups.slice(0, 4).map(([, [first]]) => favicon(first)).join('')}</span>
         <span class="win-title"><span class="g-name">${esc(windowName(windowId))}</span><span class="win-stats">${windowStats(windowId)}</span></span>
         <span class="g-spacer"></span>
-        <button type="button" class="icon-btn" data-focus-window="${windowId}" data-tip="Bring this window to the front" aria-label="Bring this window to the front">${icon('page')}</button>
-        <button type="button" class="icon-btn" data-new-tab="${windowId}" data-tip="New tab in this window" aria-label="New tab in this window">${icon('plus')}</button>
         <button type="button" class="icon-btn" data-minimize="${windowId}" data-tip="${minimized ? 'Restore' : 'Minimize'} this window" aria-label="${minimized ? 'Restore' : 'Minimize'} this window">${icon(minimized ? 'restore' : 'minimize')}</button>
-        <button type="button" class="icon-btn" data-close-window="${windowId}" data-tip="Close this window" aria-label="Close this window">${icon('close')}</button>
+        ${moreButton('window', `data-w="${windowId}"`, 'More window actions')}
         <span class="win-count">${current ? 'This window' : `Window ${n}`}</span>
       </summary>
       <div class="win-body">
@@ -372,13 +383,29 @@ function groupTabIds(name, windowId = null) {
     .map(tab => tab.id);
 }
 
-async function confirmClose(count) {
+// Asks before acting on many tabs at once; verb is "Close" or "Suspend".
+async function confirmMany(count, verb = 'Close') {
   if (count <= CONFIRM_ABOVE) return true;
   const dialog = $('#confirm');
-  $('#confirm-text').textContent = `Close ${count} tabs? This cannot be undone from oh-my-tabs.`;
+  const consequence = verb === 'Close' ? 'This cannot be undone from oh-my-tabs.' : 'They reload when you switch to them.';
+  $('#confirm-text').textContent = `${verb} ${count} tabs? ${consequence}`;
+  $('#confirm-ok').textContent = `${verb} tabs`;
   dialog.showModal();
   await new Promise(resolve => dialog.addEventListener('close', resolve, { once: true }));
   return dialog.returnValue === 'ok';
+}
+
+// Browsers cannot suspend the active tab of a window; those and already suspended tabs are skipped.
+function suspendable(ids) {
+  return state.tabs.filter(tab => ids.includes(tab.id) && !tab.active && !tab.discarded).map(tab => tab.id);
+}
+
+async function suspendTabs(ids) {
+  const targets = suspendable(ids);
+  if (!(await confirmMany(targets.length, 'Suspend'))) return;
+  // One at a time: Chrome's tabs.discard takes a single tab.
+  for (const id of targets) await browser.tabs.discard(id).catch(() => {});
+  refresh();
 }
 
 async function saveSetting(key, value) {
@@ -386,37 +413,148 @@ async function saveSetting(key, value) {
   await browser.storage.local.set({ [key]: value });
 }
 
-// ---------- "Move to…" menu, shared by tab rows and group headers ----------
-const moveMenu = $('#move-menu');
-let moveIds = [];
+// ---------- ⋯ menus for rows, groups and windows ----------
+// One popover. An item runs an action or opens a submenu in place: → or Enter opens it, ← or Esc goes back.
+const menu = $('#menu');
+let menuTrigger = null;
+let menuLevels = [];
 
-function openMoveMenu(trigger, ids) {
-  moveIds = ids;
+function moveItems(ids) {
   const from = new Set(state.tabs.filter(tab => ids.includes(tab.id)).map(tab => tab.windowId));
-  const items = state.windows
+  const windows = state.windows
     .filter(windowId => !(from.size === 1 && from.has(windowId)))
-    .map(windowId => `<button type="button" role="menuitem" data-target="${windowId}">${windowLabel(windowId)}<span>${esc(windowName(windowId))}</span></button>`);
-  moveMenu.innerHTML = `${items.join('')}${items.length ? '<hr>' : ''}<button type="button" role="menuitem" data-target="new">${icon('plus')}<span>New window</span></button>`;
-  const rect = trigger.getBoundingClientRect();
-  moveMenu.style.top = `${Math.min(rect.bottom + 4, innerHeight - 200)}px`;
-  moveMenu.style.left = `${Math.max(8, rect.right - 300)}px`;
-  moveMenu.showPopover();
-  moveMenu.querySelector('button').focus();
+    .map(windowId => ({ lead: windowLabel(windowId), label: windowName(windowId), run: () => moveTabs(ids, windowId) }));
+  return [...windows, ...(windows.length ? ['-'] : []), { icon: 'plus', label: 'New window', run: () => moveTabs(ids, 'new') }];
 }
 
-moveMenu.addEventListener('click', event => {
-  const item = event.target.closest('[data-target]');
-  if (!item) return;
-  moveMenu.hidePopover();
-  moveTabs(moveIds, item.dataset.target === 'new' ? 'new' : Number(item.dataset.target));
+function suspendItem(label, ids) {
+  const count = suspendable(ids).length;
+  return { icon: 'suspend', label: count > 1 ? `${label} · ${count}` : label, disabled: count === 0, run: () => suspendTabs(ids) };
+}
+
+function rowMenu(tab) {
+  // In the Windows view a group lives inside one window, so "other tabs in this group" stays there too.
+  const windowId = state.view === 'windows' ? tab.windowId : null;
+  const others = groupTabIds(tab.group, windowId).filter(id => id !== tab.id);
+  return [
+    { icon: 'move', label: 'Move to window', items: moveItems([tab.id]) },
+    '-',
+    tab.active
+      ? { icon: 'suspend', label: 'Suspend this tab (it is active)', disabled: true }
+      : suspendItem('Suspend this tab', [tab.id]),
+    suspendItem('Suspend other tabs in this group', others),
+  ];
+}
+
+function groupMenu(name, windowId) {
+  const ids = groupTabIds(name, windowId);
+  return [
+    { icon: 'move', label: 'Move group to', items: moveItems(ids) },
+    suspendItem('Suspend group', ids),
+    '-',
+    { icon: 'close', label: 'Close group', danger: true, run: async () => { if (await confirmMany(ids.length)) await browser.tabs.remove(ids); } },
+  ];
+}
+
+function windowMenu(windowId) {
+  const ids = tabsIn(windowId).map(tab => tab.id);
+  return [
+    { icon: 'page', label: 'Bring to front', run: async () => { await browser.windows.update(windowId, { focused: true }); if (!IS_PAGE) window.close(); } },
+    { icon: 'plus', label: 'New tab', run: () => browser.tabs.create({ windowId }) },
+    suspendItem('Suspend window', ids),
+    '-',
+    { icon: 'close', label: 'Close window', danger: true, run: async () => { if (await confirmMany(ids.length)) await browser.windows.remove(windowId); } },
+  ];
+}
+
+function renderMenu() {
+  const items = menuLevels.at(-1);
+  const back = menuLevels.length > 1 ? `<button type="button" role="menuitem" data-back>${icon('back')}<span>Back</span></button><hr>` : '';
+  menu.innerHTML = back + items.map((item, i) => {
+    if (item === '-') return '<hr>';
+    const lead = item.lead ?? icon(item.icon);
+    const sub = item.items ? ' aria-haspopup="menu"' : '';
+    const disabled = item.disabled ? ' disabled' : '';
+    const hint = item.items ? '<span class="hint" aria-hidden="true">›</span>' : '';
+    return `<button type="button" role="menuitem" data-i="${i}" class="${item.danger ? 'danger' : ''}"${sub}${disabled}>${lead}<span>${esc(item.label)}</span>${hint}</button>`;
+  }).join('');
+  menu.querySelector('button:not(:disabled)')?.focus();
+}
+
+function placeMenu() {
+  const anchor = menuTrigger.getBoundingClientRect();
+  const box = menu.getBoundingClientRect();
+  let top = anchor.bottom + 4;
+  if (top + box.height > innerHeight - 8) top = Math.max(8, anchor.top - box.height - 4);
+  menu.style.top = `${top}px`;
+  menu.style.left = `${Math.max(8, anchor.right - box.width)}px`;
+}
+
+function openMenu(trigger, items) {
+  menuTrigger = trigger;
+  menuLevels = [items];
+  menu.showPopover();
+  renderMenu();
+  placeMenu();
+  trigger.setAttribute('aria-expanded', 'true');
+}
+
+function menuFor(trigger) {
+  const kind = trigger.dataset.menu;
+  if (kind === 'row') return rowMenu(state.tabs.find(tab => tab.id === Number(trigger.dataset.id)));
+  if (kind === 'group') return groupMenu(trigger.dataset.group, trigger.dataset.w ? Number(trigger.dataset.w) : null);
+  return windowMenu(Number(trigger.dataset.w));
+}
+
+function openSubmenu(button) {
+  menuLevels.push(menuLevels.at(-1)[Number(button.dataset.i)].items);
+  renderMenu();
+  placeMenu();
+}
+
+function closeSubmenu() {
+  menuLevels.pop();
+  renderMenu();
+  placeMenu();
+}
+
+menu.addEventListener('click', event => {
+  const button = event.target.closest('button');
+  if (!button || button.disabled) return;
+  if (button.hasAttribute('data-back')) return closeSubmenu();
+  const item = menuLevels.at(-1)[Number(button.dataset.i)];
+  if (item.items) return openSubmenu(button);
+  menu.hidePopover();
+  item.run();
 });
-moveMenu.addEventListener('keydown', event => {
-  if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp') return;
-  const items = [...moveMenu.querySelectorAll('button')];
-  const current = items.indexOf(document.activeElement);
-  const next = (current + (event.key === 'ArrowDown' ? 1 : -1) + items.length) % items.length;
-  event.preventDefault();
-  items[next].focus();
+
+menu.addEventListener('keydown', event => {
+  const buttons = [...menu.querySelectorAll('button:not(:disabled)')];
+  const current = buttons.indexOf(document.activeElement);
+  const moves = { ArrowDown: current + 1, ArrowUp: current - 1, Home: 0, End: buttons.length - 1 };
+  if (event.key in moves) {
+    event.preventDefault();
+    buttons[(moves[event.key] + buttons.length) % buttons.length].focus();
+    return;
+  }
+  if (event.key === 'ArrowRight' && document.activeElement.hasAttribute('aria-haspopup')) {
+    event.preventDefault();
+    openSubmenu(document.activeElement);
+    return;
+  }
+  // In a submenu ← and Esc go back one level instead of closing the menu.
+  if ((event.key === 'ArrowLeft' || event.key === 'Escape') && menuLevels.length > 1) {
+    event.preventDefault();
+    event.stopPropagation();
+    closeSubmenu();
+  }
+});
+
+menu.addEventListener('toggle', event => {
+  if (event.newState !== 'closed' || !menuTrigger) return;
+  menuTrigger.setAttribute('aria-expanded', 'false');
+  if (menu.contains(document.activeElement) || document.activeElement === document.body) menuTrigger.focus({ focusVisible: false });
+  menuTrigger = null;
 });
 
 // ---------- list events ----------
@@ -432,19 +570,6 @@ async function handleWindowClick(target, event) {
     card?.querySelector('summary').focus();
     return true;
   }
-  const focus = target.closest('[data-focus-window]');
-  if (focus) {
-    event.preventDefault();
-    await browser.windows.update(Number(focus.dataset.focusWindow), { focused: true });
-    if (!IS_PAGE) window.close();
-    return true;
-  }
-  const newTab = target.closest('[data-new-tab]');
-  if (newTab) {
-    event.preventDefault();
-    await browser.tabs.create({ windowId: Number(newTab.dataset.newTab) });
-    return true;
-  }
   const minimize = target.closest('[data-minimize]');
   if (minimize) {
     event.preventDefault();
@@ -455,19 +580,19 @@ async function handleWindowClick(target, event) {
     refresh();
     return true;
   }
-  const closeWindow = target.closest('[data-close-window]');
-  if (closeWindow) {
-    event.preventDefault();
-    const windowId = Number(closeWindow.dataset.closeWindow);
-    if (await confirmClose(tabsIn(windowId).length)) await browser.windows.remove(windowId);
-    return true;
-  }
   return false;
 }
 
 body.addEventListener('click', async event => {
   const target = event.target;
   if (await handleWindowClick(target, event)) return;
+  const more = target.closest('[data-menu]');
+  if (more) {
+    // Inside a <summary> the button must not also toggle the group.
+    event.preventDefault();
+    openMenu(more, menuFor(more));
+    return;
+  }
   const closeGroupDups = target.closest('[data-close-group-dups]');
   if (closeGroupDups) {
     // Never asks: every keeper stays open, so no page is lost.
@@ -476,27 +601,9 @@ body.addEventListener('click', async event => {
     browser.tabs.remove(state.tabs.filter(tab => tab.group === name && tab.isDup && matches(tab)).map(tab => tab.id));
     return;
   }
-  const closeGroup = target.closest('[data-close-group]');
-  if (closeGroup) {
-    event.preventDefault();
-    const ids = groupTabIds(closeGroup.dataset.closeGroup);
-    if (await confirmClose(ids.length)) browser.tabs.remove(ids);
-    return;
-  }
   const close = target.closest('[data-close]');
   if (close) {
     browser.tabs.remove(Number(close.dataset.close));
-    return;
-  }
-  const moveTab = target.closest('[data-move-tab]');
-  if (moveTab) {
-    openMoveMenu(moveTab, [Number(moveTab.dataset.moveTab)]);
-    return;
-  }
-  const moveGroup = target.closest('[data-move-group]');
-  if (moveGroup) {
-    event.preventDefault();
-    openMoveMenu(moveGroup, groupTabIds(moveGroup.dataset.moveGroup));
     return;
   }
   const copies = target.closest('[data-copies]');
@@ -549,7 +656,7 @@ function highlightSelection() {
 $('#results-bar').addEventListener('click', async event => {
   const ids = state.tabs.filter(matches).map(tab => tab.id);
   if (event.target.id === 'move-results') await moveTabs(ids, 'new');
-  if (event.target.id === 'close-results' && await confirmClose(ids.length)) await browser.tabs.remove(ids);
+  if (event.target.id === 'close-results' && await confirmMany(ids.length)) await browser.tabs.remove(ids);
 });
 
 // Never asks: every keeper stays open, so no page is lost.
@@ -587,6 +694,11 @@ for (const radio of document.querySelectorAll('[name="sort"]')) {
     render();
   });
 }
+// Everything except each window's active tab, which browsers cannot suspend.
+$('#suspend-others').addEventListener('click', async () => {
+  $('#settings').hidePopover();
+  await suspendTabs(state.tabs.map(tab => tab.id));
+});
 $('#change-shortcuts').addEventListener('click', async () => {
   if (browser.commands.openShortcutSettings) await browser.commands.openShortcutSettings();
   else await browser.tabs.create({ url: 'chrome://extensions/shortcuts' });

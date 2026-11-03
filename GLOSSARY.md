@@ -45,6 +45,10 @@ _Avoid_: original, primary, master
 Any tab in a duplicate set other than its keeper. "Close duplicates" closes exactly these.
 _Avoid_: dupe, copy
 
+**Suspended tab**:
+An open tab whose page the browser has unloaded to free memory. It stays in the list and reloads when you switch to it.
+_Avoid_: discarded tab, sleeping tab, hibernated tab
+
 **System tab**:
 A tab whose page is not a website (`chrome://`, `about:`, `file://`, extension pages). It belongs to a group but is never a duplicate.
 _Avoid_: internal tab, special tab

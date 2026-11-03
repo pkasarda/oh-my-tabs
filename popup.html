@@ -34,13 +34,17 @@
     <label><input type="radio" name="sort" value="order"> Tab order</label>
   </div>
   <div>
+    <h3>Actions</h3>
+    <button type="button" class="btn" id="suspend-others">Suspend all other tabs</button>
+  </div>
+  <div>
     <h3>Shortcuts</h3>
     <div class="shortcuts" id="shortcuts"></div>
     <button type="button" class="btn" id="change-shortcuts">Change…</button>
   </div>
 </div>
 
-<div popover id="move-menu" class="menu" role="menu" aria-label="Move to window"></div>
+<div popover id="menu" class="menu" role="menu" aria-label="Actions"></div>
 
 <div popover="manual" id="tip" class="tip" role="tooltip"></div>
 
@@ -48,7 +52,7 @@
   <p id="confirm-text"></p>
   <form method="dialog">
     <button class="btn" value="cancel">Cancel</button>
-    <button class="btn danger" value="ok" autofocus>Close tabs</button>
+    <button class="btn danger" value="ok" id="confirm-ok" autofocus>Close tabs</button>
   </form>
 </dialog>
 </body>

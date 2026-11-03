@@ -103,6 +103,7 @@ When developer mode is off, only the generic rules apply. The badge count can th
 - ⚙ menu (popover):
   - Developer mode toggle (default on).
   - Sort tabs: `Recent` (default) or `Tab order`.
+  - `Suspend all other tabs`: every tab except each window's active tab. It asks for confirmation above 10 tabs.
   - Current shortcuts, read from `commands.getAll()`, with `not set` when a shortcut is unassigned.
   - `Change…`, which opens the browser's shortcut settings.
 - Settings are stored in `storage.local`.
@@ -111,10 +112,12 @@ When developer mode is off, only the generic rules apply. The badge count can th
 
 - Groups are sorted by tab count, descending.
 - Each group is a `<details>` element whose header reads like `acme/oh-my-tabs · 12 · 2 duplicates`.
-- The group header has these actions:
+- The group header has two inline actions:
   - `Close duplicates in group`, shown only when the group has duplicates. It never asks for confirmation.
-  - `Move to…`, for the whole group.
-  - `Close group`. It asks for confirmation when it would close more than 10 tabs.
+  - `⋯`, which opens the group menu:
+    - `Move group to ▸` (other windows plus `New window`);
+    - `Suspend group`;
+    - `Close group`. It asks for confirmation when it would close more than 10 tabs.
 - While searching, group actions apply only to the group's results.
 - Groups start collapsed, except the group holding the current tab.
 - Tabs within a group are sorted by `Recent` (`lastAccessed`, descending) or by `Tab order` (window, then index).
@@ -122,7 +125,11 @@ When developer mode is off, only the generic rules apply. The badge count can th
   - a 28 px favicon and the title;
   - a short URL;
   - its window label: a small window glyph with the window's number, highlighted for the current window. Its tooltip gives the window name;
-  - `Move to…` (other windows plus `New window`) and `×`.
+  - `zz` when the tab is suspended; its favicon and title are dimmed;
+  - `×` (close) and `⋯`, which opens the tab menu:
+    - `Move to window ▸`;
+    - `Suspend this tab` (disabled for an active tab);
+    - `Suspend other tabs in this group`.
 - Duplicates are nested under their keeper.
   - The keeper row shows `+N copies`. Clicking it expands the copies, indented beneath the keeper.
   - Each copy always shows its window label, because a copy can be in any window.
@@ -144,15 +151,25 @@ The windows view uses the groups view's language one level up: window → group 
   - The times come from the tabs' `lastAccessed`.
   - A monitor icon's tooltip gives the window state and size, e.g. `maximized · 2560×985`.
 - Window actions:
-  - `Bring to front`.
-  - `New tab`.
-  - `Minimize`, which becomes `Restore` on a minimized window. Restoring focuses the window, which returns it to its previous state.
-  - `Close window`. It asks for confirmation above 10 tabs.
+  - Inline: `Minimize`, which becomes `Restore` on a minimized window. Restoring focuses the window, which returns it to its previous state.
+  - `⋯` opens the window menu: `Bring to front`, `New tab`, `Suspend window`, `Close window`. Closing asks for confirmation above 10 tabs.
+- Group headers inside a window card have the same `⋯` group menu, scoped to that window.
 - Open, the card lists the window's groups with two or more tabs as nested group cards that open into tab rows. Groups with a single tab are plain tab rows under `1-tab sites · N`.
 - Tab rows inside a window card hide their window label, except copies nested under a keeper.
 - A copy whose keeper is in another window cannot nest under it. It shows a `copy` marker, whose tooltip names the keeper's window.
-- Drag a tab row or a group header onto another window card, or onto `Drop here for a new window`, to move it (native drag and drop). `Move to…` in the groups view does the same from the keyboard.
+- Drag a tab row or a group header onto another window card, or onto `Drop here for a new window`, to move it (native drag and drop). `Move to window ▸` in the menus does the same from the keyboard.
 - In the groups view, clicking a tab's window label switches to the windows view, opens that window and scrolls to it.
+
+### Menus and suspending
+
+- Every `⋯` menu is the same popover, with menu roles.
+  - A submenu opens in place. `→` or Enter opens it; `←`, Esc or `Back` returns.
+  - `↑`/`↓`/Home/End move between items. Esc on the top level closes the menu and returns focus to `⋯`.
+- Suspending uses `tabs.discard()` one tab at a time.
+  - Browsers cannot suspend a window's active tab, so active and already suspended tabs are skipped.
+  - Menu items show how many tabs they would suspend and are disabled at 0.
+  - Suspending more than 10 tabs asks first.
+- A suspended tab reloads when you switch to it. Window stats show `N suspended`.
 
 ### Search
 
@@ -175,7 +192,7 @@ The windows view uses the groups view's language one level up: window → group 
 
 ## Out of v1 (roadmap issues)
 
-- Tab actions: pin, discard, sort and mute.
+- Tab actions: pin, sort and mute.
 - Window actions:
   - Save a window for later (sessions).
   - Name or color a window. Window ids change on browser restart, so names need a stable key.

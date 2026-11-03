@@ -94,6 +94,9 @@ ul.rows { list-style: none; margin: 0; padding: 0 6px 6px; }
 .row:hover .actions, .row:focus-within .actions, .row.sel .actions { opacity: 1; }
 .row.nested { margin-left: 26px; }
 .row.nested::before { content: "└"; position: absolute; left: -14px; color: var(--muted); }
+.row.suspended .fav { opacity: 0.45; }
+.row.suspended .title { color: var(--muted); }
+.zz-pill { flex: none; border-radius: 9px; padding: 1px 7px; font-size: 11px; font-weight: 600; background: var(--surface-2); color: var(--muted); border: 1px solid var(--border); }
 .copy-pill { flex: none; border-radius: 9px; padding: 1px 7px; font-size: 11px; font-weight: 600; background: var(--danger-soft); color: var(--danger); }
 .copies { flex: none; border: 1px solid color-mix(in oklch, var(--danger) 40%, var(--border)); background: var(--danger-soft); color: var(--danger); border-radius: 9px; padding: 1px 7px; font-size: 11px; font-weight: 600; }
 
@@ -134,15 +137,19 @@ ul.rows.singles { padding: 0; }
   [popover] { opacity: 0; translate: 0 -4px; transition: opacity 0.15s, translate 0.15s, display 0.15s allow-discrete, overlay 0.15s allow-discrete; }
   [popover]:popover-open { opacity: 1; translate: 0 0; transition-duration: 0.1s; @starting-style { opacity: 0; translate: 0 -4px; } }
 }
-.menu { width: 300px; max-height: 360px; overflow: auto; }
+.menu { min-width: 240px; max-width: 380px; max-height: 360px; overflow: auto; }
 .menu button { display: flex; align-items: center; width: 100%; gap: 8px; text-align: left; border: 0; background: none; padding: 7px 10px; border-radius: 6px; }
 .menu button span:last-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.menu button:hover, .menu button:focus-visible { background: var(--accent-soft); outline: none; }
+.menu button:hover:not(:disabled), .menu button:focus-visible { background: var(--accent-soft); outline: none; }
+.menu button:disabled { opacity: 0.45; cursor: default; }
+.menu button.danger { color: var(--danger); }
+.menu .hint { margin-left: auto; color: var(--muted); }
 .menu hr { border: 0; border-top: 1px solid var(--border); margin: 4px 0; }
 /* Only while open: a display value on a closed popover overrides its display: none and leaves it invisibly catching the pointer. */
 .settings { width: 260px; padding: 12px; gap: 12px; font-size: 13px; }
 .settings:popover-open { display: grid; }
 .settings h3 { margin: 0 0 4px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); }
+.settings .btn { width: 100%; }
 .settings label { display: flex; align-items: center; gap: 8px; cursor: pointer; }
 .settings input { cursor: pointer; }
 .switch { appearance: none; width: 30px; height: 18px; border-radius: 9px; background: var(--border); position: relative; margin: 0 0 0 auto; transition: background-color 150ms ease; }
