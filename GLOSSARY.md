@@ -73,12 +73,31 @@ _Avoid_: saved view, bookmarks view
 
 **Stale tab**:
 An open, unpinned tab you have not used for longer than the stale threshold (7 days by default). A tab playing sound, or on a site in the never list, is never stale.
+_Avoid_: old tab, inactive tab, forgotten tab
 
 **Never list**:
 The sites oh-my-tabs never marks as stale and never suspends in bulk. An entry covers its subdomains.
 _Avoid_: allowlist, whitelist, exceptions
-_Avoid_: old tab, inactive tab, forgotten tab
 
+## Full page
+
+**Full page**:
+oh-my-tabs in a tab of its own, opened with Open as page. It shows the same tabs as the popup with room for a sidebar and checkboxes.
+_Avoid_: dashboard, options page, manager
+
+**Sidebar**:
+The full page's list of sections (groups, windows, topics, stale tabs) that picks what the main pane shows. It takes the place of the popup's view switch.
+_Avoid_: left panel, navigation, menu
+
+**Checked tab**:
+A tab whose checkbox is ticked on the full page, so a bulk action can act on it. Checking a tab is not switching to it.
+_Avoid_: selected tab, marked tab
+
+**Board**:
+The Library on the full page: one column per topic, with saved tabs as cards that drag between them.
+_Avoid_: kanban
+
+## Developer mode
 
 **Developer mode**:
 A setting that turns on site rules and the monospace look. With it off, every group name is a hostname and duplicate keys use only the generic rules.

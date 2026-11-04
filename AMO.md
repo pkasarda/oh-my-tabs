@@ -34,6 +34,8 @@ The toolbar badge counts your duplicates, and "Close duplicates" keeps the tab y
 
 **Save tabs for later (optional):** turn on the Library to save & close tabs, a group or all stale tabs, then find them again by topic. They are kept as bookmarks in an "oh-my-tabs" folder, so Firefox Sync carries them.
 
+**Full page:** open oh-my-tabs as a page for big cleanups: a sidebar of groups, windows, topics and stale tabs, one tree of all tabs with checkboxes to save, move, suspend or close many at once, and a board to drag saved tabs between topics.
+
 **Stale tabs:** a group at the top lists the tabs you have not used for a week or more, to save or close in one go.
 
 **Private:** everything happens on your device. No data is collected or sent anywhere. Open source: https://github.com/pkasarda/oh-my-tabs
@@ -65,5 +67,6 @@ About the innerHTML warnings in popup.js (render, results bar, menu, shortcuts):
 
 | Version | Date | Changes | Status |
 |---------|------|---------|--------|
-| 1.1.0 | 2026-11-04 | Library (optional bookmarks permission), stale tabs, zZz on suspended tabs. | Draft |
+| 1.2.0 | 2026-11-04 | Full page with sidebar, checkboxes and bulk bar, Library board, resizable sidebar. Ships 1.1 too. | Ready to submit |
+| 1.1.0 | 2026-11-04 | Library (optional bookmarks permission), stale tabs, zZz on suspended tabs. | Not submitted, shipped in 1.2.0 |
 | 1.0.0 | 2026-11-03 | First release. | Submitted |

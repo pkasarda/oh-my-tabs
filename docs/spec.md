@@ -302,9 +302,33 @@ Goal: you can close tabs without losing them, so you stop keeping hundreds open 
 - `bookmarks` becomes an optional permission. PRIVACY.md and the Chrome Web Store disclosures must say that the extension reads and writes bookmarks in its own folder only, that they stay in the browser, and that the browser's own sync is what carries them.
 - AMO stays `data_collection_permissions: none`, since nothing is transmitted by the extension.
 
+## 1.2: The full page
+
+`Open as page` opens `page.html`, a tab of its own that fills the window. The popup keeps its layout and its Groups / Windows / Library switch.
+
+### Sidebar
+
+- On the left, in place of the switch: Groups, Windows, Library (while it is on: `No topic` and each topic) and Stale (while it is on and has tabs), each with counts.
+- A heading shows its whole view; an item shows only that group, window or topic. The choice is kept in the address (`#groups/acme%2Fclient`, `#windows/12`, `#library/`, `#stale`), so a reload keeps it. A name that no longer exists falls back to the whole section.
+- Dropping tabs or a group on a window item moves them there; on a topic item saves them into that topic and closes them. Saved cards drop only on topics.
+- Its right edge drags, or takes ←/→, to set its width (180–480 px; a double click goes back to 240). The width is kept with the settings. Below 720 px the sidebar is a strip above the list.
+
+### Main pane
+
+- A header names what is shown, with a count and actions for all of it: `Save & close all` (Library on), `Close all`, or `Open all` for a topic. A strip under it lists the tree keys.
+- Groups and Windows are one flat tree (window → group → tab), full width, with indent guides and one-line rows. ↑/↓ move between rows and group headers, → / ← open and close a group, Space checks the focused row, Enter switches to the tab.
+- Every tab row and group header has a checkbox. Checking shows the bulk bar: `N selected · Save & close · Move to window · Suspend · Close · Clear`. It acts only on checked tabs the pane shows; a check hidden by the sidebar or the search stays but is not acted on. Close confirms above 10 tabs and can be undone.
+- The Library is a board: one column per topic, `No topic` first, then `+ New topic`. Dragging a card to another column changes its topic.
+- Stale is its own view, under `Not used for N+ days`.
+
+### Out of 1.2
+
+- Selecting whole windows, and dropping on `+ New topic`.
+
 ## Testing
 
 - `node --test` runs `rules.test.js`.
+- The popup and the full page are driven end to end with Playwright against the unpacked extension in Chromium.
 - The UI is checked by loading the extension unpacked in both browsers.
 
 ## Out of v1 (roadmap issues)

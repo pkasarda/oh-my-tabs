@@ -7,7 +7,8 @@ const SETTINGS = { dev: true, sort: 'recent', view: 'groups', stale: true, stale
 const DAY = 24 * 60 * 60 * 1000;
 const IS_PAGE = location.pathname.endsWith('/page.html');
 // The full page used to be popup.html?page; a tab left open on that address moves over.
-if (new URLSearchParams(location.search).has('page')) location.replace(`page.html${location.hash}`);
+const MOVED = new URLSearchParams(location.search).has('page');
+if (MOVED) location.replace(`page.html${location.hash}`);
 const IS_FIREFOX = typeof browser.runtime.getBrowserInfo === 'function';
 const CONFIRM_ABOVE = 10;
 
@@ -652,6 +653,7 @@ function mainTitle() {
   return item ?? 'Groups';
 }
 
+let mainHeadHtml = '';
 function renderMainHead(list) {
   const inLibrary = state.view === 'library';
   const none = list.length ? '' : ' disabled';
@@ -663,7 +665,14 @@ function renderMainHead(list) {
     actions = `${save}<button type="button" class="btn danger" data-head="close"${none}>Close all</button>${more}`;
   }
   const hints = inLibrary ? '' : `<div class="tree-top"><span><kbd>↑</kbd> <kbd>↓</kbd> move</span><span><kbd>←</kbd> <kbd>→</kbd> collapse / expand</span><span><kbd>Space</kbd> check</span><span><kbd>Enter</kbd> open</span></div>`;
-  $('#main-head').innerHTML = `<div class="main-title"><h2>${esc(mainTitle())}</h2><span class="sub">${plural(list.length, inLibrary ? 'saved tab' : 'tab')}</span><span class="g-spacer"></span>${actions}</div>${hints}`;
+  const html = `<div class="main-title"><h2>${esc(mainTitle())}</h2><span class="sub">${plural(list.length, inLibrary ? 'saved tab' : 'tab')}</span><span class="g-spacer"></span>${actions}</div>${hints}`;
+  // render() runs on every tab event: rewrite only on a change, and keep focus on the same button.
+  if (html === mainHeadHtml) return;
+  mainHeadHtml = html;
+  const head = $('#main-head');
+  const focused = head.contains(document.activeElement) ? (document.activeElement.dataset.head ?? 'more') : null;
+  head.innerHTML = html;
+  if (focused) head.querySelector(focused === 'more' ? '[data-menu]' : `[data-head="${focused}"]`)?.focus({ preventScroll: true });
 }
 
 $('#main-head')?.addEventListener('click', async event => {
@@ -674,8 +683,10 @@ $('#main-head')?.addEventListener('click', async event => {
   if (button.dataset.head === 'open') return openSavedMany(state.saved.filter(savedMatches));
   // What the list shows: matches() follows the sidebar and the search.
   const ids = state.tabs.filter(matches).map(tab => tab.id);
-  if (button.dataset.head === 'save') await saveTabs(ids);
-  if (button.dataset.head === 'close' && await confirmMany(ids.length)) await closeWithUndo(ids);
+  await oneAtATime(async () => {
+    if (button.dataset.head === 'save') await saveTabs(ids);
+    if (button.dataset.head === 'close' && await confirmMany(ids.length)) await closeWithUndo(ids);
+  });
 });
 
 // ---------- the page: sidebar, hash and bulk bar ----------
@@ -790,8 +801,6 @@ function clearPicks() {
 }
 
 // Each action clears the selection once it ran; a cancelled confirmation keeps it.
-// One at a time: a double click must not save or close the same tabs twice.
-let bulkBusy = false;
 async function bulkAction(button) {
   const ids = checkedShown();
   const action = button.dataset.bulk;
@@ -800,9 +809,7 @@ async function bulkAction(button) {
     const items = moveItems(ids).map(item => item === '-' ? item : { ...item, run: async () => { await item.run(); clearPicks(); } });
     return openMenu(button, items);
   }
-  if (bulkBusy) return;
-  bulkBusy = true;
-  try {
+  await oneAtATime(async () => {
     let done = false;
     if (action === 'save') done = await saveTabs(ids);
     if (action === 'suspend') done = await suspendTabs(ids);
@@ -811,9 +818,7 @@ async function bulkAction(button) {
       done = true;
     }
     if (done) clearPicks();
-  } finally {
-    bulkBusy = false;
-  }
+  });
 }
 
 $('#bulk-bar')?.addEventListener('click', event => {
@@ -880,13 +885,25 @@ function groupTabIds(name, windowId = null) {
 }
 
 const CONSEQUENCES = {
-  'Close': 'This cannot be undone from oh-my-tabs.',
+  'Close': 'Undo brings them back for a few seconds.',
   'Suspend': 'They reload when you switch to them.',
   'Save & close': 'They stay in your Library.',
   'Save': 'They go to your Library and stay open.',
   'Open': 'Each opens in a new tab.',
   'Remove': 'They are removed from your Library.',
 };
+
+// One bulk action at a time: a double click must not save or close the same tabs twice.
+let busy = false;
+async function oneAtATime(run) {
+  if (busy) return;
+  busy = true;
+  try {
+    await run();
+  } finally {
+    busy = false;
+  }
+}
 
 // Asks before acting on many tabs at once.
 async function confirmMany(count, verb = 'Close') {
@@ -1088,7 +1105,9 @@ function saveItems(ids, what) {
 }
 
 function staleMenu() {
-  const ids = staleIds();
+  // The stale tabs the list shows, so the page's search narrows these like the header buttons.
+  const stale = new Set(staleIds());
+  const ids = state.tabs.filter(tab => stale.has(tab.id) && matches(tab)).map(tab => tab.id);
   const n = ` · ${ids.length}`;
   return tidy([
     ...(state.libraryOn ? [
@@ -1448,9 +1467,11 @@ function highlightSelection() {
 $('#results-bar').addEventListener('click', async event => {
   if (event.target.id === 'open-results') return openSavedMany(state.saved.filter(savedMatches));
   const ids = state.tabs.filter(matches).map(tab => tab.id);
-  if (event.target.id === 'save-results') await saveTabs(ids);
-  if (event.target.id === 'move-results') await moveTabs(ids, 'new');
-  if (event.target.id === 'close-results' && await confirmMany(ids.length)) await closeWithUndo(ids);
+  await oneAtATime(async () => {
+    if (event.target.id === 'save-results') await saveTabs(ids);
+    if (event.target.id === 'move-results') await moveTabs(ids, 'new');
+    if (event.target.id === 'close-results' && await confirmMany(ids.length)) await closeWithUndo(ids);
+  });
 });
 
 $('#close-dups').addEventListener('click', () => closeDuplicates());
@@ -1772,4 +1793,4 @@ async function start() {
   renderShortcuts();
 }
 
-start();
+if (!MOVED) start();

@@ -46,6 +46,9 @@ Alt+Shift+O opens oh-my-tabs and Alt+Shift+D closes duplicates; you can change b
 SAVE TABS FOR LATER (OPTIONAL)
 Turn on the Library to save & close tabs, a group or every tab you have not used for a week, and find them again later. Saved tabs are kept as bookmarks in an "oh-my-tabs" folder, so your browser syncs them to your other devices. Sort them into topics. Opening a saved tab that is already open switches to it instead of opening it twice.
 
+A FULL PAGE FOR BIG CLEANUPS
+Open oh-my-tabs as a page to see everything at once: a sidebar of groups, windows, topics and stale tabs, and one tree of all your tabs. Tick tabs to save, move, suspend or close them together, drag tabs onto a window or a topic, and drag saved tabs between topics.
+
 STALE TABS
 A group at the top lists the tabs you have not used for 7 days or more (you can choose 3, 7, 14 or 30), so you can save or close them in one go. Tabs playing sound, pinned tabs and the sites on your "never" list are always left alone.
 
@@ -106,7 +109,7 @@ No host permissions, no content scripts, no remote code.
 
 Tab addresses and titles are read locally to build the list. With the Library on, saved tabs (title, address) are stored as bookmarks in the user's browser. Nothing is transmitted by the extension.
 
-The Chrome Web Store counts data that is only handled locally as handled. For 1.1, check **Web history** (tab and saved-tab addresses), state that it is used only for the extension's single purpose, and certify the three statements below. Leave every other data type unchecked:
+The Chrome Web Store counts data that is only handled locally as handled. From 1.1 on, check **Web history** (tab and saved-tab addresses), state that it is used only for the extension's single purpose, and certify the three statements below. Leave every other data type unchecked:
 - personally identifiable info;
 - health info;
 - financial info;
@@ -142,7 +145,8 @@ https://github.com/pkasarda/oh-my-tabs/blob/main/PRIVACY.md (live once PR #1 is 
 
 | Version | Date | Changes | Status |
 |---------|------|---------|--------|
-| 1.1.0 | 2026-11-04 | Library (optional, saved tabs as bookmarks with topics), stale-tabs group, "used … ago" in rows, zZz on suspended tabs, Move group to a new window icon. New optional permission: bookmarks. | Draft |
+| 1.2.0 | 2026-11-04 | Full page in its own tab: sidebar (groups, windows, topics, stale), one tree with checkboxes and a bulk bar, Library board, drag onto windows and topics, resizable sidebar. Ships 1.1 too. No new permissions. | Ready to submit |
+| 1.1.0 | 2026-11-04 | Library (optional, saved tabs as bookmarks with topics), stale-tabs group, "used … ago" in rows, zZz on suspended tabs, Move group to a new window icon. New optional permission: bookmarks. | Not submitted, shipped in 1.2.0 |
 | 1.0.0 | 2026-11-03 | First release: groups, duplicates, search, Windows view, move, suspend, badge, shortcuts. | Submitted |
 
 ## Review Notes
