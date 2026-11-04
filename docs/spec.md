@@ -25,7 +25,8 @@ oh-my-tabs is a browser extension that shows every open tab sorted into groups a
 ```
 manifest.json
 background.js        badge, tooltip, context menu, shortcut
-popup.html/.js/.css  the UI, shown both as the popup and as a full page
+popup.html/.js/.css  the UI: popup.html is the popup, page.html the full page; both run popup.js
+page.html
 rules.js             pure: URL → group name, URL → duplicate key, keeper choice
 rules.test.js        node --test
 package.json         "type": "module" for node, the test and firefox scripts
@@ -92,7 +93,7 @@ When developer mode is off, only the generic rules apply. The badge count can th
 
 ## UI (`popup.html`)
 
-`popup.html` serves as the popup and also as a full page in a tab (`Open as page`). The full page uses a wider layout and leaves its own tab out of the list. While open, the UI re-renders whenever a tab event fires.
+`popup.html` is the popup. `Open as page` opens `page.html`, the full page in a tab, which runs the same `popup.js` with a sidebar in place of the view switch and leaves its own tab out of the list. An old `popup.html?page` tab redirects to `page.html`. While open, the UI re-renders whenever a tab event fires.
 
 - Tooltips are oh-my-tabs' own (`data-tip`), never native `title` attributes, whose tooltip shows only after about a second.
   - The first tooltip shows after 150 ms. Moving on to the next one within 400 ms shows it at once.

@@ -5,7 +5,9 @@ globalThis.browser ??= chrome;
 
 const SETTINGS = { dev: true, sort: 'recent', view: 'groups', stale: true, staleDays: 7, never: [] };
 const DAY = 24 * 60 * 60 * 1000;
-const IS_PAGE = new URLSearchParams(location.search).has('page');
+const IS_PAGE = location.pathname.endsWith('/page.html');
+// The full page used to be popup.html?page; a tab left open on that address moves over.
+if (new URLSearchParams(location.search).has('page')) location.replace(`page.html${location.hash}`);
 const IS_FIREFOX = typeof browser.runtime.getBrowserInfo === 'function';
 const CONFIRM_ABOVE = 10;
 
@@ -603,7 +605,7 @@ function render() {
   const inLibrary = state.view === 'library';
   const list = inLibrary ? state.saved.filter(savedMatches) : state.tabs.filter(matches);
   document.documentElement.classList.toggle('mono', state.dev);
-  $('[data-view="library"]').hidden = !state.libraryOn;
+  if (!IS_PAGE) $('[data-view="library"]').hidden = !state.libraryOn;
   search.placeholder = inLibrary ? 'Search saved tabs…' : 'Search tabs, URLs, groups…';
 
   const closeDups = $('#close-dups');
@@ -664,7 +666,7 @@ function renderMainHead(list) {
   $('#main-head').innerHTML = `<div class="main-title"><h2>${esc(mainTitle())}</h2><span class="sub">${plural(list.length, inLibrary ? 'saved tab' : 'tab')}</span><span class="g-spacer"></span>${actions}</div>${hints}`;
 }
 
-$('#main-head').addEventListener('click', async event => {
+$('#main-head')?.addEventListener('click', async event => {
   const more = event.target.closest('[data-menu]');
   if (more) return openMenu(more, menuFor(more));
   const button = event.target.closest('[data-head]');
@@ -814,12 +816,12 @@ async function bulkAction(button) {
   }
 }
 
-$('#bulk-bar').addEventListener('click', event => {
+$('#bulk-bar')?.addEventListener('click', event => {
   const button = event.target.closest('[data-bulk]');
   if (button) bulkAction(button);
 });
 
-side.addEventListener('click', event => {
+side?.addEventListener('click', event => {
   const button = event.target.closest('[data-section]');
   if (!button) return;
   selectPage(button.dataset.section, button.dataset.item ?? null);
@@ -1422,8 +1424,9 @@ for (const button of document.querySelectorAll('[data-view]')) {
     render();
   });
 }
-$('#open-page').addEventListener('click', async () => {
-  await browser.tabs.create({ url: browser.runtime.getURL('popup.html?page') });
+// The page has no switch and no "Open as page" button; the popup has no sidebar, header or bulk bar.
+$('#open-page')?.addEventListener('click', async () => {
+  await browser.tabs.create({ url: browser.runtime.getURL('page.html') });
   window.close();
 });
 
@@ -1539,7 +1542,7 @@ function dropZone(event) {
 }
 
 // The sidebar is outside the list, so both listen.
-for (const area of [body, side]) {
+for (const area of IS_PAGE ? [body, side] : [body]) {
   area.addEventListener('dragover', event => {
     const zone = dropZone(event);
     if (!zone) return;
@@ -1705,15 +1708,10 @@ browser.windows.onRemoved.addListener(refresh);
 async function start() {
   for (const element of document.querySelectorAll('[data-icon]')) element.innerHTML = icon(element.dataset.icon);
   if (IS_PAGE) {
-    document.documentElement.classList.add('page');
     state.ownTabId = (await browser.tabs.getCurrent())?.id ?? null;
   }
   Object.assign(state, await browser.storage.local.get(SETTINGS));
-  if (IS_PAGE) {
-    side.hidden = false;
-    $('#main-head').hidden = false;
-    readHash();
-  }
+  if (IS_PAGE) readHash();
   $('#s-dev').checked = state.dev;
   document.querySelector(`[name="sort"][value="${state.sort}"]`).checked = true;
   $('#s-stale').checked = state.stale;

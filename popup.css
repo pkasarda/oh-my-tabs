@@ -36,7 +36,6 @@ button { cursor: pointer; }
 .app { position: relative; width: 780px; height: 580px; display: grid; grid-template-rows: auto auto 1fr; }
 :root.page body { background: var(--bg); }
 :root.page .app { width: 100%; height: 100vh; background: var(--surface); }
-:root.page #open-page, :root.page .seg { display: none; }
 /* The page fills its tab: a sidebar left of the list, which becomes a strip above it on narrow windows.
    The bulk bar shares the list's cell and floats at its bottom. */
 :root.page .app { grid-template: "head head" auto "side results" auto "side main-head" auto "side body" 1fr / 240px minmax(0, 1fr); }
