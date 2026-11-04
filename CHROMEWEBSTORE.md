@@ -20,18 +20,14 @@ No account, no cloud, nothing leaves your device: oh-my-tabs works entirely in y
 oh-my-tabs shows all your open tabs, from every window, sorted into groups you recognize. It finds duplicate tabs that other tools miss, and lets you close or tidy them in one click. Closed a group by mistake? Undo brings it back.
 
 GROUPS THAT MATCH HOW YOU WORK
-Tabs are grouped by site. With developer mode, which is on by default, they are grouped by project instead: one group per GitHub, GitLab or Bitbucket repository, per Jira or Confluence project, per Linear team. Groups are sorted by size, so the projects with the most tabs come first.
+Tabs are grouped by site. With developer mode, which is on by default, tabs from code hosting and issue tracking sites are grouped by project instead, for example one group per GitHub repository. Groups are sorted by size, so the projects with the most tabs come first.
 
 DUPLICATES, EVEN WHEN THE ADDRESS DIFFERS
 The same page often hides behind different addresses. oh-my-tabs treats these as the same page:
 - a #section anchor;
 - tracking parameters such as utm_source;
 - a trailing slash.
-With developer mode it also recognizes:
-- the Files, Commits and Checks pages of one pull request;
-- a Jira issue opened from a board;
-- a Figma file at a different frame;
-- a Google Doc in edit or view mode.
+With developer mode it also sees the different pages of one pull request or issue, and a design or document opened in another view, as one page.
 The toolbar icon shows how many duplicates you have. "Close duplicates" keeps the tab you used most recently and closes the copies.
 
 FIND AND MOVE TABS FAST
@@ -155,7 +151,10 @@ https://github.com/pkasarda/oh-my-tabs/blob/main/PRIVACY.md (live once PR #1 is 
 ### Known Issues / Limitations
 - The active tab of a window cannot be suspended. The browser does not allow it, so those items are disabled.
 - The Chrome package contains no Firefox-only manifest keys, so Chrome shows no manifest warnings. Firefox gets its own build.
-- The description names GitHub, GitLab, Bitbucket, Jira, Confluence, Linear, Figma and Google Docs only to say which sites get project groups. These are nominative mentions, with no logos and no affiliation implied.
+- The description names one site (GitHub) as an example of project groups. Listing every supported tool was rejected as keyword spam (see below), so the full list lives in the README, not the store copy.
 
 ### Rejection History
-None yet.
+
+| Date | Version | Violation | Fix |
+|------|---------|-----------|-----|
+| 2026-11-04 | latest submission | Keyword spam ("Yellow Argon"): the description listed "GitHub, GitLab or Bitbucket repository, per Jira or Confluence project, per Linear team". | Description rewritten in generic terms with one example; the developer-mode duplicate list, which also named tools, became one sentence. Package unchanged; listing resubmitted. |
