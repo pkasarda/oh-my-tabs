@@ -3,7 +3,7 @@ import * as Library from './library.js';
 
 globalThis.browser ??= chrome;
 
-const SETTINGS = { dev: true, sort: 'recent', view: 'groups', stale: true, staleDays: 7, never: [] };
+const SETTINGS = { dev: true, sort: 'recent', view: 'groups', stale: true, staleDays: 7, never: [], sideWidth: 240 };
 const DAY = 24 * 60 * 60 * 1000;
 const IS_PAGE = location.pathname.endsWith('/page.html');
 // The full page used to be popup.html?page; a tab left open on that address moves over.
@@ -989,6 +989,44 @@ async function saveSetting(key, value) {
   await browser.storage.local.set({ [key]: value });
 }
 
+// ---------- sidebar width (page only) ----------
+// Drag the sidebar's edge, or focus it and press ←/→; a double click goes back to the default.
+const SIDE_WIDTH = { min: 180, max: 480, step: 16, initial: SETTINGS.sideWidth };
+const sideResize = $('#side-resize');
+
+function setSideWidth(width) {
+  const clamped = Math.min(SIDE_WIDTH.max, Math.max(SIDE_WIDTH.min, Math.round(width)));
+  state.sideWidth = clamped;
+  document.documentElement.style.setProperty('--side-w', `${clamped}px`);
+  sideResize.setAttribute('aria-valuenow', String(clamped));
+}
+
+sideResize?.addEventListener('pointerdown', event => {
+  if (event.button !== 0) return;
+  event.preventDefault();
+  sideResize.setPointerCapture(event.pointerId);
+  sideResize.classList.add('dragging');
+  const follow = moveEvent => setSideWidth(moveEvent.clientX - side.getBoundingClientRect().left);
+  sideResize.addEventListener('pointermove', follow);
+  // Fires on release and on a cancelled pointer alike.
+  sideResize.addEventListener('lostpointercapture', () => {
+    sideResize.removeEventListener('pointermove', follow);
+    sideResize.classList.remove('dragging');
+    saveSetting('sideWidth', state.sideWidth);
+  }, { once: true });
+});
+sideResize?.addEventListener('keydown', event => {
+  const steps = { ArrowLeft: -SIDE_WIDTH.step, ArrowRight: SIDE_WIDTH.step };
+  if (!(event.key in steps)) return;
+  event.preventDefault();
+  setSideWidth(state.sideWidth + steps[event.key]);
+  saveSetting('sideWidth', state.sideWidth);
+});
+sideResize?.addEventListener('dblclick', () => {
+  setSideWidth(SIDE_WIDTH.initial);
+  saveSetting('sideWidth', state.sideWidth);
+});
+
 // ---------- ⋯ menus for rows, groups and windows ----------
 // One popover. An item runs an action or opens a submenu in place: → or Enter opens it, ← or Esc goes back.
 const menu = $('#menu');
@@ -1711,7 +1749,10 @@ async function start() {
     state.ownTabId = (await browser.tabs.getCurrent())?.id ?? null;
   }
   Object.assign(state, await browser.storage.local.get(SETTINGS));
-  if (IS_PAGE) readHash();
+  if (IS_PAGE) {
+    setSideWidth(state.sideWidth);
+    readHash();
+  }
   $('#s-dev').checked = state.dev;
   document.querySelector(`[name="sort"][value="${state.sort}"]`).checked = true;
   $('#s-stale').checked = state.stale;

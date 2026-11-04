@@ -38,19 +38,23 @@ button { cursor: pointer; }
 :root.page .app { width: 100%; height: 100vh; background: var(--surface); }
 /* The page fills its tab: a sidebar left of the list, which becomes a strip above it on narrow windows.
    The bulk bar shares the list's cell and floats at its bottom. */
-:root.page .app { grid-template: "head head" auto "side results" auto "side main-head" auto "side body" 1fr / 240px minmax(0, 1fr); }
+:root.page .app { grid-template: "head head" auto "side results" auto "side main-head" auto "side body" 1fr / var(--side-w, 240px) minmax(0, 1fr); }
 :root.page .head { grid-area: head; }
 :root.page .side { grid-area: side; }
 :root.page .results-bar { grid-area: results; }
 :root.page .main-head { grid-area: main-head; }
 :root.page .body { grid-area: body; }
 :root.page .bulk-bar { grid-area: body; align-self: end; z-index: 4; }
+/* The sidebar's right edge drags (or takes ←/→) to resize it. */
+:root.page .side-resize { grid-column: 1; grid-row: 2 / -1; justify-self: end; width: 7px; margin-right: -4px; z-index: 5; cursor: col-resize; touch-action: none; outline: none; }
+:root.page .side-resize:is(:hover, :focus-visible, .dragging) { background: linear-gradient(to right, transparent 3px, var(--accent) 3px 4px, transparent 4px); }
 @media (max-width: 720px) {
   :root.page .app { grid-template: "head" auto "side" auto "results" auto "main-head" auto "body" 1fr / minmax(0, 1fr); }
   :root.page .side { display: flex; gap: 2px; padding: 6px 8px; border-right: 0; border-bottom: 1px solid var(--border); overflow: auto hidden; }
   :root.page .side button { flex: none; width: auto; max-width: 200px; }
   :root.page .side .side-head { margin: 0 0 0 10px; }
   :root.page .side .side-head:first-child { margin-left: 0; }
+  :root.page .side-resize { display: none; }
 }
 
 .head { display: flex; gap: 8px; align-items: center; padding: 10px; border-bottom: 1px solid var(--border); }
@@ -192,7 +196,7 @@ details.group.stale > summary .g-name { color: light-dark(#b45309, #fbbf24); }
 /* Undo shows above the bulk bar, not on it. */
 :root.page .app:has(.bulk-bar:not([hidden])) .undo-bar { bottom: 76px; }
 /* Centred over the list, like the bulk bar: half the 240px sidebar to the right. */
-:root.page .undo-bar { left: calc(50% + 120px); }
+:root.page .undo-bar { left: calc(50% + var(--side-w, 240px) / 2); }
 @media (max-width: 720px) { :root.page .undo-bar { left: 50%; } }
 
 .board { display: flex; gap: 12px; align-items: stretch; min-height: 100%; padding: 12px; }
