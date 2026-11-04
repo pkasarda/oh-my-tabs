@@ -4,7 +4,11 @@ Your tabs, grouped the way you think about them: by repo, by Jira project, by Li
 
 See [docs/spec.md](docs/spec.md) for the full spec and [GLOSSARY.md](GLOSSARY.md) for the terms.
 
-## Install (unpacked)
+## Install
+
+- **Chrome**: [oh-my-tabs on the Chrome Web Store](https://chromewebstore.google.com/detail/oh-my-tabs/dfjcphmoeaknnkihfpeojfggfniipaek).
+
+## Install from source (unpacked)
 
 - **Chrome**: open `chrome://extensions`, turn on *Developer mode*, click *Load unpacked* and choose this folder.
 - **Firefox**: run `npm run firefox`, open `about:debugging#/runtime/this-firefox`, click *Load Temporary Add-on…* and choose `dist/firefox/manifest.json`.

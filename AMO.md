@@ -1,8 +1,8 @@
 # Firefox Add-ons (AMO) Listing — oh-my-tabs
 
-> Last Updated: 2026-11-03
+> Last Updated: 2026-11-04
 
-Upload `dist/oh-my-tabs-1.0.0-firefox.zip`, built by `npm run package`. It needs Firefox 140 or later, desktop only. On upload, select Firefox only: leave **Firefox for Android unchecked**, because Android has no windows API.
+Upload `dist/oh-my-tabs-1.2.1-firefox.zip`, built by `npm run package`. It needs Firefox 140 or later, desktop only. On upload, select Firefox only: leave **Firefox for Android unchecked**, because Android has no windows API.
 
 ## Listing
 
