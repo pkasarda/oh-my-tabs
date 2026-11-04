@@ -145,8 +145,9 @@ https://github.com/pkasarda/oh-my-tabs/blob/main/PRIVACY.md (live once PR #1 is 
 
 | Version | Date | Changes | Status |
 |---------|------|---------|--------|
-| 1.2.0 | 2026-11-04 | Full page in its own tab: sidebar (groups, windows, topics, stale), one tree with checkboxes and a bulk bar, Library board, drag onto windows and topics, resizable sidebar. Ships 1.1 too. No new permissions. | Ready to submit |
-| 1.1.0 | 2026-11-04 | Library (optional, saved tabs as bookmarks with topics), stale-tabs group, "used … ago" in rows, zZz on suspended tabs, Move group to a new window icon. New optional permission: bookmarks. | Not submitted, shipped in 1.2.0 |
+| 1.2.1 | 2026-11-04 | The settings panel scrolls inside the popup; lists keep their width when a scrollbar appears. Ships 1.1 and 1.2 too. | Ready to submit |
+| 1.2.0 | 2026-11-04 | Full page in its own tab: sidebar (groups, windows, topics, stale), one tree with checkboxes and a bulk bar, Library board, drag onto windows and topics, resizable sidebar. Ships 1.1 too. No new permissions. | Not submitted, shipped in 1.2.1 |
+| 1.1.0 | 2026-11-04 | Library (optional, saved tabs as bookmarks with topics), stale-tabs group, "used … ago" in rows, zZz on suspended tabs, Move group to a new window icon. New optional permission: bookmarks. | Not submitted, shipped in 1.2.1 |
 | 1.0.0 | 2026-11-03 | First release: groups, duplicates, search, Windows view, move, suspend, badge, shortcuts. | Submitted |
 
 ## Review Notes
