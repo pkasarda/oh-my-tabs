@@ -55,6 +55,7 @@ button { cursor: pointer; }
   :root.page .side .side-head { margin: 0 0 0 10px; }
   :root.page .side .side-head:first-child { margin-left: 0; }
   :root.page .side-resize { display: none; }
+  :root.page .side { scrollbar-gutter: auto; }
 }
 
 .head { display: flex; gap: 8px; align-items: center; padding: 10px; border-bottom: 1px solid var(--border); }
@@ -76,6 +77,8 @@ button { cursor: pointer; }
 .results-bar:empty { display: none; }
 .results-bar span { margin-right: auto; }
 
+/* Scrolling areas keep room for a scrollbar whether it shows or not, so content never shifts sideways. */
+.body, .side, .menu, .settings, ul.rows.col-body { scrollbar-gutter: stable; }
 .body { overflow: auto; padding: 8px 10px 16px; }
 .empty { padding: 40px; text-align: center; color: var(--muted); }
 
@@ -303,7 +306,8 @@ ul.rows.col-body { display: grid; gap: 6px; align-content: start; padding: 0 8px
 .menu .hint { margin-left: auto; color: var(--muted); }
 .menu hr { border: 0; border-top: 1px solid var(--border); margin: 4px 0; }
 /* Only while open: a display value on a closed popover overrides its display: none and leaves it invisibly catching the pointer. */
-.settings { width: 260px; padding: 12px; gap: 12px; font-size: 13px; }
+/* Its max-height comes from where it opens (popup.js), so it scrolls instead of running off the popup. */
+.settings { width: 260px; padding: 12px; gap: 12px; font-size: 13px; overflow: auto; overscroll-behavior: contain; }
 .settings:popover-open { display: grid; }
 .settings h3 { margin: 0 0 4px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); }
 .settings .btn { width: 100%; }

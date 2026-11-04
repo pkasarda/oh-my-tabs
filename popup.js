@@ -1495,6 +1495,7 @@ $('#settings').addEventListener('beforetoggle', event => {
   const rect = $('#settings-button').getBoundingClientRect();
   event.target.style.top = `${rect.bottom + 6}px`;
   event.target.style.left = `${Math.max(8, rect.right - 260)}px`;
+  event.target.style.maxHeight = `${innerHeight - rect.bottom - 14}px`;
 });
 $('#s-dev').addEventListener('change', async event => {
   await saveSetting('dev', event.target.checked);
