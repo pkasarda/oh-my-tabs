@@ -1,8 +1,10 @@
 # Chrome Web Store Listing — oh-my-tabs
 
-> Last Updated: 2026-11-03
+> Last Updated: 2026-11-04
 
-Upload `dist/oh-my-tabs-1.0.0-chrome.zip`, built by `npm run package`.
+Upload `dist/oh-my-tabs-1.2.1-chrome.zip`, built by `npm run package`.
+
+**Listing**: https://chromewebstore.google.com/detail/oh-my-tabs/dfjcphmoeaknnkihfpeojfggfniipaek
 
 ## Store Listing
 
