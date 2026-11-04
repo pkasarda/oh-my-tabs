@@ -9,13 +9,15 @@ Upload `dist/oh-my-tabs-1.0.0-chrome.zip`, built by `npm run package`.
 **Extension Name**
 oh-my-tabs
 
-**Short Description** (101 of 132 characters)
-Your tabs grouped by repo, Jira project or Linear team, with duplicates found even when the URLs differ.
+**Short Description** (113 of 132 characters)
+Your tabs grouped by repo, project or site, with smart duplicate cleanup. No account, nothing leaves your device.
 
 **Detailed Description** (plain text, paste as is)
 
 ```
-oh-my-tabs shows all your open tabs, from every window, sorted into groups you recognize. It finds duplicate tabs that other tools miss, and lets you close or tidy them in one click.
+No account, no cloud, nothing leaves your device: oh-my-tabs works entirely in your browser.
+
+oh-my-tabs shows all your open tabs, from every window, sorted into groups you recognize. It finds duplicate tabs that other tools miss, and lets you close or tidy them in one click. Closed a group by mistake? Undo brings it back.
 
 GROUPS THAT MATCH HOW YOU WORK
 Tabs are grouped by site. With developer mode, which is on by default, they are grouped by project instead: one group per GitHub, GitLab or Bitbucket repository, per Jira or Confluence project, per Linear team. Groups are sorted by size, so the projects with the most tabs come first.
@@ -40,6 +42,15 @@ The Windows view shows each window as a card with its groups, the number of tabs
 
 KEYBOARD FRIENDLY
 Alt+Shift+O opens oh-my-tabs and Alt+Shift+D closes duplicates; you can change both in Chrome's shortcut settings. Type to search, then use the arrow keys and Enter to jump to a tab.
+
+SAVE TABS FOR LATER (OPTIONAL)
+Turn on the Library to save & close tabs, a group or every tab you have not used for a week, and find them again later. Saved tabs are kept as bookmarks in an "oh-my-tabs" folder, so your browser syncs them to your other devices. Sort them into topics. Opening a saved tab that is already open switches to it instead of opening it twice.
+
+A FULL PAGE FOR BIG CLEANUPS
+Open oh-my-tabs as a page to see everything at once: a sidebar of groups, windows, topics and stale tabs, and one tree of all your tabs. Tick tabs to save, move, suspend or close them together, drag tabs onto a window or a topic, and drag saved tabs between topics.
+
+STALE TABS
+A group at the top lists the tabs you have not used for 7 days or more (you can choose 3, 7, 14 or 30), so you can save or close them in one go. Tabs playing sound, pinned tabs and the sites on your "never" list are always left alone.
 
 PRIVATE BY DESIGN
 oh-my-tabs works entirely on your device. It reads the titles and addresses of your open tabs to group them. It never reads page content and never sends anything anywhere. It has no analytics and no accounts. Your settings stay in local browser storage.
@@ -86,6 +97,7 @@ The screenshots use made-up tabs, and their icons are letter tiles, so no third-
 | storage | permissions | Saves the user's settings on the device: developer mode on or off, sort order, and the last view. Nothing else is stored. |
 | contextMenus | permissions | Adds "Close duplicates" to the right-click menu of the extension's toolbar icon, so duplicates can be closed without opening the popup. |
 | favicon | permissions | Shows each tab's site icon in the list from Chrome's local favicon cache, without fetching icons from the web. |
+| bookmarks | optional_permissions | Asked only when the user turns on the Library in the settings. Saved tabs are stored as bookmarks in an "oh-my-tabs" folder, with one subfolder per topic, so the user can close tabs and find them again; the browser's own sync carries them. The extension reads and changes only that folder. |
 
 No host permissions, no content scripts, no remote code.
 
@@ -95,14 +107,15 @@ No host permissions, no content scripts, no remote code.
 
 **Does the extension collect user data?** No
 
-Tab addresses and titles are read locally to build the list and are never stored or transmitted. In the dashboard, leave every data type unchecked:
+Tab addresses and titles are read locally to build the list. With the Library on, saved tabs (title, address) are stored as bookmarks in the user's browser. Nothing is transmitted by the extension.
+
+The Chrome Web Store counts data that is only handled locally as handled. From 1.1 on, check **Web history** (tab and saved-tab addresses), state that it is used only for the extension's single purpose, and certify the three statements below. Leave every other data type unchecked:
 - personally identifiable info;
 - health info;
 - financial info;
 - authentication info;
 - personal communications;
 - location;
-- web history;
 - user activity;
 - website content.
 
@@ -132,7 +145,9 @@ https://github.com/pkasarda/oh-my-tabs/blob/main/PRIVACY.md (live once PR #1 is 
 
 | Version | Date | Changes | Status |
 |---------|------|---------|--------|
-| 1.0.0 | 2026-11-03 | First release: groups, duplicates, search, Windows view, move, suspend, badge, shortcuts. | Draft |
+| 1.2.0 | 2026-11-04 | Full page in its own tab: sidebar (groups, windows, topics, stale), one tree with checkboxes and a bulk bar, Library board, drag onto windows and topics, resizable sidebar. Ships 1.1 too. No new permissions. | Ready to submit |
+| 1.1.0 | 2026-11-04 | Library (optional, saved tabs as bookmarks with topics), stale-tabs group, "used … ago" in rows, zZz on suspended tabs, Move group to a new window icon. New optional permission: bookmarks. | Not submitted, shipped in 1.2.0 |
+| 1.0.0 | 2026-11-03 | First release: groups, duplicates, search, Windows view, move, suspend, badge, shortcuts. | Submitted |
 
 ## Review Notes
 

@@ -14,6 +14,7 @@
     <div class="seg" role="group" aria-label="View">
       <button type="button" data-view="groups" aria-pressed="true">Groups</button>
       <button type="button" data-view="windows" aria-pressed="false">Windows</button>
+      <button type="button" data-view="library" aria-pressed="false" hidden>Library</button>
     </div>
     <button type="button" class="btn danger" id="close-dups">Close duplicates</button>
     <button type="button" class="icon-btn" id="open-page" data-tip="Open as page" aria-label="Open as page" data-icon="page"></button>
@@ -21,6 +22,7 @@
   </div>
   <div class="results-bar" id="results-bar"></div>
   <div class="body" id="body"></div>
+  <div class="undo-bar" id="undo-bar" role="status" hidden><span id="undo-text"></span><button type="button" class="btn" id="undo-button">Undo</button></div>
 </main>
 
 <div popover id="settings" class="settings">
@@ -28,6 +30,18 @@
     <h3>Display</h3>
     <label>Developer mode <input type="checkbox" class="switch" id="s-dev" aria-describedby="s-dev-hint"></label>
     <p class="hint-text" id="s-dev-hint">Groups and duplicates per repo, Jira project or Linear team; monospace look.</p>
+  </div>
+  <div>
+    <h3>Features</h3>
+    <label>Library <input type="checkbox" class="switch" id="s-library" aria-describedby="s-library-hint"></label>
+    <p class="hint-text" id="s-library-hint">Save &amp; close tabs into an "oh-my-tabs" bookmarks folder, synced by your browser. Asks for bookmarks access.</p>
+    <label>Stale tabs <input type="checkbox" class="switch" id="s-stale"></label>
+    <label class="hint-text">Not used for
+      <select id="s-stale-days" aria-label="Stale after">
+        <option value="3">3</option><option value="7">7</option><option value="14">14</option><option value="30">30</option>
+      </select> days</label>
+    <label class="never-field" for="s-never">Never stale or suspend <span class="hint-text">one site per line; slack.com covers its subdomains</span></label>
+    <textarea id="s-never" rows="3" spellcheck="false" autocomplete="off" placeholder="slack.com"></textarea>
   </div>
   <div>
     <h3>Sort tabs</h3>
@@ -48,6 +62,16 @@
 <div popover id="menu" class="menu" role="menu" aria-label="Actions"></div>
 
 <div popover="manual" id="tip" class="tip" role="tooltip"></div>
+
+<dialog id="topic-dialog" aria-labelledby="topic-label">
+  <form method="dialog">
+    <label id="topic-label" class="topic-field">New topic <input id="topic-name" type="text" required maxlength="60" autocomplete="off"></label>
+    <div class="dialog-actions">
+      <button class="btn" value="cancel" formnovalidate>Cancel</button>
+      <button class="btn" value="ok">Create</button>
+    </div>
+  </form>
+</dialog>
 
 <dialog id="confirm" aria-labelledby="confirm-text">
   <p id="confirm-text"></p>

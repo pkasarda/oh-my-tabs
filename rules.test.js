@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { groupName, duplicateKey, findDuplicates } from './rules.js';
+import { groupName, groupChain, rollUp, duplicateKey, findDuplicates, staleTabs, planSave, isNeverListed, neverEntry } from './rules.js';
 
 const DEV = true;
 const PLAIN = false;
@@ -181,4 +181,129 @@ test('findDuplicates uses pendingUrl while a tab is still loading', () => {
     { id: 2, url: '', pendingUrl: 'https://example.com/a', lastAccessed: 2 },
   ];
   assert.equal(findDuplicates(tabs, DEV).length, 1);
+});
+
+const DAY = 24 * 60 * 60 * 1000;
+
+test('staleTabs: unpinned web tabs not used for longer than the threshold', () => {
+  const now = 100 * DAY;
+  const tabs = [
+    { id: 1, url: 'https://a.example/', lastAccessed: now - 8 * DAY },
+    { id: 2, url: 'https://b.example/', lastAccessed: now - 2 * DAY },
+    { id: 3, url: 'https://c.example/', lastAccessed: now - 30 * DAY, pinned: true },
+    { id: 4, url: 'chrome://newtab/', lastAccessed: now - 30 * DAY },
+    { id: 5, url: 'https://d.example/', lastAccessed: now - 7 * DAY - 1 },
+  ];
+  assert.deepEqual(staleTabs(tabs, now, 7).map(t => t.id), [1, 5]);
+});
+
+test('planSave: a new tab becomes a bookmark with the chosen topic', () => {
+  const plan = planSave([], [{ url: 'https://example.com/a', title: 'A' }], DEV, 'Read later');
+  assert.deepEqual(plan, { remove: [], create: [{ url: 'https://example.com/a', title: 'A', topic: 'Read later' }] });
+});
+
+test('planSave: saving again replaces the saved tab with the same duplicate key and keeps its topic', () => {
+  const saved = [{ id: 'b1', url: 'https://github.com/a/b/pull/3', topic: 'Release' }];
+  const plan = planSave(saved, [{ url: 'https://github.com/a/b/pull/3/files', title: 'PR 3' }], DEV, null);
+  assert.deepEqual(plan, { remove: ['b1'], create: [{ url: 'https://github.com/a/b/pull/3/files', title: 'PR 3', topic: 'Release' }] });
+});
+
+test('planSave: an explicit topic wins over the old one', () => {
+  const saved = [{ id: 'b1', url: 'https://example.com/a', topic: 'Old' }];
+  assert.equal(planSave(saved, [{ url: 'https://example.com/a#x', title: 'A' }], DEV, 'New').create[0].topic, 'New');
+});
+
+test('planSave: duplicates among the tabs are saved once; system tabs are skipped', () => {
+  const tabs = [
+    { url: 'https://example.com/a', title: 'A' },
+    { url: 'https://example.com/a#section', title: 'A again' },
+    { url: 'chrome://extensions/', title: 'Extensions' },
+  ];
+  const plan = planSave([], tabs, DEV, null);
+  assert.equal(plan.create.length, 1);
+  assert.equal(plan.create[0].url, 'https://example.com/a');
+});
+
+test('groupChain goes from the most specific group to the site', () => {
+  assert.deepEqual(groupChain('https://github.com/acme/client/pull/3', DEV), ['acme/client', 'acme', 'github.com']);
+  assert.deepEqual(groupChain('https://github.com/acme', DEV), ['acme', 'github.com']);
+  assert.deepEqual(groupChain('https://gitlab.com/acme/infra/-/merge_requests/5', DEV), ['acme/infra', 'acme', 'gitlab.com']);
+  assert.deepEqual(groupChain('https://linear.app/acme/issue/WEB-1/x', DEV), ['Linear · WEB', 'Linear · acme', 'linear.app']);
+  assert.deepEqual(groupChain('https://acme.atlassian.net/browse/PAY-1', DEV), ['Jira · PAY', 'acme.atlassian.net', 'atlassian.net']);
+  assert.deepEqual(groupChain('https://example.com/a', DEV), ['example.com']);
+  assert.deepEqual(groupChain('https://github.com/acme/client', PLAIN), ['github.com']);
+  assert.deepEqual(groupChain('chrome://newtab/', DEV), ['Browser']);
+});
+
+test('rollUp moves lone tabs up until they have company', () => {
+  const chains = {
+    a: ['acme/client', 'acme', 'github.com'],
+    b: ['acme/client', 'acme', 'github.com'],
+    c: ['acme/web', 'acme', 'github.com'],
+    d: ['acme/sdk', 'acme', 'github.com'],
+    e: ['foo/x', 'foo', 'github.com'],
+    f: ['bar/y', 'bar', 'github.com'],
+    g: ['example.com'],
+  };
+  const groups = rollUp(Object.keys(chains), id => chains[id]);
+  assert.deepEqual(Object.fromEntries(Object.keys(chains).map(id => [id, groups.get(id)])), {
+    a: 'acme/client', b: 'acme/client',  // two tabs: the repo stays
+    c: 'acme', d: 'acme',                // lone repos of one owner share the owner
+    e: 'github.com', f: 'github.com',    // lone owners share the site
+    g: 'example.com',                    // nowhere higher to go: stays a lone tab
+  });
+});
+
+test('rollUp: a lone tab joins an existing group of the next level', () => {
+  const chains = { a: ['github.com'], b: ['github.com'], c: ['foo/x', 'foo', 'github.com'] };
+  const groups = rollUp(Object.keys(chains), id => chains[id]);
+  assert.equal(groups.get('c'), 'github.com');
+});
+
+test('groupChain ends with the domain, so lone subdomains of one site meet', () => {
+  assert.deepEqual(groupChain('https://acme.slack.com/marketplace', PLAIN), ['acme.slack.com', 'slack.com']);
+  assert.deepEqual(groupChain('https://api.slack.com/apps', DEV), ['api.slack.com', 'slack.com']);
+  assert.deepEqual(groupChain('https://www.bbc.co.uk/news', PLAIN), ['bbc.co.uk']);
+  assert.deepEqual(groupChain('https://shop.bbc.co.uk/', PLAIN), ['shop.bbc.co.uk', 'bbc.co.uk']);
+  // Hosting domains: every site on them belongs to someone else.
+  assert.deepEqual(groupChain('https://alice.github.io/blog', PLAIN), ['alice.github.io']);
+  assert.deepEqual(groupChain('https://my-app.vercel.app/', PLAIN), ['my-app.vercel.app']);
+  // Ports and IP addresses stay as they are.
+  assert.deepEqual(groupChain('http://dev.localhost:3000/', PLAIN), ['dev.localhost:3000']);
+  assert.deepEqual(groupChain('http://192.168.1.10/admin', PLAIN), ['192.168.1.10']);
+});
+
+test('rollUp with domains: lone slack.com subdomains share slack.com', () => {
+  const urls = ['https://acme.slack.com/a', 'https://app.slack.com/b', 'https://api.slack.com/c', 'https://example.org/'];
+  const groups = rollUp(urls, url => groupChain(url, DEV));
+  assert.deepEqual(urls.map(url => groups.get(url)), ['slack.com', 'slack.com', 'slack.com', 'example.org']);
+});
+
+test('never list: an entry covers its host and every subdomain', () => {
+  const never = ['slack.com', 'app.example.org'];
+  assert.ok(isNeverListed('https://slack.com/', never));
+  assert.ok(isNeverListed('https://acme.slack.com/messages', never));
+  assert.ok(isNeverListed('https://app.example.org/x', never));
+  assert.ok(isNeverListed('https://eu.app.example.org/x', never));
+  assert.ok(!isNeverListed('https://example.org/', never));
+  assert.ok(!isNeverListed('https://notslack.com/', never));
+  assert.ok(!isNeverListed('chrome://newtab/', never));
+});
+
+test('never list: entries are cleaned up from whatever was typed or pasted', () => {
+  assert.equal(neverEntry('  https://www.Slack.com/messages?x=1 '), 'slack.com');
+  assert.equal(neverEntry('app.example.org'), 'app.example.org');
+  assert.equal(neverEntry('*.example.org'), 'example.org');
+  assert.equal(neverEntry('not a host'), null);
+  assert.equal(neverEntry(''), null);
+});
+
+test('staleTabs skips audible tabs and never-listed sites', () => {
+  const now = 100 * DAY;
+  const tabs = [
+    { id: 1, url: 'https://a.example/', lastAccessed: now - 9 * DAY },
+    { id: 2, url: 'https://music.example/', lastAccessed: now - 9 * DAY, audible: true },
+    { id: 3, url: 'https://app.slack.com/', lastAccessed: now - 9 * DAY },
+  ];
+  assert.deepEqual(staleTabs(tabs, now, 7, ['slack.com']).map(t => t.id), [1]);
 });

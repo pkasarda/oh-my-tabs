@@ -105,6 +105,73 @@ export function groupName(url, dev) {
   return siteGroupName(u);
 }
 
+const OWNER_HOSTS = new Set(['github.com', 'gitlab.com', 'bitbucket.org']);
+
+// The level above a site group: the owner of a repository, the workspace of a Linear team.
+function ownerGroup(u, group) {
+  const host = hostOf(u);
+  if (OWNER_HOSTS.has(host) && group.includes('/')) return group.split('/')[0];
+  const workspace = pathParts(u)[0];
+  if (host === 'linear.app' && workspace) return `Linear · ${workspace}`;
+  return null;
+}
+
+// Two-part public suffixes (bbc.co.uk is one site) and hosting domains whose subdomains are different people's sites.
+// ponytail: a short list, not the full Public Suffix List; add an entry when a site rolls up wrongly.
+const TWO_PART_SUFFIXES = new Set([
+  'co.uk', 'org.uk', 'ac.uk', 'gov.uk', 'com.au', 'net.au', 'org.au', 'co.nz', 'co.jp', 'ne.jp', 'com.br',
+  'com.cn', 'com.hk', 'com.sg', 'co.in', 'co.za', 'com.mx', 'com.tr', 'com.pl', 'co.kr', 'co.il',
+]);
+const HOSTING_DOMAINS = new Set([
+  'github.io', 'gitlab.io', 'vercel.app', 'netlify.app', 'pages.dev', 'workers.dev', 'herokuapp.com', 'web.app',
+  'firebaseapp.com', 'appspot.com', 'azurewebsites.net', 'cloudfront.net', 'blogspot.com', 'wordpress.com',
+  'substack.com', 'notion.site', 'glitch.me', 'onrender.com', 'fly.dev',
+]);
+
+// The site a host belongs to: acme.slack.com → slack.com. Null for IPs, ports, localhost and hosting domains.
+function domainOf(u) {
+  const host = u.hostname;
+  if (u.port || /^[\d.]+$/.test(host) || host.startsWith('[') || !host.includes('.')) return null;
+  const labels = host.split('.');
+  const lastTwo = labels.slice(-2).join('.');
+  if (HOSTING_DOMAINS.has(lastTwo)) return null;
+  const size = TWO_PART_SUFFIXES.has(lastTwo) ? 3 : 2;
+  return labels.length > size ? labels.slice(-size).join('.') : null;
+}
+
+// The groups a URL belongs to, from the most specific to the site: acme/client → acme → github.com,
+// acme.slack.com → slack.com.
+export function groupChain(url, dev) {
+  const u = isWeb(url) ? parse(url) : null;
+  if (!u) return ['Browser'];
+  const site = hostLabel(u);
+  const levels = dev ? [siteGroupName(u)] : [];
+  if (dev) levels.push(ownerGroup(u, levels[0]));
+  levels.push(site, domainOf(u));
+  return [...new Set(levels.filter(Boolean))];
+}
+
+// Picks each item's group: a tab that would be alone in its group moves up its chain until it shares
+// a group with another tab, or the chain ends. Returns Map(item → group name).
+export function rollUp(items, chainOf) {
+  const chains = new Map(items.map(item => [item, chainOf(item)]));
+  const level = new Map(items.map(item => [item, 0]));
+  const nameOf = item => chains.get(item)[level.get(item)];
+  for (let changed = true; changed;) {
+    changed = false;
+    const counts = new Map();
+    for (const item of items) counts.set(nameOf(item), (counts.get(nameOf(item)) ?? 0) + 1);
+    for (const item of items) {
+      const alone = counts.get(nameOf(item)) === 1;
+      if (alone && level.get(item) < chains.get(item).length - 1) {
+        level.set(item, level.get(item) + 1);
+        changed = true;
+      }
+    }
+  }
+  return new Map(items.map(item => [item, nameOf(item)]));
+}
+
 // Rewrites u in place so that URLs showing the same thing on a known site become equal.
 function collapseForSite(u) {
   const host = hostOf(u);
@@ -178,4 +245,53 @@ export function findDuplicates(tabs, dev) {
     sets.push({ keeper, copies: members.filter(tab => tab !== keeper) });
   }
   return sets;
+}
+
+const DAY = 24 * 60 * 60 * 1000;
+
+// The never list: sites that are never stale and never suspended in bulk. "slack.com" covers slack.com and every
+// subdomain; "app.slack.com" covers that subdomain and the ones below it.
+export function neverEntry(text) {
+  const raw = text.trim().toLowerCase().replace(/^\*\./, '');
+  if (!raw) return null;
+  const u = parse(raw.includes('://') ? raw : `https://${raw}`);
+  if (!u || !u.hostname.includes('.') || /\s/.test(raw)) return null;
+  return u.hostname.replace(/^www\./, '');
+}
+
+export function isNeverListed(url, never) {
+  const u = isWeb(url) ? parse(url) : null;
+  if (!u) return false;
+  const host = u.hostname.replace(/^www\./, '');
+  return never.some(entry => host === entry || host.endsWith(`.${entry}`));
+}
+
+// Open web tabs last used more than `days` ago. Pinned tabs, tabs playing sound and never-listed sites are kept.
+export function staleTabs(tabs, now, days, never = []) {
+  const cutoff = now - days * DAY;
+  return tabs.filter(tab => !tab.pinned && !tab.audible && isWeb(tab.url ?? '') && tab.lastAccessed < cutoff
+    && !isNeverListed(tab.url, never));
+}
+
+// What saving `tabs` to the library means, given what is saved already.
+// saved: [{ id, url, topic }], tabs: [{ url, title }], topic: a name or null (keep the old topic).
+// A saved tab with the same duplicate key is replaced, so the library never holds two of one page.
+export function planSave(saved, tabs, dev, topic) {
+  const savedByKey = new Map();
+  for (const item of saved) {
+    const key = duplicateKey(item.url, dev);
+    if (key) savedByKey.set(key, item);
+  }
+  const remove = [];
+  const create = [];
+  const seen = new Set();
+  for (const tab of tabs) {
+    const key = duplicateKey(tab.url ?? '', dev);
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+    const old = savedByKey.get(key);
+    if (old) remove.push(old.id);
+    create.push({ url: tab.url, title: tab.title || tab.url, topic: topic ?? old?.topic ?? null });
+  }
+  return { remove, create };
 }

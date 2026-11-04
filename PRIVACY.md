@@ -1,6 +1,6 @@
 # Privacy Policy for oh-my-tabs
 
-Last updated: 2026-11-03
+Last updated: 2026-11-04
 
 oh-my-tabs does not collect, sell or share any data. Nothing it reads leaves your device.
 
@@ -26,7 +26,16 @@ It does not read the content of web pages. It does not read your browsing histor
 
 ## What the extension stores
 
-oh-my-tabs stores only your settings: developer mode on or off, how tabs are sorted, and the last view you used. They are kept in the browser's local extension storage on your device and are not synced. Uninstalling the extension removes them.
+oh-my-tabs stores your settings: developer mode on or off, how tabs are sorted, the last view you used, and whether the stale-tabs group is on and after how many days. They are kept in the browser's local extension storage on your device and are not synced. Uninstalling the extension removes them.
+
+## The Library (optional)
+
+The Library is off until you turn it on in the settings. It then asks for permission to access your bookmarks.
+
+- It stores the tabs you save as ordinary bookmarks in a bookmarks folder named "oh-my-tabs", with one subfolder per topic.
+- It reads and changes only that folder. Your other bookmarks are never read or changed.
+- The bookmarks stay in your browser. If you use your browser's own sync (Chrome Sync, Firefox Sync), the browser syncs this folder like any other bookmark. The extension sends nothing itself.
+- Turning the Library off removes the permission and leaves the folder in place. Uninstalling also leaves it, so your saved tabs are not lost. You can delete the folder in the bookmark manager at any time.
 
 ## Network access
 

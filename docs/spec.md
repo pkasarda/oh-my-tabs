@@ -15,7 +15,7 @@ oh-my-tabs is a browser extension that shows every open tab sorted into groups a
   - Chrome serves them from its own cache through `/_favicon/`.
   - Firefox shows `tab.favIconUrl`.
   - A letter tile is shown when neither has an icon.
-- Firefox manifest: `gecko.id` is `oh-my-tabs@pkasarda` and `data_collection_permissions` is `{"required": ["none"]}`. The extension sends no data anywhere.
+- Firefox manifest: `gecko.id` is `oh-my-tabs@pixelcherry.eu` (`oh-my-tabs@pkasarda` belonged to a deleted AMO listing and can never be reused) and `data_collection_permissions` is `{"required": ["none"]}`. The extension sends no data anywhere.
 - Plain JS modules, hand-written CSS, no build step ([ADR 0002](adr/0002-vanilla-js-no-build.md)).
 - It never touches the browser's native tab groups ([ADR 0001](adr/0001-groups-are-a-view-not-browser-tab-groups.md)).
 - UI text is English. Light or dark follows `prefers-color-scheme`.
@@ -25,7 +25,8 @@ oh-my-tabs is a browser extension that shows every open tab sorted into groups a
 ```
 manifest.json
 background.js        badge, tooltip, context menu, shortcut
-popup.html/.js/.css  the UI, shown both as the popup and as a full page
+popup.html/.js/.css  the UI: popup.html is the popup, page.html the full page; both run popup.js
+page.html
 rules.js             pure: URL → group name, URL → duplicate key, keeper choice
 rules.test.js        node --test
 package.json         "type": "module" for node, the test and firefox scripts
@@ -92,7 +93,7 @@ When developer mode is off, only the generic rules apply. The badge count can th
 
 ## UI (`popup.html`)
 
-`popup.html` serves as the popup and also as a full page in a tab (`Open as page`). The full page uses a wider layout and leaves its own tab out of the list. While open, the UI re-renders whenever a tab event fires.
+`popup.html` is the popup. `Open as page` opens `page.html`, the full page in a tab, which runs the same `popup.js` with a sidebar in place of the view switch and leaves its own tab out of the list. An old `popup.html?page` tab redirects to `page.html`. While open, the UI re-renders whenever a tab event fires.
 
 - Tooltips are oh-my-tabs' own (`data-tip`), never native `title` attributes, whose tooltip shows only after about a second.
   - The first tooltip shows after 150 ms. Moving on to the next one within 400 ms shows it at once.
@@ -131,7 +132,7 @@ When developer mode is off, only the generic rules apply. The badge count can th
   - a 28 px favicon and the title, inside a button that switches to the tab, so the keyboard can reach it;
   - a short URL;
   - its window label: a small window glyph with the window's number, highlighted for the current window. Its tooltip gives the window name;
-  - `zz` when the tab is suspended; its favicon and title are dimmed;
+  - a small `zZz` on the corner of the favicon when the tab is suspended; its favicon and title are dimmed;
   - `×` (close) and `⋯`, which opens the tab menu:
     - `Move to window ▸`;
     - `Suspend this tab` (disabled for an active tab);
@@ -202,9 +203,132 @@ The windows view uses the groups view's language one level up: window → group 
 - With developer mode on, the whole UI uses bundled Fira Code (OFL, woff2) with ligatures off (`font-variant-ligatures: none`), so `->` in a title stays two characters.
 - With developer mode off, the UI uses the system sans-serif font.
 
+## 1.1: Library and stale tabs
+
+Goal: you can close tabs without losing them, so you stop keeping hundreds open "just in case". Design agreed in a grilling session. The look is in [previews/library.html](previews/library.html).
+
+### Settings: Features
+
+- ⚙ gets a **Features** section with two switches. Both are stored in `storage.local`:
+  - **Library**, off by default.
+  - **Stale tabs**, on by default, with a threshold of 3, 7, 14 or 30 days (default 7).
+- Turning **Library** on requests the optional `bookmarks` permission (`optional_permissions`). The Library is on exactly while that permission is granted, so there is no separate setting to get out of sync, for example when Firefox closes the popup for the prompt.
+  - The permission is never in `permissions`. Adding it there would make Chrome disable the published extension on update until the user accepts a new warning.
+  - If the user declines, the switch stays off.
+- Turning **Library** off hides everything Library-related: the Library view, the save icons and the saved markers. The bookmarks stay untouched.
+
+### Library storage ([ADR 0003](adr/0003-library-is-browser-bookmarks.md))
+
+- The library is a bookmarks folder named `oh-my-tabs` in Other Bookmarks. It is created on first save, and found again by name if its id is lost.
+- Topics are subfolders of `oh-my-tabs`. A saved tab without a topic sits directly in `oh-my-tabs`. A saved tab has at most one topic.
+- A saved tab is a bookmark: its title and its URL. "Saved X ago" comes from `dateAdded`. Nothing else is stored, so the browser's own sync carries the whole library.
+- Duplicate keys apply. Saving a URL whose duplicate key is already in the library removes the old bookmark and creates a new one. The new one gets today's date and keeps the old topic. The library never holds two saved tabs with one duplicate key.
+- Bookmarks outside the `oh-my-tabs` folder are never read or changed.
+
+### Saving
+
+- **Save & close** (bookmark-plus icon):
+  - inline on every tab row and group header in the Groups and Windows views;
+  - in the ⋯ menus of tabs, groups and windows;
+  - as a results-bar action while searching.
+  - It saves without a topic and needs one click.
+- ⋯ menus also offer **Save** (keep the tab open) and **Save to topic ›**, a submenu of the topics plus `New topic…`.
+- An open tab whose duplicate key is in the library shows a filled bookmark icon instead of the outline one: it is safe to close.
+- Saving more than 10 tabs at once asks first, like closing.
+
+### Library view
+
+- **Library** is a third view in the view switch. It is shown only while the feature is on.
+- Topic chips sit under the header: `All · N`, one per topic with its count, and `+ New topic`.
+- The library is grouped by the usual group rules, so a saved GitHub PR sits under its `owner/repo`. Within a group, the newest saved tab comes first.
+- A row shows:
+  - the favicon, title and short URL;
+  - its topic as a pill;
+  - `saved 3 wk ago`;
+  - `↗` (open in the background), `×` (remove from the library) and `⋯` (`Move to topic ›`).
+- Clicking a row opens the tab in the current window and keeps it in the library. If a tab with the same duplicate key is already open, the click switches to it instead.
+- A group header has `↗` to open all its saved tabs (asks above 10) and `⋯` with `Remove group from library`.
+- Search covers only the view you are in: saved tabs in Library, open tabs in Groups and Windows.
+
+### Stale tabs
+
+- A stale tab is an open, unpinned tab whose `lastAccessed` is older than the threshold.
+- While the feature is on, the Groups view starts with a collapsed group, `Not used for 7+ days · N`, in the usual card style with an amber clock icon.
+- Its header has the save icon (Save & close all, only while Library is on) and `⋯`:
+  - `Save & close all · N` and `Save all, keep open · N` (Library on);
+  - `Close all without saving · N`.
+- Every action asks above 10 tabs.
+- Tab rows show `used 2 wk ago` when the tab was last used more than a day ago.
+
+### Undo and the never list (1.1)
+
+- **Undo.** The last bulk close can be undone from a bar at the bottom of the popup, `Closed N tabs · Undo`, shown for 10 seconds.
+  - Bulk closes are Close group, Close results, Close window, Close all stale and every Save & close.
+  - Close duplicates has no undo, since every keeper stays open. A single × has none either; the browser's Reopen closed tab covers it.
+  - Before closing, the popup remembers each tab's URL, window, index and pinned state. Undo reopens them in the background in their window, or in the current window if that one is gone. A closed window comes back as a new window.
+  - More than 10 tabs reopen suspended: Firefox creates them discarded, Chrome discards them right after creating them.
+  - Back/forward history is not kept, and no new permission is needed. Saved tabs stay in the Library after an undo.
+  - Only the last bulk close is remembered, and only while the popup is open.
+- **Never list.** Sites that are never stale and never suspended in bulk.
+  - It is edited in ⚙ → Features (one site per line) and in a tab's ⋯ menu (`Never stale or suspend this site`, or `Allow stale and suspend for this site` when the site is listed).
+  - `slack.com` covers slack.com and its subdomains; `app.slack.com` covers that subdomain and the ones below it. Typed or pasted URLs are cleaned to their host (`neverEntry` in rules.js).
+  - It is stored in `storage.local`, not `storage.sync`, which would count as data sent off the device.
+  - Tabs playing sound are treated like pinned tabs: never stale, never suspended in bulk. `Suspend this tab` still works on any single tab.
+- **Store copy** leads with privacy: "Your tabs grouped by repo, project or site, with smart duplicate cleanup. No account, nothing leaves your device." That line is also the manifest description.
+
+### Also in 1.1
+
+- Group headers in the Groups and Windows views get an inline **Move group to a new window** icon.
+- Lone tabs roll up before they become rows. Each tab has a group chain from the most specific group to its site:
+  - GitHub, GitLab and Bitbucket: `owner/repo` → `owner` → host.
+  - Linear: `Linear · TEAM` → `Linear · workspace` → `linear.app`.
+  - Jira and Confluence: project or space → host → domain.
+  - Other sites: host → domain.
+  - The domain is the host's last two labels (`acme.slack.com` → `slack.com`), or three after a two-part suffix such as `co.uk`. A short list in rules.js covers these suffixes; it is not the full Public Suffix List. Hosting domains (`github.io`, `vercel.app`, `wordpress.com`, …), IP addresses, `localhost` and hosts with a port have no domain level.
+  A tab that would be alone in its group moves one level up, repeatedly, until it shares a group or the chain ends. For example, `nrwl/nx` and `nrwl/nx-labs` with one tab each become one `nrwl` group, and lone repos of different owners meet in `github.com` (`rollUp` in rules.js, applied to open and saved tabs). Without developer mode a chain is host → domain.
+- A group with a single tab after that is not a card: in the Groups and Library views, such tabs are plain rows under `1-tab sites · N`, after the groups, as in the Windows view.
+- The Library view hides `Close duplicates`, which is about open tabs.
+
+### Out of 1.1
+
+- On-device AI summaries. Chrome's Summarizer API was considered and dropped: no Slovak, Chrome only, heavy hardware needs, and it would mean reading page content.
+- Tags (more than one per saved tab).
+- Importing existing bookmarks.
+- Font as its own setting (#18).
+- Themes (#19).
+
+### Store impact
+
+- `bookmarks` becomes an optional permission. PRIVACY.md and the Chrome Web Store disclosures must say that the extension reads and writes bookmarks in its own folder only, that they stay in the browser, and that the browser's own sync is what carries them.
+- AMO stays `data_collection_permissions: none`, since nothing is transmitted by the extension.
+
+## 1.2: The full page
+
+`Open as page` opens `page.html`, a tab of its own that fills the window. The popup keeps its layout and its Groups / Windows / Library switch.
+
+### Sidebar
+
+- On the left, in place of the switch: Groups, Windows, Library (while it is on: `No topic` and each topic) and Stale (while it is on and has tabs), each with counts.
+- A heading shows its whole view; an item shows only that group, window or topic. The choice is kept in the address (`#groups/acme%2Fclient`, `#windows/12`, `#library/`, `#stale`), so a reload keeps it. A name that no longer exists falls back to the whole section.
+- Dropping tabs or a group on a window item moves them there; on a topic item saves them into that topic and closes them. Saved cards drop only on topics.
+- Its right edge drags, or takes ←/→, to set its width (180–480 px; a double click goes back to 240). The width is kept with the settings. Below 720 px the sidebar is a strip above the list.
+
+### Main pane
+
+- A header names what is shown, with a count and actions for all of it: `Save & close all` (Library on), `Close all`, or `Open all` for a topic. A strip under it lists the tree keys.
+- Groups and Windows are one flat tree (window → group → tab), full width, with indent guides and one-line rows. ↑/↓ move between rows and group headers, → / ← open and close a group, Space checks the focused row, Enter switches to the tab.
+- Every tab row and group header has a checkbox. Checking shows the bulk bar: `N selected · Save & close · Move to window · Suspend · Close · Clear`. It acts only on checked tabs the pane shows; a check hidden by the sidebar or the search stays but is not acted on. Close confirms above 10 tabs and can be undone.
+- The Library is a board: one column per topic, `No topic` first, then `+ New topic`. Dragging a card to another column changes its topic.
+- Stale is its own view, under `Not used for N+ days`.
+
+### Out of 1.2
+
+- Selecting whole windows, and dropping on `+ New topic`.
+
 ## Testing
 
 - `node --test` runs `rules.test.js`.
+- The popup and the full page are driven end to end with Playwright against the unpacked extension in Chromium.
 - The UI is checked by loading the extension unpacked in both browsers.
 
 ## Out of v1 (roadmap issues)
