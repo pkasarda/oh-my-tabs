@@ -266,11 +266,53 @@ export function isNeverListed(url, never) {
   return never.some(entry => host === entry || host.endsWith(`.${entry}`));
 }
 
-// Open web tabs last used more than `days` ago. Pinned tabs, tabs playing sound and never-listed sites are kept.
-export function staleTabs(tabs, now, days, never = []) {
+// Open web tabs last used more than `days` ago. Pinned tabs, tabs playing sound and never-listed sites are kept,
+// and so is a tab whose page has a scheduled reminder: when to come back to it is already decided.
+export function staleTabs(tabs, now, days, never = [], reminders = [], dev = false) {
   const cutoff = now - days * DAY;
+  const scheduled = new Set(reminders.filter(reminder => reminder.at > now).map(reminder => duplicateKey(reminder.url, dev)));
   return tabs.filter(tab => !tab.pinned && !tab.audible && isWeb(tab.url ?? '') && tab.lastAccessed < cutoff
-    && !isNeverListed(tab.url, never));
+    && !isNeverListed(tab.url, never) && !scheduled.has(duplicateKey(tab.url, dev)));
+}
+
+const HOUR = 60 * 60 * 1000;
+
+// The times Remind me later offers, as [label, time], counted from `now` in local time.
+// "Next Monday" is the first Monday after today: on a Monday that is a week away.
+export function reminderTimes(now) {
+  const at9 = days => {
+    const date = new Date(now);
+    // setDate, not a number of hours: the day the clocks change has 23 or 25 of them.
+    date.setDate(date.getDate() + days);
+    date.setHours(9, 0, 0, 0);
+    return date.getTime();
+  };
+  const toMonday = (8 - new Date(now).getDay()) % 7 || 7;
+  return [
+    ['In 1 hour', now + HOUR],
+    ['In 3 hours', now + 3 * HOUR],
+    ['Tomorrow 9:00', at9(1)],
+    ['Next Monday 9:00', at9(toMonday)],
+  ];
+}
+
+// A reminder is { url, title, at } and belongs to a page: there is one per duplicate key.
+// Setting one on a page that has one already replaces it. pages: tabs, or reminders set again.
+// A tab in a private window takes none: its address would be written to disk and outlive the private session.
+export function withReminders(reminders, pages, at, dev) {
+  const added = new Map();
+  for (const page of pages) {
+    if (page.incognito) continue;
+    const key = duplicateKey(page.url ?? '', dev);
+    if (key && !added.has(key)) added.set(key, { url: page.url, title: page.title || page.url, at });
+  }
+  return [...reminders.filter(reminder => !added.has(duplicateKey(reminder.url, dev))), ...added.values()];
+}
+
+// Done or opened: the page's reminder is gone.
+export function withoutReminder(reminders, url, dev) {
+  const key = duplicateKey(url, dev);
+  return reminders.filter(reminder => duplicateKey(reminder.url, dev) !== key);
 }
 
 // What saving `tabs` to the library means, given what is saved already.

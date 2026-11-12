@@ -46,8 +46,8 @@ function pageFor(url) {
   return `<!doctype html><title>${title}</title><h1>${title}</h1>`;
 }
 
-// The Library and tab groups need optional permissions, which Chrome grants only after a prompt that a headless
-// browser never answers. So their tests load a copy whose manifest has them as required permissions.
+// The Library, tab groups and Notify me need optional permissions, which Chrome grants only after a prompt that
+// a headless browser never answers. So their tests load a copy whose manifest has them as required permissions.
 function extensionWith(permissions) {
   const dir = mkdtempSync(join(tmpdir(), 'omt-ext-'));
   for (const file of EXTENSION_FILES) cpSync(join(ROOT, file), join(dir, file), { recursive: true });
@@ -71,12 +71,13 @@ export async function eventually(check, { timeout = 5000 } = {}) {
   }
 }
 
-// library, tabGroups: load the extension with the bookmarks or tabGroups permission granted.
+// library, tabGroups, notifications: load the extension with the bookmarks, tabGroups or notifications
+// permission granted.
 // settings: storage.local before any page opens.
 // profile: a profile directory to reuse (a browser restart), which close() then leaves for the caller to remove.
-export async function launch({ library = false, tabGroups = false, settings = null, profile: reused = null } = {}) {
+export async function launch({ library = false, tabGroups = false, notifications = false, settings = null, profile: reused = null } = {}) {
   const profile = reused ?? mkdtempSync(join(tmpdir(), 'omt-profile-'));
-  const permissions = [...(library ? ['bookmarks'] : []), ...(tabGroups ? ['tabGroups'] : [])];
+  const permissions = [...(library ? ['bookmarks'] : []), ...(tabGroups ? ['tabGroups'] : []), ...(notifications ? ['notifications'] : [])];
   const extension = permissions.length ? extensionWith(permissions) : ROOT;
   const context = await chromium.launchPersistentContext(profile, {
     // The bundled Chromium: its new headless mode runs extensions, Chrome Headless Shell does not.

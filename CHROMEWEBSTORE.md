@@ -98,10 +98,12 @@ The screenshots use made-up tabs, and their icons are letter tiles, so no third-
 | Permission | Type | Justification |
 |------------|------|---------------|
 | tabs | permissions | Reads the address and title of open tabs. The extension groups tabs by them, detects duplicate tabs, shows tabs in its list, and switches, moves, closes or suspends the tab the user picks. Every feature depends on it. |
-| storage | permissions | Saves the user's settings on the device: developer mode on or off, sort order, the last view, font, text size, theme, toolbar badge and button, stale-tabs options and the never list. Nothing else is stored. |
+| storage | permissions | Saves the user's settings on the device: developer mode on or off, sort order, the last view, font, text size, theme, toolbar badge and button, stale-tabs options and the never list. From 1.4 it also saves the reminders the user sets: the page's address, its title and the chosen time. Nothing else is stored. |
+| alarms | permissions | From 1.4. Wakes the extension at the time of the next reminder the user set with "Remind me later", so it can list the page as due and turn the toolbar badge amber. One alarm, set only while a reminder is scheduled. |
 | contextMenus | permissions | Adds "Close duplicates" to the right-click menu of the extension's toolbar icon, so duplicates can be closed without opening the popup. |
 | favicon | permissions | Shows each tab's site icon in the list from Chrome's local favicon cache, without fetching icons from the web. |
 | tabGroups | optional_permissions | Asked only when the user turns on Tab groups in the settings. Reads the name, color and window of the browser's tab groups to show the user's tabs under them in the list, and moves a whole tab group to another window when the user asks, keeping its name and color. The extension does not create, rename or recolor tab groups. Names and colors stay in the browser and are not stored. |
+| notifications | optional_permissions | From 1.4. Asked only when the user turns on Notify me in the settings, or accepts the offer shown once after the first reminder is set. Shows a system notification with the page's title when a reminder the user set is due; a click on it opens that page, or lists the reminders in the extension when the notification stands for several. Without it reminders show only in the extension and on the toolbar badge. |
 | bookmarks | optional_permissions | Asked only when the user turns on the Library in the settings. Saved tabs are stored as bookmarks in an "oh-my-tabs" folder, with one subfolder per topic, so the user can close tabs and find them again; the browser's own sync carries them. The extension reads and changes only that folder. |
 
 No host permissions, no content scripts, no remote code.
@@ -112,9 +114,9 @@ No host permissions, no content scripts, no remote code.
 
 **Does the extension collect user data?** No
 
-Tab addresses and titles are read locally to build the list. With the Library on, saved tabs (title, address) are stored as bookmarks in the user's browser. Nothing is transmitted by the extension.
+Tab addresses and titles are read locally to build the list. With the Library on, saved tabs (title, address) are stored as bookmarks in the user's browser. From 1.4, a reminder keeps its page's address and title and its time in the extension's local storage. Nothing is transmitted by the extension.
 
-The Chrome Web Store counts data that is only handled locally as handled. From 1.1 on, check **Web history** (tab and saved-tab addresses), state that it is used only for the extension's single purpose, and certify the three statements below. Leave every other data type unchecked:
+The Chrome Web Store counts data that is only handled locally as handled. From 1.1 on, check **Web history** (tab, saved-tab and, from 1.4, reminder addresses), state that it is used only for the extension's single purpose, and certify the three statements below. Leave every other data type unchecked:
 - personally identifiable info;
 - health info;
 - financial info;

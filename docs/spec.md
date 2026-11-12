@@ -11,6 +11,8 @@ oh-my-tabs is a browser extension that shows every open tab sorted into groups a
 - Permissions:
   - `tabs`, `storage`, `contextMenus` (Firefox treats `contextMenus` as an alias of `menus`).
   - `favicon` (Chrome only; Firefox ignores it with a warning). It lets Chrome serve favicons from its own cache through `/_favicon/`.
+  - `alarms`, the timer of the reminders (1.4). It shows no install warning.
+  - Optional, each asked for when its feature is turned on: `bookmarks` (Library, 1.1), `tabGroups` (1.3), `notifications` (Notify me, 1.4).
 - Favicons:
   - Chrome serves them from its own cache through `/_favicon/`.
   - Firefox shows `tab.favIconUrl`.
@@ -24,10 +26,10 @@ oh-my-tabs is a browser extension that shows every open tab sorted into groups a
 
 ```
 manifest.json
-background.js        badge, tooltip, context menu, shortcut
+background.js        badge, tooltip, context menu, shortcut, the reminders' alarm and notifications
 popup.html/.js/.css  the UI: popup.html is the popup, page.html the full page; both run popup.js
 page.html
-rules.js             pure: URL → group name, URL → duplicate key, keeper choice
+rules.js             pure: URL → group name, URL → duplicate key, keeper choice, reminder times
 rules.test.js        node --test
 package.json         "type": "module" for node, the test and firefox scripts
 scripts/firefox.js   copies the extension to dist/firefox with a Firefox manifest
@@ -414,24 +416,47 @@ Six additions to the full page. The popup gets only the right click.
 - On the full page: split panes, a tree of which tab opened which, and resizing the details pane.
 - Reminders (1.4, below).
 
-## 1.4: Reminders (decided, not built)
+## 1.4: Reminders
 
 `Remind me later` works like a reminder on a chat message: the tab stays open, and at the chosen time oh-my-tabs brings it back to your attention.
 
 - **Setting one**: `Remind me later ▸` in the ⋯ menu of a tab or a group, and in the bulk bar for checked tabs. Times: `In 1 hour`, `In 3 hours`, `Tomorrow 9:00`, `Next Monday 9:00`, or `Custom…` (the browser's own date and time field).
+  - The times are local and counted from the click (`reminderTimes` in rules.js). `Next Monday` is the first Monday after today, so a week away on a Monday. 9:00 stays 9:00 across a clock change.
+  - `Custom…` opens a small window with a `datetime-local` field that starts at Tomorrow 9:00 and takes no time in the past.
+  - Only web pages take a reminder. The item is disabled for a browser page, and a group or a selection sets one on each of its web pages.
+  - A tab in a private window takes none either: its address would be stored and outlive the private session.
+  - A short bar confirms it: `Reminder set for Mon 16 Nov, 9:00`.
 - **What is kept**: the page's address and title and the time, in `storage.local`. Reminders stay on this device, apart from the Library. A reminder is for the page, so it holds while the tab is closed, and an open tab is matched to it by duplicate key.
+  - A page has one reminder at most. A new time on a page that has one replaces it, and a duplicate shares its keeper's reminder (`withReminders` in rules.js).
 - **When it is due**: the tab is listed in a `Reminders` group at the top of the list, the way stale tabs are, and the toolbar badge turns amber with the number of due reminders. Each has `Open` (switches to the tab, or opens the page again if it was closed), `Done` and `Remind again ▸`.
+  - In the popup the group leads every view, open from the start, the reminder due longest first. It steps aside while a search has text.
+  - `Open`, `Done` and `Remind again` are icon buttons on the row, named in their tooltips; a click on the row is `Open` too. `Open` switches to the tab used last if the page is open more than once. Opened, a due reminder is done.
+  - The amber badge shows whatever the Toolbar badge setting counts, `Off` included: a reminder was asked for. The tooltip starts with `2 reminders due`.
 - **Before it is due**: the tab's row carries a bell. The full page has a `Reminders` section in the sidebar with due and scheduled ones. The popup shows the group only while something is due.
+  - The bell's tooltip gives the time (`Reminder: Mon 16 Nov, 9:00`). Once the reminder is due the bell is amber (`Reminder due 2 h ago`).
+  - The sidebar item is there while there is any reminder, with their number, amber while some are due. It shows them under `Due` and `Scheduled`, each by its time, with the same three actions. On a scheduled one `Open` only switches to the page; the reminder stays. The choice is kept in the address (`#reminders`), and the command palette lists it as a place. Below 720 px a reminder's time sits under its title, which keeps the width left of the three buttons.
+  - A tab's ⋯ menu has `Remove reminder` while its page has one, since the popup has no row for a scheduled reminder.
 - **Notify me** (optional): a system notification when a reminder is due. It needs the optional `notifications` permission (Chrome: "Display notifications"), so it is a switch in Settings → Features, offered once after the first reminder is set. Clicking the notification does `Open`.
+  - It is on exactly while the permission is granted, like the Library.
+  - The offer is one row above the list, `Get a notification when a reminder is due?`, with `Notify me` and a dismiss. Taken or dismissed, it does not come back.
+  - A notification for several reminders has no single page to open. A click on it shows them, on the full page's Reminders section, and leaves them due.
 - **Timers**: the `alarms` permission, which shows no warning in either browser. Firefox drops alarms when it closes, so they are rebuilt from storage at startup, and both browsers check at startup for reminders that came due while the browser was closed. Those show in the group and on the badge; with Notify me on, one notification covers them all.
+  - There is one alarm, set to the next scheduled reminder. It is set again from storage on every start of the background, when it fires and when the reminders change, which covers both browsers the same way. These looks run one after another, so the start and the alarm that caused it never announce a reminder twice.
+  - Each reminder is announced once: the time up to which due reminders were announced is kept beside them (`remindersNotified`).
 - A tab with a scheduled reminder is not stale.
 - The details pane (1.3) shows the tab's reminder.
+
+### Store impact
+
+- `alarms` is a new permission without an install warning, and `notifications` a new optional one, so an update disables nobody's extension.
+- PRIVACY.md says that reminders (address, title, time) are stored on the device, and that Notify me only shows a notification.
 
 ## Testing
 
 - `npm test` (`node --test`) runs `rules.test.js`.
 - `npm run e2e` runs `e2e/*.e2e.js`: Playwright drives the unpacked extension in headless Chromium, with a fresh profile per test. It needs `npm install` and Playwright's Chromium (`npx playwright install chromium`); every page request is answered by the test, so nothing reaches the network.
-- The Library tests load a copy of the extension whose manifest grants `bookmarks`, because headless Chromium never answers the permission prompt. Firefox is not covered by the e2e suite.
+- The Library tests load a copy of the extension whose manifest grants `bookmarks`, because headless Chromium never answers the permission prompt; the tab group and Notify me tests do the same with `tabGroups` and `notifications`. Firefox is not covered by the e2e suite.
+- The reminder tests never wait for a real hour: a reminder is due because its time is written in the past, or two seconds ahead for the alarm. A headless browser shows no notification to click, so the click is sent to the extension's own listener.
 - The UI is checked by loading the extension unpacked in both browsers.
 
 ## Out of v1 (roadmap issues)
