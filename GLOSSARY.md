@@ -107,6 +107,18 @@ _Avoid_: selected tab, marked tab
 The Library on the full page: one column per topic, with saved tabs as cards that drag between them.
 _Avoid_: kanban
 
+**Command palette**:
+A window on the full page where you type to run an action, go to a section or switch to a tab.
+_Avoid_: launcher, quick switcher, spotlight
+
+**Details pane**:
+The full page's pane on the right that describes the focused tab: where it is, when it was last used, its duplicates and whether it is saved.
+_Avoid_: inspector, preview, right panel
+
+**Status bar**:
+The line at the bottom of the full page that counts everything open.
+_Avoid_: footer
+
 ## Developer mode
 
 **Developer mode**:

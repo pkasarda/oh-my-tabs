@@ -325,7 +325,7 @@ Goal: you can close tabs without losing them, so you stop keeping hundreds open 
 
 - Selecting whole windows, and dropping on `+ New topic`.
 
-## 1.3: Settings window, appearance and tab groups
+## 1.3: Settings window, appearance, tab groups and the full page
 
 ### Header
 
@@ -340,7 +340,7 @@ Goal: you can close tabs without losing them, so you stop keeping hundreds open 
   - **Appearance**: Font, Text size, Theme.
   - **Features**: Library, Stale tabs and its days, Tab groups.
   - **Never list**: the list of sites, in a larger field.
-  - **Shortcuts**: the current shortcuts and `Change…`.
+  - **Shortcuts**: the current shortcuts and `Change…`, then the keys of the full page (the tree and the command palette).
   - **About**: version, and links to the store listing, the source, the privacy policy and feedback.
 - `Suspend all other tabs` is an action, not a setting: it moves to each window's ⋯ menu.
 
@@ -376,6 +376,26 @@ A tab group is the browser's own group in the tab strip, with the name and color
 - **Colors**: the browser gives a color name (grey, blue, red, yellow, green, pink, purple, cyan, orange), not a value. oh-my-tabs maps each to its own light and dark token.
 - **Not visible**: tab groups the browser has saved and closed. Extensions cannot read them.
 
+### Full page
+
+Six additions to the full page. The popup gets only the right click.
+
+- **Command palette.** ⌘K (Ctrl+K on Windows and Linux) or `Commands` in the header opens a centered window with one field. Typing narrows three lists:
+  - actions: `Close duplicates`, `Save & close stale tabs`, `Open settings`, `Collapse all`, `Expand all`, `Reveal last used tab`, `Toggle sidebar`, `Toggle details`. An action that cannot run now (no duplicates, Library off) is not listed;
+  - places: Groups, Windows, Library, Stale, and each window, tab group and topic the sidebar lists;
+  - open tabs, by title or address.
+
+  ↑/↓ move, Enter runs the action, shows the place or switches to the tab, Esc closes. It matches the way the search does, ignoring case and accents.
+- **Details pane.** A button in the header shows or hides a pane on the right of the list, 320 px wide. It describes the focused tab: favicon, title, whole address, window, tab group (while tab groups are on), group, last used, number of duplicates and, if it is saved in the Library, its topic. Under them: `Switch to tab`, `Save & close` (Library on) and `Close`. With a header focused, or nothing, it says `Select a tab to see its details.`
+  - While the pane is shown, a click on a tab row focuses it instead of switching to it; a double click, Enter or `Switch to tab` switches. While it is hidden a click switches, as in 1.2.
+  - Below 1000 px the pane is not shown.
+- **Tree toolbar.** The strip that listed the tree keys becomes a toolbar: `Collapse all`, `Expand all`, `Reveal last used tab` and `Sort` (Recent / Tab order, the same setting as Settings → General). The keys move to Settings → Shortcuts.
+  - The last used tab is the one used most recently other than the full page itself. Reveal opens what it sits in, scrolls to it and focuses it; a sidebar choice or a search that hides it is cleared first.
+- **Status bar.** One line at the bottom of the page: `214 tabs · 5 windows · 12 duplicates · 31 stale · 8 suspended`. It counts everything open, whatever the sidebar and the search show; `stale` is there only while stale tabs are on. It is text, not buttons.
+- **Collapsible sidebar.** A button at the left of the header hides and shows the sidebar, and the strip it becomes below 720 px. The main pane's header still names what is shown.
+- **Right click and Shift+click.** A right click on a tab row, or on the header of a group, window or tab group, opens its ⋯ menu at the pointer, in the popup too. Shift+click on a checkbox checks every row shown between it and the checkbox clicked last.
+- Whether the sidebar and the details pane are shown is kept with the settings.
+
 ### Tests in the repo
 
 - The end-to-end checks live in `e2e/` and run with Playwright, a dev dependency (see [ADR 0002](adr/0002-vanilla-js-no-build.md)). The extension itself still ships no dependency and no build.
@@ -389,6 +409,7 @@ A tab group is the browser's own group in the tab strip, with the name and color
 
 - Managing tab groups: creating one from a group, adding tabs, renaming, recoloring, collapsing in the browser.
 - An accent color (#19).
+- On the full page: split panes, a tree of which tab opened which, and resizing the details pane.
 - Reminders (1.4, below).
 
 ## 1.4: Reminders (decided, not built)
@@ -402,6 +423,7 @@ A tab group is the browser's own group in the tab strip, with the name and color
 - **Notify me** (optional): a system notification when a reminder is due. It needs the optional `notifications` permission (Chrome: "Display notifications"), so it is a switch in Settings → Features, offered once after the first reminder is set. Clicking the notification does `Open`.
 - **Timers**: the `alarms` permission, which shows no warning in either browser. Firefox drops alarms when it closes, so they are rebuilt from storage at startup, and both browsers check at startup for reminders that came due while the browser was closed. Those show in the group and on the badge; with Notify me on, one notification covers them all.
 - A tab with a scheduled reminder is not stale.
+- The details pane (1.3) shows the tab's reminder.
 
 ## Testing
 
