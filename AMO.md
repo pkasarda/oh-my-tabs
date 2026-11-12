@@ -2,7 +2,7 @@
 
 > Last Updated: 2026-11-12
 
-Upload `dist/oh-my-tabs-1.3.1-firefox.zip`, built by `npm run package`. It needs Firefox 140 or later, desktop only. On upload, select Firefox only: leave **Firefox for Android unchecked**, because Android has no windows API.
+Upload `dist/oh-my-tabs-1.4.0-firefox.zip`, built by `npm run package`. It needs Firefox 140 or later, desktop only. On upload, select Firefox only: leave **Firefox for Android unchecked**, because Android has no windows API.
 
 ## Listing
 
@@ -39,6 +39,8 @@ The toolbar badge counts your duplicates, and "Close duplicates" keeps the tab y
 **Tab groups (optional):** turn them on to see Firefox's tab groups inside each window, with their names and colors. Moving a tab group keeps it together, and Undo puts closed tabs back into it.
 
 **Make it yours:** choose the font, text size and a light or dark theme, what the toolbar badge counts, and whether the toolbar button opens the popup or the full page.
+
+**Remind me later:** set a reminder on a tab, a group or the tabs you ticked: in an hour, tomorrow morning, next Monday, or at a time you pick. The tab stays open; when the time comes it is listed at the top and the toolbar icon turns amber. A system notification is optional.
 
 **Stale tabs:** a group at the top lists the tabs you have not used for a week or more, to save or close in one go.
 
@@ -78,7 +80,8 @@ About the innerHTML warnings in popup.js (render, results bar, menu, shortcuts):
 
 | Version | Date | Changes | Status |
 |---------|------|---------|--------|
-| 1.3.1 | 2026-11-12 | The right-click menu stays open in Firefox on macOS and Linux. Ships 1.3.0 too. | Ready to submit |
+| 1.4.0 | 2026-11-12 | Reminders (Remind me later), with a due group, an amber badge, a Reminders section on the full page and an optional notification. New permissions: alarms, notifications (optional). | Ready to submit |
+| 1.3.1 | 2026-11-12 | The right-click menu stays open in Firefox on macOS and Linux. Ships 1.3.0 too. | Not submitted, shipped in 1.4.0 |
 | 1.3.0 | 2026-11-12 | Settings window; font, text size, theme; toolbar badge and button options; tab groups shown (optional tabGroups permission); full page: command palette, details pane, tree toolbar, status bar. | Not submitted, shipped in 1.3.1 |
 | 1.2.1 | 2026-11-04 | Settings panel scrolls inside the popup; lists keep their width with a scrollbar. Ships 1.1 and 1.2 too. | Ready to submit |
 | 1.2.0 | 2026-11-04 | Full page with sidebar, checkboxes and bulk bar, Library board, resizable sidebar. Ships 1.1 too. | Not submitted, shipped in 1.2.1 |

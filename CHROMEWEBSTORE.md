@@ -2,7 +2,7 @@
 
 > Last Updated: 2026-11-12
 
-Upload `dist/oh-my-tabs-1.3.1-chrome.zip`, built by `npm run package`.
+Upload `dist/oh-my-tabs-1.4.0-chrome.zip`, built by `npm run package`.
 
 **Listing**: https://chromewebstore.google.com/detail/oh-my-tabs/dfjcphmoeaknnkihfpeojfggfniipaek
 
@@ -52,6 +52,9 @@ If you use your browser's tab groups, turn them on to see them inside each windo
 
 MAKE IT YOURS
 Choose the font, text size and a light or dark theme, what the toolbar badge counts, and whether the toolbar button opens the popup or the full page.
+
+REMIND ME LATER
+Set a reminder on a tab, a group or the tabs you ticked: in an hour, tomorrow morning, next Monday, or at a time you pick. The tab stays open. When the time comes it is listed at the top and the toolbar icon turns amber; open it, mark it done or set a new time. A system notification is optional.
 
 STALE TABS
 A group at the top lists the tabs you have not used for 7 days or more (you can choose 3, 7, 14 or 30), so you can save or close them in one go. Tabs playing sound, pinned tabs and the sites on your "never" list are always left alone.
@@ -152,7 +155,8 @@ https://github.com/pkasarda/oh-my-tabs/blob/main/PRIVACY.md (live once PR #1 is 
 
 | Version | Date | Changes | Status |
 |---------|------|---------|--------|
-| 1.3.1 | 2026-11-12 | The right-click menu stays open in Firefox on macOS and Linux (it closed when the button was released). Ships 1.3.0 too. | Ready to submit |
+| 1.4.0 | 2026-11-12 | Reminders: Remind me later on a tab, a group or the checked tabs; due reminders in a group at the top and on an amber badge; a Reminders section on the full page; optional system notification. New permissions: alarms (no warning), notifications (optional). | Ready to submit |
+| 1.3.1 | 2026-11-12 | The right-click menu stays open in Firefox on macOS and Linux (it closed when the button was released). Ships 1.3.0 too. | Not submitted, shipped in 1.4.0 |
 | 1.3.0 | 2026-11-12 | Settings window with sections; font, text size and theme; toolbar badge and button options; the browser's tab groups shown (optional); on the full page a command palette, details pane, tree toolbar, status bar, a sidebar that hides, right click and Shift+click. New optional permission: tabGroups. No new install-time warning. | Not submitted, shipped in 1.3.1 |
 | 1.2.1 | 2026-11-04 | The settings panel scrolls inside the popup; lists keep their width when a scrollbar appears. Ships 1.1 and 1.2 too. | Ready to submit |
 | 1.2.0 | 2026-11-04 | Full page in its own tab: sidebar (groups, windows, topics, stale), one tree with checkboxes and a bulk bar, Library board, drag onto windows and topics, resizable sidebar. Ships 1.1 too. No new permissions. | Not submitted, shipped in 1.2.1 |
