@@ -162,6 +162,35 @@ test('a check hidden by the sidebar choice is kept but not acted on', async t =>
   await page.locator('[data-bulk="close"]').click();
   const rest = ALL_TABS.filter(url => !url.includes('github.com')).sort();
   await eventually(async () => assert.deepEqual(await app.webUrls(), rest));
+
+  // Only the checks acted on are cleared: the hidden Jira ones are still there.
+  await allGroups.click();
+  await eventually(async () => assert.equal(await page.locator('#bulk-count').textContent(), '2 selected'));
+});
+
+test('Clear and Suspend clear only the checks the list shows', async t => {
+  const app = await start(t);
+  const page = await app.openPage();
+  // tabs.discard tears a headless context down: record the calls instead.
+  await page.evaluate(() => {
+    window.discarded = [];
+    chrome.tabs.discard = async id => {
+      window.discarded.push(id);
+    };
+  });
+  await page.locator('[data-pick-group="Jira · WEB"]').click();
+  await page.locator('[data-pick-group="acme/client"]').click();
+  await eventually(async () => assert.equal(await page.locator('#bulk-count').textContent(), '5 selected'));
+
+  await sideItem(page, 'groups', 'acme/client').click();
+  await page.locator('[data-bulk="suspend"]').click();
+  await eventually(async () => assert.equal((await page.evaluate(() => window.discarded)).length, 3));
+  await eventually(async () => assert.equal(await page.locator('#bulk-bar').isHidden(), true));
+
+  await sideItem(page, 'groups', 'Jira · WEB').click();
+  await eventually(async () => assert.equal(await page.locator('#bulk-count').textContent(), '2 selected'));
+  await page.locator('[data-bulk="clear"]').click();
+  await eventually(async () => assert.equal(await page.locator('#bulk-bar').isHidden(), true));
 });
 
 test('the sidebar width follows the keyboard and a drag, within 180–480, and survives a reload', async t => {
