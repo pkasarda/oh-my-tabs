@@ -62,9 +62,9 @@ The manifest declares `data_collection_permissions: { required: ["none"] }`. The
 ## Permissions new in 1.4
 
 - `alarms` (required, no prompt): one alarm at the time of the next reminder the user set with "Remind me later". Firefox drops alarms when it closes, so the add-on sets it again from `storage.local` each time its background starts, and lists the reminders that came due meanwhile.
-- `notifications` (optional): asked only when the user turns on Notify me. A system notification with the page's title when a reminder is due; a click opens that page.
+- `notifications` (optional): asked only when the user turns on Notify me. A system notification with the page's title when a reminder is due; a click opens that page, or lists the reminders in the add-on when the notification stands for several.
 
-Reminders (the page's address, its title and the time) are kept in `storage.local` on the device, so `data_collection_permissions` stays `none`.
+Reminders (the page's address, its title and the time) are kept in `storage.local` on the device, so `data_collection_permissions` stays `none`. A tab in a private window takes no reminder, so nothing from private browsing is stored.
 
 ## Notes to reviewer
 

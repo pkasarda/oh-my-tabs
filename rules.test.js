@@ -369,6 +369,10 @@ test('reminder times: 9:00 stays 9:00 across a clock change', t => {
     // The hour presets count real hours.
     assert.equal(times(saturday)['In 3 hours'] - saturday, 3 * HOUR);
   }
+  // Tomorrow is the next date, not 24 hours on. Half past midnight on the 25-hour Sunday plus 24 hours is still
+  // that Sunday; half past eleven before the 23-hour Sunday plus 24 hours is already Monday.
+  assert.equal(times(local(2026, 10, 25, 0, 30))['Tomorrow 9:00'], local(2026, 10, 26, 9));
+  assert.equal(times(local(2027, 3, 27, 23, 30))['Tomorrow 9:00'], local(2027, 3, 28, 9));
 });
 
 test('withReminders keeps the address, the title and the time, one per page', () => {
@@ -379,6 +383,8 @@ test('withReminders keeps the address, the title and the time, one per page', ()
     { url: 'https://docs.example.org/guide', title: '' },
     // Not a web page: nothing to come back to by address.
     { url: 'chrome://extensions/', title: 'Extensions' },
+    // A private window's tab: its address is not written down.
+    { url: 'https://private.example/', title: 'Private', incognito: true },
   ];
   assert.deepEqual(withReminders([], pages, 500, DEV), [
     { url: 'https://github.com/acme/client/pull/12', title: 'Fix login', at: 500 },

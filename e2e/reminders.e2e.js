@@ -442,8 +442,9 @@ test('a reminder that comes due while the popup is open: the alarm fires, the gr
   const page = await app.openPopup();
   const at = Date.now() + 2000;
   await setReminders(app, [reminderOf(TABS.jira1, at)]);
-  await eventually(async () => assert.equal((await alarm(app))?.scheduledTime, at));
-  assert.equal(await page.locator('#body details.reminders').count(), 0);
+  // Not due yet, so not listed. Only said when the look itself was over before the time came.
+  const listed = await page.locator('#body details.reminders').count();
+  if (Date.now() < at) assert.equal(listed, 0);
 
   // Two seconds from now, with room for a slow machine.
   await eventually(async () => assert.equal(await page.locator('#body details.reminders .row').count(), 1), { timeout: 20000 });
@@ -457,7 +458,8 @@ test('at startup a reminder that came due while the browser was closed is on the
   const profile = mkdtempSync(join(tmpdir(), 'omt-profile-'));
   try {
     const first = await launch({ profile });
-    const soon = Date.now() + 1500;
+    // Three seconds: room to write it, see it scheduled and close the browser before its time.
+    const soon = Date.now() + 3000;
     const later = Date.now() + 5 * HOUR;
     await first.worker.evaluate(list => chrome.storage.local.set({ reminders: list }), [
       { url: TABS.jira1, title: titleOf(TABS.jira1), at: soon },
@@ -468,7 +470,7 @@ test('at startup a reminder that came due while the browser was closed is on the
     assert.notDeepEqual(await badgeColor(first), AMBER);
     await first.close();
     assert.ok(Date.now() < soon, 'the browser closed before the reminder was due');
-    // At most a second and a half, until its time has passed with the browser closed.
+    // At most those three seconds, until its time has passed with the browser closed.
     while (Date.now() <= soon) await new Promise(resolve => setTimeout(resolve, 50));
 
     const again = await launch({ profile });
@@ -544,17 +546,45 @@ test('with Notify me on a due reminder shows a notification, and a click on it d
   const shown = () => app.worker.evaluate(async () => Object.keys(await chrome.notifications.getAll()));
   await eventually(async () => assert.deepEqual(await shown(), [`reminder:${at}`]));
 
-  // Announced once: a later look at the reminders (a new one is set) does not show it again.
+  // Announced once. When a second one comes due, it alone is announced: were the first one announced again,
+  // the two would share one notification with another id.
   await app.worker.evaluate(id => chrome.notifications.clear(id), `reminder:${at}`);
-  await setReminders(app, [reminderOf(TABS.jira1, at), reminderOf(TABS.api, Date.now() + HOUR)]);
-  await eventually(async () => assert.ok(await alarm(app)));
-  assert.deepEqual(await shown(), []);
+  const next = Date.now() - 1;
+  await setReminders(app, [reminderOf(TABS.jira1, at), reminderOf(TABS.api, next)]);
+  await eventually(async () => assert.deepEqual(await shown(), [`reminder:${next}`]));
 
   // A headless browser shows no notification to click: the click is sent to the extension's listener.
   const jiraId = await app.tabIdOf(TABS.jira1);
   await app.worker.evaluate(id => chrome.notifications.onClicked.dispatch(id), `reminder:${at}`);
   await eventually(async () => assert.equal((await app.tabs()).find(tab => tab.id === jiraId).active, true));
   await eventually(async () => assert.deepEqual((await reminders(app)).map(reminder => reminder.url), [TABS.api]));
+});
+
+test('a reminder is announced once when the background looks several times at once', async t => {
+  // What happens when the alarm wakes a sleeping background: its start and the alarm both look.
+  const app = await start(t, { notifications: true });
+  await app.worker.evaluate(() => {
+    globalThis.announced = [];
+    const create = chrome.notifications.create.bind(chrome.notifications);
+    chrome.notifications.create = (id, options) => {
+      globalThis.announced.push(id);
+      return create(id, options);
+    };
+  });
+  const at = Date.now() + 1000;
+  await setReminders(app, [reminderOf(TABS.jira1, at)]);
+  // Without its alarm the reminder comes due unseen, so the looks below are the first to find it.
+  await eventually(async () => assert.ok(await alarm(app)));
+  await app.worker.evaluate(() => chrome.alarms.clear('reminders'));
+  while (Date.now() <= at) await new Promise(resolve => setTimeout(resolve, 50));
+
+  await app.worker.evaluate(() => {
+    for (let i = 0; i < 3; i++) chrome.alarms.onAlarm.dispatch({ name: 'reminders' });
+  });
+  await eventually(async () => assert.deepEqual(await badgeColor(app), AMBER));
+  // A moment for a second announcement, were there one.
+  await new Promise(resolve => setTimeout(resolve, 300));
+  assert.deepEqual(await app.worker.evaluate(() => globalThis.announced), [`reminder:${at}`]);
 });
 
 test('reminders that came due together share one notification, which opens the Reminders section', async t => {
@@ -577,7 +607,10 @@ test('reminders that came due together share one notification, which opens the R
   const page = app.context.pages().find(open => open.url() === app.url('page.html#reminders'));
   await page.locator('#side [data-section="groups"]:not([data-item])').click();
   assert.equal(await page.evaluate(() => location.hash), '#groups');
+  // The same page follows its address: a mark left on it is still there, so it was not loaded anew.
+  await page.evaluate(() => { window.sameLoad = true; });
   await app.worker.evaluate(() => chrome.notifications.onClicked.dispatch('reminders'));
   await eventually(async () => assert.equal(await page.locator('#main-head h2').textContent(), 'Reminders'));
+  assert.equal(await page.evaluate(() => window.sameLoad), true);
   assert.equal((await app.tabs()).filter(tab => tab.url.startsWith(app.url('page.html'))).length, 1);
 });

@@ -424,6 +424,7 @@ Six additions to the full page. The popup gets only the right click.
   - The times are local and counted from the click (`reminderTimes` in rules.js). `Next Monday` is the first Monday after today, so a week away on a Monday. 9:00 stays 9:00 across a clock change.
   - `Custom…` opens a small window with a `datetime-local` field that starts at Tomorrow 9:00 and takes no time in the past.
   - Only web pages take a reminder. The item is disabled for a browser page, and a group or a selection sets one on each of its web pages.
+  - A tab in a private window takes none either: its address would be stored and outlive the private session.
   - A short bar confirms it: `Reminder set for Mon 16 Nov, 9:00`.
 - **What is kept**: the page's address and title and the time, in `storage.local`. Reminders stay on this device, apart from the Library. A reminder is for the page, so it holds while the tab is closed, and an open tab is matched to it by duplicate key.
   - A page has one reminder at most. A new time on a page that has one replaces it, and a duplicate shares its keeper's reminder (`withReminders` in rules.js).
@@ -438,9 +439,9 @@ Six additions to the full page. The popup gets only the right click.
 - **Notify me** (optional): a system notification when a reminder is due. It needs the optional `notifications` permission (Chrome: "Display notifications"), so it is a switch in Settings → Features, offered once after the first reminder is set. Clicking the notification does `Open`.
   - It is on exactly while the permission is granted, like the Library.
   - The offer is one row above the list, `Get a notification when a reminder is due?`, with `Notify me` and a dismiss. Taken or dismissed, it does not come back.
-  - A notification for several reminders opens the full page on its Reminders section.
+  - A notification for several reminders has no single page to open. A click on it shows them, on the full page's Reminders section, and leaves them due.
 - **Timers**: the `alarms` permission, which shows no warning in either browser. Firefox drops alarms when it closes, so they are rebuilt from storage at startup, and both browsers check at startup for reminders that came due while the browser was closed. Those show in the group and on the badge; with Notify me on, one notification covers them all.
-  - There is one alarm, set to the next scheduled reminder. It is set again from storage on every start of the background, when it fires and when the reminders change, which covers both browsers the same way.
+  - There is one alarm, set to the next scheduled reminder. It is set again from storage on every start of the background, when it fires and when the reminders change, which covers both browsers the same way. These looks run one after another, so the start and the alarm that caused it never announce a reminder twice.
   - Each reminder is announced once: the time up to which due reminders were announced is kept beside them (`remindersNotified`).
 - A tab with a scheduled reminder is not stale.
 - The details pane (1.3) shows the tab's reminder.

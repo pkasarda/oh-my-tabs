@@ -35,7 +35,7 @@ oh-my-tabs stores your settings:
 - whether the stale-tabs group is on and after how many days, and the sites on your never list;
 - on the full page, the sidebar's width and whether the sidebar and the details pane are shown.
 
-It also stores the reminders you set: for each one the page's address, its title and the time you chose. A reminder is removed when you open the page from it or mark it done.
+It also stores the reminders you set: for each one the page's address, its title and the time you chose. A reminder is removed when you mark it done, or when you open its page from it once it is due. A tab in a private window takes no reminder, so its address is never stored.
 
 Settings and reminders are kept in the browser's local extension storage on your device and are not synced. The look and the two panes are also copied into the extension's own page storage, so they apply before the page is drawn. Uninstalling the extension removes all of it.
 
@@ -61,9 +61,9 @@ Tab groups are off until you turn them on in the settings. The extension then as
 
 Reminders use the browser's alarm timer, which needs no approval from you and reads nothing.
 
-Notify me is off until you turn it on in the settings. The extension then asks for permission to display notifications.
+Notify me is off until you turn it on, in the settings or from the offer shown once after you set your first reminder. The extension then asks for permission to display notifications.
 
-- When a reminder is due, it shows one system notification with the page's title. Several reminders that are due together share one notification with up to three titles.
+- When a reminder is due, it shows one system notification with the page's title; a click on it opens that page. Several reminders that are due together share one notification with up to three titles; a click on it lists them in oh-my-tabs.
 - The notification is shown by your browser and your operating system on your device. The extension sends it nowhere else.
 - Turning Notify me off removes the permission. Reminders still show in oh-my-tabs and on the toolbar icon.
 

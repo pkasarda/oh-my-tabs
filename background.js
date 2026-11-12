@@ -121,8 +121,13 @@ async function syncReminders() {
   await notify(fresh);
 }
 
+// One look at a time. The alarm wakes a sleeping worker, whose start and whose alarm listener both ask for
+// one: side by side they would each find the same reminder newly due and announce it twice.
+let syncing = Promise.resolve();
 function refreshReminders() {
-  syncReminders().catch(error => console.error('oh-my-tabs: reminders update failed', error));
+  syncing = syncing
+    .then(syncReminders)
+    .catch(error => console.error('oh-my-tabs: reminders update failed', error));
 }
 
 // Notify me: on while the optional notifications permission is granted, and without it there is no such API.
@@ -161,7 +166,7 @@ function listenToNotifications() {
 // Open: switches to the page's tab (the one used last, if it is open more than once), or opens the page again
 // if it was closed. A due reminder is done once its page is opened; a scheduled one stays for its time.
 async function openReminder(url) {
-  const { dev, reminders } = await browser.storage.local.get({ ...SETTINGS, ...REMINDERS });
+  const { dev } = await browser.storage.local.get(SETTINGS);
   const key = duplicateKey(url, dev);
   const open = (await openTabs())
     .filter(tab => duplicateKey(tab.url || tab.pendingUrl || '', dev) === key)
@@ -173,6 +178,8 @@ async function openReminder(url) {
     // With no window open (the browser still runs on macOS) there is nowhere to add a tab: a new window then.
     tab = await browser.tabs.create({ url }).catch(async () => (await browser.windows.create({ url })).tabs[0]);
   }
+  // Read only now, after the tab is there: a reminder marked done meanwhile must not come back with this write.
+  const { reminders } = await browser.storage.local.get(REMINDERS);
   const now = Date.now();
   const kept = reminders.filter(reminder => reminder.at > now || duplicateKey(reminder.url, dev) !== key);
   if (kept.length < reminders.length) await browser.storage.local.set({ reminders: kept });

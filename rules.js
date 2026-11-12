@@ -297,10 +297,12 @@ export function reminderTimes(now) {
 }
 
 // A reminder is { url, title, at } and belongs to a page: there is one per duplicate key.
-// Setting one on a page that has one already replaces it. pages: [{ url, title }].
+// Setting one on a page that has one already replaces it. pages: tabs, or reminders set again.
+// A tab in a private window takes none: its address would be written to disk and outlive the private session.
 export function withReminders(reminders, pages, at, dev) {
   const added = new Map();
   for (const page of pages) {
+    if (page.incognito) continue;
     const key = duplicateKey(page.url ?? '', dev);
     if (key && !added.has(key)) added.set(key, { url: page.url, title: page.title || page.url, at });
   }

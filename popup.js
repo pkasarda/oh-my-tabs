@@ -1131,10 +1131,9 @@ async function bulkAction(button) {
     return openMenu(button, items);
   }
   if (action === 'remind') {
-    const pages = webTabs(ids);
+    const pages = remindable(ids);
     return openMenu(button, remindItems(async at => {
-      await remind(pages, at);
-      clearPicks(ids);
+      if (await remind(pages, at)) clearPicks(ids);
     }));
   }
   await oneAtATime(async () => {
@@ -1512,8 +1511,9 @@ function savedById(id) {
 
 // ---------- reminders ----------
 // A reminder is for a page, so only web tabs take one: a browser page has no address to come back to.
-function webTabs(ids) {
-  return state.tabs.filter(tab => ids.includes(tab.id) && isWeb(tab.url));
+// Nor does a tab in a private window: its address would be written down (withReminders in rules.js).
+function remindable(ids) {
+  return state.tabs.filter(tab => ids.includes(tab.id) && isWeb(tab.url) && !tab.incognito);
 }
 
 // Read from storage first: another open popup or page, or the background (Open), may have changed them.
@@ -1526,11 +1526,12 @@ async function changeReminders(change) {
 }
 
 // pages: tabs, or reminders set again; each has an address and a title. A page that has a reminder gets
-// the new time.
+// the new time. Returns false when there was no page to set one on.
 async function remind(pages, at) {
-  if (pages.length === 0) return;
+  if (pages.length === 0) return false;
   await changeReminders(reminders => withReminders(reminders, pages, at, state.dev));
   showBar(`Reminder set for ${WHEN.format(at)}`, false);
+  return true;
 }
 
 // The row goes with its reminder; focus that was on it goes to the search box instead of the page.
@@ -1549,7 +1550,7 @@ async function openReminder(url) {
 // One definition for popup.html and page.html, like the settings window.
 document.body.insertAdjacentHTML('beforeend', `<dialog id="remind-dialog" aria-labelledby="remind-label">
   <form method="dialog">
-    <label id="remind-label" class="topic-field"><span>Remind me at</span> <input id="remind-time" type="datetime-local" required></label>
+    <label class="topic-field"><span id="remind-label">Remind me at</span> <input id="remind-time" type="datetime-local" required></label>
     <div class="dialog-actions">
       <button class="btn" value="cancel" formnovalidate>Cancel</button>
       <button class="btn" value="ok">Set reminder</button>
@@ -1694,7 +1695,7 @@ function remindItems(run) {
 }
 
 function remindItem(ids) {
-  const pages = webTabs(ids);
+  const pages = remindable(ids);
   return { icon: 'bell', label: 'Remind me later', disabled: pages.length === 0, items: remindItems(at => remind(pages, at)) };
 }
 
@@ -2560,8 +2561,10 @@ browser.permissions.onRemoved?.addListener(change => {
 // the click (the switch, or Notify me in the offer above the list). Asked once, the offer does not come back;
 // the switch stays in the settings.
 async function turnOnNotify() {
+  // Written first, without waiting for it: the prompt may close the popup before it is answered.
+  const saved = saveSetting('notifyHint', false);
   const granted = await browser.permissions.request(NOTIFY).catch(() => false);
-  await saveSetting('notifyHint', false);
+  await saved;
   setNotify(granted);
 }
 
