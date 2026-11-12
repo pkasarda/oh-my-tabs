@@ -20,7 +20,8 @@ It reads them only while it runs, to:
 - group the tabs;
 - find duplicates;
 - count duplicates on the toolbar icon;
-- carry out the actions you choose (switch, move, close, suspend).
+- carry out the actions you choose (switch, move, close, suspend);
+- find the tab of a page you set a reminder on.
 
 It does not read the content of web pages. It does not read your browsing history.
 
@@ -34,7 +35,9 @@ oh-my-tabs stores your settings:
 - whether the stale-tabs group is on and after how many days, and the sites on your never list;
 - on the full page, the sidebar's width and whether the sidebar and the details pane are shown.
 
-They are kept in the browser's local extension storage on your device and are not synced. The look and the two panes are also copied into the extension's own page storage, so they apply before the page is drawn. Uninstalling the extension removes all of it.
+It also stores the reminders you set: for each one the page's address, its title and the time you chose. A reminder is removed when you open the page from it or mark it done.
+
+Settings and reminders are kept in the browser's local extension storage on your device and are not synced. The look and the two panes are also copied into the extension's own page storage, so they apply before the page is drawn. Uninstalling the extension removes all of it.
 
 ## The Library (optional)
 
@@ -53,6 +56,16 @@ Tab groups are off until you turn them on in the settings. The extension then as
 - It does not create, rename or recolor tab groups. It moves a tab group only when you move it, and puts tabs back into their tab group when you undo a close.
 - Tab group names and colors never leave your browser and are not stored by the extension.
 - Turning tab groups off removes the permission.
+
+## Reminders and notifications
+
+Reminders use the browser's alarm timer, which needs no approval from you and reads nothing.
+
+Notify me is off until you turn it on in the settings. The extension then asks for permission to display notifications.
+
+- When a reminder is due, it shows one system notification with the page's title. Several reminders that are due together share one notification with up to three titles.
+- The notification is shown by your browser and your operating system on your device. The extension sends it nowhere else.
+- Turning Notify me off removes the permission. Reminders still show in oh-my-tabs and on the toolbar icon.
 
 ## Network access
 

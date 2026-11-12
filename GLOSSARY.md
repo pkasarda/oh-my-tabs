@@ -89,6 +89,14 @@ _Avoid_: allowlist, whitelist, exceptions
 A time you set on a page to be told about it again. The tab stays open; when the time comes, the page is listed as due until you open it, mark it done or set a new time.
 _Avoid_: snooze, alarm, notification (a system notification is one optional way a reminder reaches you)
 
+**Due**:
+A reminder whose time has come. Before that it is **scheduled**. Only due reminders are in the popup's Reminders group and on the amber badge.
+_Avoid_: overdue, expired, fired, pending
+
+**Notify me**:
+The optional system notification when a reminder is due. Off, a due reminder shows only in oh-my-tabs and on the toolbar badge.
+_Avoid_: alerts, push notifications
+
 ## Full page
 
 **Full page**:
