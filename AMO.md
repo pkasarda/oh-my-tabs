@@ -1,8 +1,8 @@
 # Firefox Add-ons (AMO) Listing — oh-my-tabs
 
-> Last Updated: 2026-11-04
+> Last Updated: 2026-11-12
 
-Upload `dist/oh-my-tabs-1.2.1-firefox.zip`, built by `npm run package`. It needs Firefox 140 or later, desktop only. On upload, select Firefox only: leave **Firefox for Android unchecked**, because Android has no windows API.
+Upload `dist/oh-my-tabs-1.3.0-firefox.zip`, built by `npm run package`. It needs Firefox 140 or later, desktop only. On upload, select Firefox only: leave **Firefox for Android unchecked**, because Android has no windows API.
 
 ## Listing
 
@@ -34,7 +34,11 @@ The toolbar badge counts your duplicates, and "Close duplicates" keeps the tab y
 
 **Save tabs for later (optional):** turn on the Library to save & close tabs, a group or all stale tabs, then find them again by topic. They are kept as bookmarks in an "oh-my-tabs" folder, so Firefox Sync carries them.
 
-**Full page:** open oh-my-tabs as a page for big cleanups: a sidebar of groups, windows, topics and stale tabs, one tree of all tabs with checkboxes to save, move, suspend or close many at once, and a board to drag saved tabs between topics.
+**Full page:** open oh-my-tabs as a page for big cleanups: a sidebar of groups, windows, topics and stale tabs, one tree of all tabs with checkboxes to save, move, suspend or close many at once, and a board to drag saved tabs between topics. Ctrl+K (⌘K on a Mac) opens a command palette to run an action, go to a section or switch to a tab by typing, and a details pane describes the focused tab.
+
+**Tab groups (optional):** turn them on to see Firefox's tab groups inside each window, with their names and colors. Moving a tab group keeps it together, and Undo puts closed tabs back into it.
+
+**Make it yours:** choose the font, text size and a light or dark theme, what the toolbar badge counts, and whether the toolbar button opens the popup or the full page.
 
 **Stale tabs:** a group at the top lists the tabs you have not used for a week or more, to save or close in one go.
 
@@ -67,6 +71,7 @@ About the innerHTML warnings in popup.js (render, results bar, menu, shortcuts):
 
 | Version | Date | Changes | Status |
 |---------|------|---------|--------|
+| 1.3.0 | 2026-11-12 | Settings window; font, text size, theme; toolbar badge and button options; tab groups shown (optional tabGroups permission); full page: command palette, details pane, tree toolbar, status bar. | Ready to submit |
 | 1.2.1 | 2026-11-04 | Settings panel scrolls inside the popup; lists keep their width with a scrollbar. Ships 1.1 and 1.2 too. | Ready to submit |
 | 1.2.0 | 2026-11-04 | Full page with sidebar, checkboxes and bulk bar, Library board, resizable sidebar. Ships 1.1 too. | Not submitted, shipped in 1.2.1 |
 | 1.1.0 | 2026-11-04 | Library (optional bookmarks permission), stale tabs, zZz on suspended tabs. | Not submitted, shipped in 1.2.1 |

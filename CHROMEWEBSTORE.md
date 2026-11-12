@@ -1,8 +1,8 @@
 # Chrome Web Store Listing — oh-my-tabs
 
-> Last Updated: 2026-11-04
+> Last Updated: 2026-11-12
 
-Upload `dist/oh-my-tabs-1.2.1-chrome.zip`, built by `npm run package`.
+Upload `dist/oh-my-tabs-1.3.0-chrome.zip`, built by `npm run package`.
 
 **Listing**: https://chromewebstore.google.com/detail/oh-my-tabs/dfjcphmoeaknnkihfpeojfggfniipaek
 
@@ -45,7 +45,13 @@ SAVE TABS FOR LATER (OPTIONAL)
 Turn on the Library to save & close tabs, a group or every tab you have not used for a week, and find them again later. Saved tabs are kept as bookmarks in an "oh-my-tabs" folder, so your browser syncs them to your other devices. Sort them into topics. Opening a saved tab that is already open switches to it instead of opening it twice.
 
 A FULL PAGE FOR BIG CLEANUPS
-Open oh-my-tabs as a page to see everything at once: a sidebar of groups, windows, topics and stale tabs, and one tree of all your tabs. Tick tabs to save, move, suspend or close them together, drag tabs onto a window or a topic, and drag saved tabs between topics.
+Open oh-my-tabs as a page to see everything at once: a sidebar of groups, windows, topics and stale tabs, and one tree of all your tabs. Tick tabs to save, move, suspend or close them together, drag tabs onto a window or a topic, and drag saved tabs between topics. Press Ctrl+K (⌘K on a Mac) to run an action, go to a section or switch to a tab by typing. A details pane shows where a tab is, when you last used it and its duplicates.
+
+YOUR TAB GROUPS (OPTIONAL)
+If you use your browser's tab groups, turn them on to see them inside each window, with their names and colors. Moving a tab group keeps it together, and Undo puts closed tabs back into it.
+
+MAKE IT YOURS
+Choose the font, text size and a light or dark theme, what the toolbar badge counts, and whether the toolbar button opens the popup or the full page.
 
 STALE TABS
 A group at the top lists the tabs you have not used for 7 days or more (you can choose 3, 7, 14 or 30), so you can save or close them in one go. Tabs playing sound, pinned tabs and the sites on your "never" list are always left alone.
@@ -92,9 +98,10 @@ The screenshots use made-up tabs, and their icons are letter tiles, so no third-
 | Permission | Type | Justification |
 |------------|------|---------------|
 | tabs | permissions | Reads the address and title of open tabs. The extension groups tabs by them, detects duplicate tabs, shows tabs in its list, and switches, moves, closes or suspends the tab the user picks. Every feature depends on it. |
-| storage | permissions | Saves the user's settings on the device: developer mode on or off, sort order, and the last view. Nothing else is stored. |
+| storage | permissions | Saves the user's settings on the device: developer mode on or off, sort order, the last view, font, text size, theme, toolbar badge and button, stale-tabs options and the never list. Nothing else is stored. |
 | contextMenus | permissions | Adds "Close duplicates" to the right-click menu of the extension's toolbar icon, so duplicates can be closed without opening the popup. |
 | favicon | permissions | Shows each tab's site icon in the list from Chrome's local favicon cache, without fetching icons from the web. |
+| tabGroups | optional_permissions | Asked only when the user turns on Tab groups in the settings. Reads the name, color and window of the browser's tab groups to show the user's tabs under them in the list, and moves a whole tab group to another window when the user asks, keeping its name and color. The extension does not create, rename or recolor tab groups. Names and colors stay in the browser and are not stored. |
 | bookmarks | optional_permissions | Asked only when the user turns on the Library in the settings. Saved tabs are stored as bookmarks in an "oh-my-tabs" folder, with one subfolder per topic, so the user can close tabs and find them again; the browser's own sync carries them. The extension reads and changes only that folder. |
 
 No host permissions, no content scripts, no remote code.
@@ -143,6 +150,7 @@ https://github.com/pkasarda/oh-my-tabs/blob/main/PRIVACY.md (live once PR #1 is 
 
 | Version | Date | Changes | Status |
 |---------|------|---------|--------|
+| 1.3.0 | 2026-11-12 | Settings window with sections; font, text size and theme; toolbar badge and button options; the browser's tab groups shown (optional); on the full page a command palette, details pane, tree toolbar, status bar, a sidebar that hides, right click and Shift+click. New optional permission: tabGroups. No new install-time warning. | Ready to submit |
 | 1.2.1 | 2026-11-04 | The settings panel scrolls inside the popup; lists keep their width when a scrollbar appears. Ships 1.1 and 1.2 too. | Ready to submit |
 | 1.2.0 | 2026-11-04 | Full page in its own tab: sidebar (groups, windows, topics, stale), one tree with checkboxes and a bulk bar, Library board, drag onto windows and topics, resizable sidebar. Ships 1.1 too. No new permissions. | Not submitted, shipped in 1.2.1 |
 | 1.1.0 | 2026-11-04 | Library (optional, saved tabs as bookmarks with topics), stale-tabs group, "used … ago" in rows, zZz on suspended tabs, Move group to a new window icon. New optional permission: bookmarks. | Not submitted, shipped in 1.2.1 |

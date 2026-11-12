@@ -18,7 +18,13 @@ In Chrome, popup changes show the next time you open it. Changes to `background.
 ## Test
 
 ```bash
-node --test
+npm test
+```
+
+The end-to-end tests drive the extension in Playwright's Chromium (`npx playwright install chromium` once):
+
+```bash
+npm run e2e
 ```
 
 ## Release
