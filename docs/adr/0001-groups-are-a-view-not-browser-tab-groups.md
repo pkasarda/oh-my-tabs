@@ -1,3 +1,5 @@
 # Groups are a view, not browser tab groups
 
 oh-my-tabs groups tabs only inside its own popup and page. It never creates, changes or removes the browser's native tab groups (the `tabGroups` API), and moving tabs between windows leaves the tab strip's own grouping alone. The user wants a better tab list, not an extension that rearranges their tab strip. Leaving native groups alone also avoids Firefox's `tabs.group()` side effects: it unpins pinned tabs and moves tabs so they sit next to each other. It also drops the Firefox 139 minimum and the `tabGroups` permission.
+
+**Amended in 1.3** (#31). oh-my-tabs now shows the browser's tab groups, behind the optional `tabGroups` permission, because people who use them want to see them in the window hierarchy. The decision above still holds for groups of its own making: oh-my-tabs never turns a group into a tab group and never adds tabs to one. It touches a tab group only to keep it as the user made it: moving a whole tab group moves it as one, and Undo after closing one puts it back with its name and color. A tab group holds no pinned tabs, so restoring one does not hit the unpinning side effect.

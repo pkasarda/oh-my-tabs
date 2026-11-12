@@ -6,7 +6,11 @@ A browser extension that shows all open tabs sorted into groups and finds and cl
 
 **Group**:
 A set of open tabs that oh-my-tabs shows together under one heading, such as `acme/oh-my-tabs` or `google.com`. It exists only inside oh-my-tabs.
-_Avoid_: tab group (that is the browser's own feature, which oh-my-tabs does not touch), cluster, bucket
+_Avoid_: tab group (the browser's own feature, a term of its own below), cluster, bucket
+
+**Tab group**:
+The browser's own group of tabs in the tab strip, with the name and color the user gave it. oh-my-tabs shows tab groups and keeps them intact, but does not create or edit them.
+_Avoid_: native group, browser group, Chrome group
 
 **Group name**:
 The heading that identifies a group: the hostname by default, or a more specific name from a site rule (`owner/repo`, a Jira project key). A tab that would be alone under a specific name moves up to a broader one: its owner, then its site, then its domain (`acme.slack.com` → `slack.com`).
@@ -17,7 +21,7 @@ The main view: groups and their tabs from all windows together. Each tab carries
 _Avoid_: list view, tab view
 
 **Windows view**:
-The secondary view: one collapsible card per browser window, which opens into that window's groups, which open into tabs.
+The secondary view: one collapsible card per browser window, which opens into that window's tab groups and groups, which open into tabs.
 _Avoid_: window manager, overview
 
 **Window name**:
@@ -79,6 +83,12 @@ _Avoid_: old tab, inactive tab, forgotten tab
 The sites oh-my-tabs never marks as stale and never suspends in bulk. An entry covers its subdomains.
 _Avoid_: allowlist, whitelist, exceptions
 
+## Reminders
+
+**Reminder**:
+A time you set on a page to be told about it again. The tab stays open; when the time comes, the page is listed as due until you open it, mark it done or set a new time.
+_Avoid_: snooze, alarm, notification (a system notification is one optional way a reminder reaches you)
+
 ## Full page
 
 **Full page**:
@@ -96,6 +106,18 @@ _Avoid_: selected tab, marked tab
 **Board**:
 The Library on the full page: one column per topic, with saved tabs as cards that drag between them.
 _Avoid_: kanban
+
+**Command palette**:
+A window on the full page where you type to run an action, go to a section or switch to a tab.
+_Avoid_: launcher, quick switcher, spotlight
+
+**Details pane**:
+The full page's pane on the right that describes the focused tab: where it is, when it was last used, its duplicates and whether it is saved.
+_Avoid_: inspector, preview, right panel
+
+**Status bar**:
+The line at the bottom of the full page that counts everything open.
+_Avoid_: footer
 
 ## Developer mode
 

@@ -325,6 +325,106 @@ Goal: you can close tabs without losing them, so you stop keeping hundreds open 
 
 - Selecting whole windows, and dropping on `+ New topic`.
 
+## 1.3: Settings window, appearance, tab groups and the full page
+
+### Header
+
+- `Close duplicates` is an icon button with the duplicate count on it in red; the full label is its tooltip. It sits before the view switch and stays in every view (disabled in the Library and at 0), so the switch never moves when the view changes.
+
+### Settings window
+
+- ⚙ opens a modal window over the list, with a dimmed backdrop: sections on the left, the chosen section's content on the right. It is the same in the popup (about 680×460) and on the full page, and replaces the ⚙ popover. It is a native `<dialog>`: Esc and a click outside close it.
+- Every change applies at once; there is no Save button. The window reopens on the section used last.
+- Sections:
+  - **General**: Developer mode, Sort tabs, Toolbar badge, Toolbar button.
+  - **Appearance**: Font, Text size, Theme.
+  - **Features**: Library, Stale tabs and its days, Tab groups.
+  - **Never list**: the list of sites, in a larger field.
+  - **Shortcuts**: the current shortcuts and `Change…`, then the keys of the full page (the tree and the command palette).
+  - **About**: version, and links to the store listing, the source, the privacy policy and feedback.
+- `Suspend all other tabs` is an action, not a setting: it moves to each window's ⋯ menu.
+
+### General options
+
+- **Toolbar badge**: `Duplicates and tab count` (default, as before), `Duplicates only`, or `Off`.
+- **Toolbar button**: `Opens the popup` (default) or `Opens the full page`. With the full page, a click (and the open shortcut) switches to the page if it is already open instead of opening a second one.
+
+### Appearance (#18, #19)
+
+- **Font** is its own setting: `Fira Code`, `System`, or `Custom`, which takes the name of a font installed on the computer. A name the browser cannot find shows `Font not found` under the field and falls back to System. Ligatures stay off.
+- Developer mode no longer changes the font. It only turns on the site rules and the `omt` toolbar icon. On update everyone keeps what they see: Fira Code where developer mode was on, System where it was off.
+- **Text size**: `Small`, `Default`, `Large`. Default is 13 px for Fira Code and 14 px for other fonts, as before; Small and Large are one pixel either side, and rows tighten or loosen with it.
+- **Theme**: `Auto` (follows the system, as before), `Light` or `Dark`. An accent color stays in #19.
+
+### Tab groups (#31)
+
+A tab group is the browser's own group in the tab strip, with the name and color the user gave it. 1.3 shows tab groups and keeps them intact. It does not create, rename, recolor or fill them.
+
+- **Optional.** `Tab groups` in Settings → Features asks for the optional `tabGroups` permission (Chrome: "View and manage your tab groups"; Firefox does not prompt). The feature is on exactly while the permission is granted, like the Library. Off, nothing differs from 1.2.
+- **Hint.** While it is off and some open tab is in a tab group (the tab's `groupId` needs no permission), one row above the list says `You use tab groups. Show them here?` with `Turn on` and a dismiss that is remembered.
+- **Windows view** (popup and full page): window → tab group → its tabs, in tab strip order, with no groups inside. Duplicates nest under their keeper as elsewhere. Tabs outside a tab group stay as they were: window → group → tab. In a window, tab groups come first, in tab strip order, then the groups.
+- **Header of a tab group**: a stripe in its color, its name, its tab count and a ⋯ menu with `Close`, `Save & close` (Library on), `Move to new window` and `Suspend`. One without a name is named like a window, from what it holds (`acme/client & 2 more`). On the full page its checkbox checks its tabs.
+- **Collapsed.** A tab group that is collapsed in the browser starts collapsed in oh-my-tabs. Opening or closing it in oh-my-tabs does not change the browser.
+- **Groups view**: a tab that is in a tab group carries a dot in the tab group's color and its name. There is no extra level.
+- **Sidebar** (full page): a window's tab groups are items under that window; choosing one shows only its tabs. A tab group that no longer exists falls back to its window.
+- **Search** also matches the tab group's name.
+- **Library**: `Save & close` on a tab group offers a topic with the tab group's name, creating it if needed. The topic can be changed before saving.
+- **Kept intact**:
+  - Moving a whole tab group to another or a new window moves it as a tab group, with its name and color.
+  - Undo after closing a whole tab group brings it back as a tab group with its name and color.
+  - Moving a single tab to another window takes it out of its tab group, as the browser itself does.
+- **Colors**: the browser gives a color name (grey, blue, red, yellow, green, pink, purple, cyan, orange), not a value. oh-my-tabs maps each to its own light and dark token.
+- **Not visible**: tab groups the browser has saved and closed. Extensions cannot read them.
+
+### Full page
+
+Six additions to the full page. The popup gets only the right click.
+
+- **Command palette.** ⌘K (Ctrl+K on Windows and Linux) or `Commands` in the header opens a centered window with one field. Typing narrows three lists:
+  - actions: `Close duplicates`, `Save & close stale tabs`, `Open settings`, `Collapse all`, `Expand all`, `Reveal last used tab`, `Toggle sidebar`, `Toggle details`. An action that cannot run now (no duplicates, Library off) is not listed;
+  - places: Groups, Windows, Library, Stale, and each window, tab group and topic the sidebar lists;
+  - open tabs, by title or address.
+
+  ↑/↓ move, Enter runs the action, shows the place or switches to the tab, Esc closes. It matches the way the search does, ignoring case and accents.
+- **Details pane.** A button in the header shows or hides a pane on the right of the list, 320 px wide. It describes the focused tab: favicon, title, whole address, window, tab group (while tab groups are on), group, last used, number of duplicates and, if it is saved in the Library, its topic. Under them: `Switch to tab`, `Save & close` (Library on) and `Close`. With a header focused, or nothing, it says `Select a tab to see its details.`
+  - While the pane is shown, a click on a tab row focuses it instead of switching to it; a double click, Enter or `Switch to tab` switches. While it is hidden a click switches, as in 1.2.
+  - Below 1000 px the pane is not shown.
+- **Tree toolbar.** The strip that listed the tree keys becomes a toolbar: `Collapse all`, `Expand all`, `Reveal last used tab` and `Sort` (Recent / Tab order, the same setting as Settings → General). The keys move to Settings → Shortcuts.
+  - The last used tab is the one used most recently other than the full page itself. Reveal opens what it sits in, scrolls to it and focuses it; a sidebar choice or a search that hides it is cleared first.
+- **Status bar.** One line at the bottom of the page: `214 tabs · 5 windows · 12 duplicates · 31 stale · 8 suspended`. It counts everything open, whatever the sidebar and the search show; `stale` is there only while stale tabs are on. It is text, not buttons.
+- **Collapsible sidebar.** A button at the left of the header hides and shows the sidebar, and the strip it becomes below 720 px. The main pane's header still names what is shown.
+- **Right click and Shift+click.** A right click on a tab row, or on the header of a group, window or tab group, opens its ⋯ menu at the pointer, in the popup too. Shift+click on a checkbox checks every row shown between it and the checkbox clicked last.
+- Whether the sidebar and the details pane are shown is kept with the settings.
+
+### Tests in the repo
+
+- The end-to-end checks live in `e2e/` and run with Playwright, a dev dependency (see [ADR 0002](adr/0002-vanilla-js-no-build.md)). The extension itself still ships no dependency and no build.
+
+### Store impact
+
+- `tabGroups` is a new optional permission: a permission justification for the Chrome Web Store, and a line in PRIVACY.md saying tab group names and colors are read to show them and never leave the browser.
+- An update adds no install-time warning, so nobody's extension is disabled by it.
+
+### Out of 1.3
+
+- Managing tab groups: creating one from a group, adding tabs, renaming, recoloring, collapsing in the browser.
+- An accent color (#19).
+- On the full page: split panes, a tree of which tab opened which, and resizing the details pane.
+- Reminders (1.4, below).
+
+## 1.4: Reminders (decided, not built)
+
+`Remind me later` works like a reminder on a chat message: the tab stays open, and at the chosen time oh-my-tabs brings it back to your attention.
+
+- **Setting one**: `Remind me later ▸` in the ⋯ menu of a tab or a group, and in the bulk bar for checked tabs. Times: `In 1 hour`, `In 3 hours`, `Tomorrow 9:00`, `Next Monday 9:00`, or `Custom…` (the browser's own date and time field).
+- **What is kept**: the page's address and title and the time, in `storage.local`. Reminders stay on this device, apart from the Library. A reminder is for the page, so it holds while the tab is closed, and an open tab is matched to it by duplicate key.
+- **When it is due**: the tab is listed in a `Reminders` group at the top of the list, the way stale tabs are, and the toolbar badge turns amber with the number of due reminders. Each has `Open` (switches to the tab, or opens the page again if it was closed), `Done` and `Remind again ▸`.
+- **Before it is due**: the tab's row carries a bell. The full page has a `Reminders` section in the sidebar with due and scheduled ones. The popup shows the group only while something is due.
+- **Notify me** (optional): a system notification when a reminder is due. It needs the optional `notifications` permission (Chrome: "Display notifications"), so it is a switch in Settings → Features, offered once after the first reminder is set. Clicking the notification does `Open`.
+- **Timers**: the `alarms` permission, which shows no warning in either browser. Firefox drops alarms when it closes, so they are rebuilt from storage at startup, and both browsers check at startup for reminders that came due while the browser was closed. Those show in the group and on the badge; with Notify me on, one notification covers them all.
+- A tab with a scheduled reminder is not stale.
+- The details pane (1.3) shows the tab's reminder.
+
 ## Testing
 
 - `node --test` runs `rules.test.js`.
