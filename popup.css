@@ -196,6 +196,14 @@ details.group.reminders { margin-bottom: 6px; }
 .bell { flex: none; display: grid; color: var(--muted); }
 .bell .i { width: 15px; height: 15px; }
 .bell.due, .row.reminder.due .age, .side button.due .n { color: var(--amber); }
+/* On a narrow page the time and the three buttons would leave the title a few letters: there the time goes
+   under the title, in line with it (past the favicon), and the title gets the width left of the buttons. */
+@media (max-width: 720px) {
+  :root.page .groups .row.reminder { display: grid; grid-template-columns: minmax(0, 1fr) auto; row-gap: 0; padding-block: 5px; }
+  :root.page .groups .row.reminder .row-main { grid-area: 1 / 1; }
+  :root.page .groups .row.reminder .age { grid-area: 2 / 1; padding-left: calc(var(--fav) + 10px); }
+  :root.page .groups .row.reminder .actions { grid-area: 1 / 2 / span 2; align-self: center; }
+}
 .stale-icon { flex: none; display: grid; place-items: center; width: 32px; height: 32px; border-radius: 8px; background: light-dark(#fef3c7, #3b2a0b); color: var(--amber); }
 .stale-icon .i { width: 20px; height: 20px; }
 .filters { display: flex; flex-wrap: wrap; gap: 6px; padding: 0 0 8px; }
