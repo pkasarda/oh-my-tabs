@@ -32,17 +32,6 @@ function focused(page) {
   });
 }
 
-// The page records an opened group in its 'toggle' listener, which the browser runs a moment after
-// details.open changes. A re-render before that (Space does one) would close the group again, so the tests wait
-// for the event the way a person's next key press comes later.
-async function pressAndAwaitToggle(page, key) {
-  const toggled = page.evaluate(() => new Promise(resolve => {
-    document.querySelector('#body').addEventListener('toggle', resolve, { once: true, capture: true });
-  }));
-  await page.keyboard.press(key);
-  await toggled;
-}
-
 test('an old popup.html?page address moves to page.html and keeps the hash', async t => {
   const app = await start(t);
   const page = await app.context.newPage();
@@ -101,7 +90,7 @@ test('tree keys move, open, close and check', async t => {
 
   // → opens the group, a second → goes into it.
   const repo = page.locator('#body details.group[data-key="acme/client"]');
-  await pressAndAwaitToggle(page, 'ArrowRight');
+  await page.keyboard.press('ArrowRight');
   assert.equal(await repo.evaluate(details => details.open), true);
   await page.keyboard.press('ArrowRight');
   const row = await focused(page);
@@ -118,7 +107,7 @@ test('tree keys move, open, close and check', async t => {
   // ← goes up to the header, a second ← closes the group.
   await page.keyboard.press('ArrowLeft');
   assert.equal(await focused(page), 'group acme/client');
-  await pressAndAwaitToggle(page, 'ArrowLeft');
+  await page.keyboard.press('ArrowLeft');
   assert.equal(await repo.evaluate(details => details.open), false);
 });
 
@@ -126,7 +115,7 @@ test('Enter on a tab row switches to that tab', async t => {
   const app = await start(t);
   const page = await app.openPage();
   await page.locator('#body summary').first().focus();
-  await pressAndAwaitToggle(page, 'ArrowRight');
+  await page.keyboard.press('ArrowRight');
   await page.keyboard.press('ArrowRight');
   const tabId = Number((await focused(page)).split(' ')[1]);
   await page.keyboard.press('Enter');

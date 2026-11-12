@@ -16,6 +16,10 @@
   --accent-soft: light-dark(oklch(94% 0.04 265), oklch(32% 0.07 265));
   --danger: light-dark(oklch(55% 0.2 25), oklch(70% 0.17 25));
   --danger-soft: light-dark(oklch(95% 0.035 25), oklch(31% 0.07 25));
+  /* The browser names a tab group's color; these are our own light and dark values for the nine names. */
+  --tg-grey: light-dark(#6b7280, #9ca3af); --tg-blue: light-dark(#2563eb, #60a5fa); --tg-red: light-dark(#dc2626, #f87171);
+  --tg-yellow: light-dark(#ca8a04, #facc15); --tg-green: light-dark(#16a34a, #4ade80); --tg-pink: light-dark(#db2777, #f472b6);
+  --tg-purple: light-dark(#7c3aed, #a78bfa); --tg-cyan: light-dark(#0891b2, #22d3ee); --tg-orange: light-dark(#ea580c, #fb923c);
   --shadow: 0 8px 28px light-dark(oklch(30% 0.03 260 / 0.14), oklch(0% 0 0 / 0.5));
   --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
   --sans: system-ui, -apple-system, "Segoe UI", sans-serif;
@@ -164,6 +168,15 @@ ul.rows.singles { padding: 0; }
 /* Inside a window card the row's own window is obvious; copies still say where they are. */
 .windows .row:not(.nested) .wl-icon { display: none; }
 .win-new { display: flex; gap: 8px; align-items: center; justify-content: center; min-height: 52px; border: 1px dashed var(--border); border-radius: 10px; color: var(--muted); }
+
+/* ---------- tab groups: a stripe on the header, a dot with the name elsewhere ---------- */
+.tg-stripe { flex: none; width: 4px; height: 20px; border-radius: 2px; background: var(--c); }
+.tg-dot { flex: none; width: 9px; height: 9px; border-radius: 50%; background: var(--c); }
+.tg-chip { flex: none; display: inline-flex; gap: 5px; align-items: center; max-width: 150px; color: var(--muted); font-size: 11.5px; white-space: nowrap; }
+/* The ellipsis needs a block of its own: on the inline-flex chip a long name would only be cut off. */
+.tg-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.side .side-item.sub { padding-left: 22px; }
+.side .side-item.sub .tg-dot { margin: 0 5px; }
 
 /* ---------- stale tabs and the library ---------- */
 details.group.stale { border-color: color-mix(in oklch, #f59e0b 45%, var(--border)); }

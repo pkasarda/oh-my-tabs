@@ -163,6 +163,25 @@ test('every option applies at once and survives a reload', async t => {
   assert.equal((await look(page)).size, '12px');
 });
 
+test('a look and the sort apply before their write to storage has finished', async t => {
+  const app = await start(t);
+  const page = await app.openPopup();
+  // A slow storage: every write takes a second.
+  await page.evaluate(() => {
+    const set = chrome.storage.local.set.bind(chrome.storage.local);
+    chrome.storage.local.set = values => new Promise(resolve => setTimeout(resolve, 1000)).then(() => set(values));
+  });
+  await openSettings(page);
+  await page.locator('#tab-appearance').click();
+  await choose(page, 'Dark');
+  assert.equal((await look(page)).scheme, 'dark');
+  await page.locator('#tab-general').click();
+  await choose(page, 'Tab order');
+  // Recent puts api, opened last, first; tab order puts it after the guide (its copy hides under it).
+  const urls = await page.locator('#body details.group[data-key="docs.example.org"] .row .url').allTextContents();
+  assert.deepEqual(urls, ['docs.example.org/guide#intro', 'docs.example.org/api']);
+});
+
 test('the look is there before the body is drawn, before the settings have loaded', async t => {
   const app = await start(t);
   const page = await app.openPage();

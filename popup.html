@@ -32,10 +32,10 @@
 
 <dialog id="topic-dialog" aria-labelledby="topic-label">
   <form method="dialog">
-    <label id="topic-label" class="topic-field">New topic <input id="topic-name" type="text" required maxlength="60" autocomplete="off"></label>
+    <label id="topic-label" class="topic-field"><span id="topic-label-text">New topic</span> <input id="topic-name" type="text" required maxlength="60" autocomplete="off"></label>
     <div class="dialog-actions">
       <button class="btn" value="cancel" formnovalidate>Cancel</button>
-      <button class="btn" value="ok">Create</button>
+      <button class="btn" value="ok" id="topic-ok">Create</button>
     </div>
   </form>
 </dialog>

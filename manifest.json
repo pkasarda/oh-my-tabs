@@ -5,7 +5,7 @@
   "description": "Your tabs grouped by repo, project or site, with smart duplicate cleanup. No account, nothing leaves your device.",
   "minimum_chrome_version": "123",
   "permissions": ["tabs", "storage", "contextMenus", "favicon"],
-  "optional_permissions": ["bookmarks"],
+  "optional_permissions": ["bookmarks", "tabGroups"],
   "background": {
     "service_worker": "background.js",
     "type": "module"

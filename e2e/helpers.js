@@ -46,14 +46,14 @@ function pageFor(url) {
   return `<!doctype html><title>${title}</title><h1>${title}</h1>`;
 }
 
-// The Library needs the optional bookmarks permission, which Chrome grants only after a prompt that a headless
-// browser never answers. So the Library tests load a copy whose manifest has it as a required permission.
-function extensionWithBookmarks() {
+// The Library and tab groups need optional permissions, which Chrome grants only after a prompt that a headless
+// browser never answers. So their tests load a copy whose manifest has them as required permissions.
+function extensionWith(permissions) {
   const dir = mkdtempSync(join(tmpdir(), 'omt-ext-'));
   for (const file of EXTENSION_FILES) cpSync(join(ROOT, file), join(dir, file), { recursive: true });
   const manifest = JSON.parse(readFileSync(join(ROOT, 'manifest.json'), 'utf8'));
-  manifest.permissions.push('bookmarks');
-  delete manifest.optional_permissions;
+  manifest.permissions.push(...permissions);
+  manifest.optional_permissions = manifest.optional_permissions.filter(permission => !permissions.includes(permission));
   writeFileSync(join(dir, 'manifest.json'), JSON.stringify(manifest, null, 2));
   return dir;
 }
@@ -71,11 +71,13 @@ export async function eventually(check, { timeout = 5000 } = {}) {
   }
 }
 
-// library: load the extension with the bookmarks permission granted. settings: storage.local before any page opens.
+// library, tabGroups: load the extension with the bookmarks or tabGroups permission granted.
+// settings: storage.local before any page opens.
 // profile: a profile directory to reuse (a browser restart), which close() then leaves for the caller to remove.
-export async function launch({ library = false, settings = null, profile: reused = null } = {}) {
+export async function launch({ library = false, tabGroups = false, settings = null, profile: reused = null } = {}) {
   const profile = reused ?? mkdtempSync(join(tmpdir(), 'omt-profile-'));
-  const extension = library ? extensionWithBookmarks() : ROOT;
+  const permissions = [...(library ? ['bookmarks'] : []), ...(tabGroups ? ['tabGroups'] : [])];
+  const extension = permissions.length ? extensionWith(permissions) : ROOT;
   const context = await chromium.launchPersistentContext(profile, {
     // The bundled Chromium: its new headless mode runs extensions, Chrome Headless Shell does not.
     channel: 'chromium',
@@ -129,6 +131,23 @@ export async function launch({ library = false, settings = null, profile: reused
         }, windowIds);
       }
       return ids;
+    },
+
+    // Puts the tabs of these addresses into one tab group, as a person would in the tab strip, and returns its id.
+    // properties (title, color, collapsed) need the tabGroups permission; without it the tab group is plain.
+    async makeTabGroup(urls, properties = null) {
+      const tabIds = [];
+      for (const url of urls) tabIds.push(await app.tabIdOf(url));
+      return worker.evaluate(async ([tabIds, properties]) => {
+        const { windowId } = await chrome.tabs.get(tabIds[0]);
+        const tabGroupId = await chrome.tabs.group({ tabIds, createProperties: { windowId } });
+        if (properties) await chrome.tabGroups.update(tabGroupId, properties);
+        return tabGroupId;
+      }, [tabIds, properties]);
+    },
+
+    async tabGroup(id) {
+      return worker.evaluate(id => chrome.tabGroups.get(id), id);
     },
 
     async tabs() {
