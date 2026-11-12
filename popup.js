@@ -7,7 +7,7 @@ globalThis.browser ??= chrome;
 const SETTINGS = {
   dev: true, sort: 'recent', view: 'groups', stale: true, staleDays: 7, never: [], sideWidth: 240,
   font: null, fontCustom: '', textSize: 'default', theme: 'auto', badge: 'all', button: 'popup', settingsSection: 'general',
-  tabGroupHint: true,
+  tabGroupHint: true, sideShown: true, detailsShown: false,
 };
 const DAY = 24 * 60 * 60 * 1000;
 const IS_PAGE = location.pathname.endsWith('/page.html');
@@ -15,6 +15,7 @@ const IS_PAGE = location.pathname.endsWith('/page.html');
 const MOVED = new URLSearchParams(location.search).has('page');
 if (MOVED) location.replace(`page.html${location.hash}`);
 const IS_FIREFOX = typeof browser.runtime.getBrowserInfo === 'function';
+const IS_MAC = /Mac/.test(navigator.platform);
 const CONFIRM_ABOVE = 10;
 // Tab groups (the browser's own) show while this optional permission is granted, like the Library.
 const TAB_GROUPS = { permissions: ['tabGroups'] };
@@ -31,6 +32,8 @@ const state = {
   // Page only: the sidebar's choice within the view (a group name, a window id, a topic or '' for no topic),
   // the checked tab ids for the bulk bar, and the stale tab ids of the last render.
   pageItem: null, checked: new Set(), staleShown: new Set(),
+  // Page only: the tab the details pane describes (the focused tab row), and the checkbox clicked last.
+  detailsTab: null, lastPick: null,
 };
 
 const $ = selector => document.querySelector(selector);
@@ -58,6 +61,11 @@ const ICONS = {
   saved: '<path d="m19 21-7-4-7 4V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16z" fill="currentColor"/>',
   clock: '<circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>',
   open: '<path d="M7 17 17 7"/><path d="M7 7h10v10"/>',
+  panelLeft: '<rect width="18" height="18" x="3" y="3" rx="2"/><path d="M9 3v18"/>',
+  panelRight: '<rect width="18" height="18" x="3" y="3" rx="2"/><path d="M15 3v18"/>',
+  fold: '<path d="m7 20 5-5 5 5"/><path d="m7 4 5 5 5-5"/>',
+  unfold: '<path d="m7 15 5 5 5-5"/><path d="m7 9 5-5 5 5"/>',
+  locate: '<path d="M2 12h3M19 12h3M12 2v3M12 19v3"/><circle cx="12" cy="12" r="7"/>',
   newWindow: '<rect width="18" height="16" x="3" y="4" rx="2"/><path d="M3 9h18"/><path d="M12 12v5M9.5 14.5h5"/>',
 };
 
@@ -751,10 +759,12 @@ function render() {
     renderSidebar();
     renderBulkBar();
     renderMainHead(list);
+    renderDetails();
+    renderStatusBar();
   }
 }
 
-// The title of what the list shows, a count, and actions for all of it; the key hints under it for the tree.
+// The title of what the list shows, a count, and actions for all of it; the tree's toolbar under it.
 function mainTitle() {
   const item = state.pageItem;
   if (state.view === 'stale') return `Not used for ${state.staleDays}+ days`;
@@ -779,8 +789,7 @@ function renderMainHead(list) {
     const more = state.view === 'stale' ? moreButton('stale', '', 'More stale tab actions') : '';
     actions = `${save}<button type="button" class="btn danger" data-head="close"${none}>Close all</button>${more}`;
   }
-  const hints = inLibrary ? '' : `<div class="tree-top"><span><kbd>↑</kbd> <kbd>↓</kbd> move</span><span><kbd>←</kbd> <kbd>→</kbd> collapse / expand</span><span><kbd>Space</kbd> check</span><span><kbd>Enter</kbd> open</span></div>`;
-  const html = `<div class="main-title"><h2>${esc(mainTitle())}</h2><span class="sub">${plural(list.length, inLibrary ? 'saved tab' : 'tab')}</span><span class="g-spacer"></span>${actions}</div>${hints}`;
+  const html = `<div class="main-title"><h2>${esc(mainTitle())}</h2><span class="sub">${plural(list.length, inLibrary ? 'saved tab' : 'tab')}</span><span class="g-spacer"></span>${actions}</div>${toolbarHtml()}`;
   // render() runs on every tab event: rewrite only on a change, and keep focus on the same button.
   if (html === mainHeadHtml) return;
   mainHeadHtml = html;
@@ -790,11 +799,32 @@ function renderMainHead(list) {
   if (focused) head.querySelector(focused === 'more' ? '[data-menu]' : `[data-head="${focused}"]`)?.focus({ preventScroll: true });
 }
 
+// Stale tabs are a flat list, oldest first: nothing there to collapse or sort.
+function toolbarHtml() {
+  if (state.view === 'library') return '';
+  const button = (head, name, label) => `<button type="button" class="icon-btn" data-head="${head}" data-tip="${label}" aria-label="${label}">${icon(name)}</button>`;
+  const reveal = button('reveal', 'locate', 'Reveal last used tab');
+  if (state.view === 'stale') return `<div class="tree-top" role="group" aria-label="Tree">${reveal}</div>`;
+  const option = (value, label) => `<option value="${value}"${state.sort === value ? ' selected' : ''}>${label}</option>`;
+  return `<div class="tree-top" role="group" aria-label="Tree">${button('collapse', 'fold', 'Collapse all')}${button('expand', 'unfold', 'Expand all')}${reveal}
+    <span class="g-spacer"></span><label>Sort <select data-head="sort">${option('recent', 'Recent')}${option('order', 'Tab order')}</select></label></div>`;
+}
+
+$('#main-head')?.addEventListener('change', async event => {
+  if (event.target.dataset.head !== 'sort') return;
+  const saved = saveSetting('sort', event.target.value);
+  fillChoices(['sort']);
+  render();
+  await saved;
+});
+
 $('#main-head')?.addEventListener('click', async event => {
   const more = event.target.closest('[data-menu]');
   if (more) return openMenu(more, menuFor(more));
-  const button = event.target.closest('[data-head]');
+  const button = event.target.closest('button[data-head]');
   if (!button) return;
+  const tools = { collapse: () => setAllOpen(false), expand: () => setAllOpen(true), reveal: revealLastUsed };
+  if (tools[button.dataset.head]) return tools[button.dataset.head]();
   if (button.dataset.head === 'open') return openSavedMany(state.saved.filter(savedMatches));
   // What the list shows: matches() follows the sidebar and the search.
   const ids = state.tabs.filter(matches).map(tab => tab.id);
@@ -918,32 +948,58 @@ function renderBulkBar() {
   $('[data-bulk="save"]').hidden = !state.libraryOn;
 }
 
-function togglePick(box) {
-  let ids = [Number(box.dataset.pick)];
-  if (box.dataset.pickGroup !== undefined) ids = groupTabIds(box.dataset.pickGroup, box.dataset.w ? Number(box.dataset.w) : null);
-  if (box.dataset.pickTabGroup !== undefined) ids = tabGroupTabIds(Number(box.dataset.pickTabGroup));
-  const all = ids.every(id => state.checked.has(id));
-  for (const id of ids) {
-    if (all) state.checked.delete(id);
-    else state.checked.add(id);
+// The tabs a checkbox stands for: its tab, or the shown tabs of its group or tab group.
+function pickIds(box) {
+  if (box.dataset.pickGroup !== undefined) return groupTabIds(box.dataset.pickGroup, box.dataset.w ? Number(box.dataset.w) : null);
+  if (box.dataset.pickTabGroup !== undefined) return tabGroupTabIds(Number(box.dataset.pickTabGroup));
+  return [Number(box.dataset.pick)];
+}
+
+// Which checkbox this is, so the one clicked last is found again after a re-render.
+function pickKey(box) {
+  return JSON.stringify({ ...box.dataset });
+}
+
+// range: Shift+click, which checks every shown row from the checkbox clicked last to this one.
+function togglePick(box, { range = false } = {}) {
+  const boxes = [...body.querySelectorAll('.pick')].filter(el => el.checkVisibility());
+  const from = boxes.findIndex(el => pickKey(el) === state.lastPick);
+  const to = boxes.indexOf(box);
+  if (range && from !== -1 && to !== -1) {
+    for (const el of boxes.slice(Math.min(from, to), Math.max(from, to) + 1)) {
+      // Only the rows in between count. A group header there, the one clicked before included (only a
+      // position), would also check its tabs outside the range; the header clicked now does check its tabs.
+      if (el.dataset.pick === undefined && el !== box) continue;
+      for (const id of pickIds(el)) state.checked.add(id);
+    }
+  } else {
+    const ids = pickIds(box);
+    const all = ids.every(id => state.checked.has(id));
+    for (const id of ids) {
+      if (all) state.checked.delete(id);
+      else state.checked.add(id);
+    }
   }
+  state.lastPick = pickKey(box);
   render();
 }
 
-// The bar hides with the selection; focus that was on it goes to the search box instead of the page.
-function clearPicks() {
-  state.checked.clear();
+// Only the checks acted on: one the sidebar or the search hides stays. The bar hides with the selection;
+// focus that was on it goes to the search box instead of the page.
+function clearPicks(ids) {
+  for (const id of ids) state.checked.delete(id);
   render();
   if (document.activeElement === document.body || $('#bulk-bar').contains(document.activeElement)) search.focus();
 }
 
-// Each action clears the selection once it ran; a cancelled confirmation keeps it.
+// Once an action ran, the checks it acted on are cleared; a check it did not see stays, and a cancelled
+// confirmation keeps them all.
 async function bulkAction(button) {
   const ids = checkedShown();
   const action = button.dataset.bulk;
-  if (action === 'clear') return clearPicks();
+  if (action === 'clear') return clearPicks(ids);
   if (action === 'move') {
-    const items = moveItems(ids).map(item => item === '-' ? item : { ...item, run: async () => { await item.run(); clearPicks(); } });
+    const items = moveItems(ids).map(item => item === '-' ? item : { ...item, run: async () => { await item.run(); clearPicks(ids); } });
     return openMenu(button, items);
   }
   await oneAtATime(async () => {
@@ -954,7 +1010,7 @@ async function bulkAction(button) {
       await closeWithUndo(ids);
       done = true;
     }
-    if (done) clearPicks();
+    if (done) clearPicks(ids);
   });
 }
 
@@ -968,6 +1024,155 @@ side?.addEventListener('click', event => {
   if (!button) return;
   selectPage(button.dataset.section, button.dataset.item ?? null);
 });
+
+// ---------- the page: tree toolbar, details pane, status bar, and the panes shown or hidden ----------
+// Opens or closes every group the list shows, in the DOM too: where a group was opened by hand since the last
+// render, the new HTML can equal the old one and would not be written.
+function setAllOpen(open) {
+  for (const details of body.querySelectorAll('details[data-key]')) {
+    details.open = open;
+    recordOpen(details);
+  }
+  render();
+}
+
+// The open tab used most recently; the page's own tab is not in state.tabs.
+function lastUsedTab() {
+  return state.tabs.reduce((last, tab) => (!last || tab.lastAccessed > last.lastAccessed ? tab : last), null);
+}
+
+// Clears a sidebar choice or a search that hides it, opens what it sits in, then scrolls to it and focuses it.
+function revealLastUsed() {
+  const tab = lastUsedTab();
+  if (!tab) return;
+  if (state.view !== 'groups' && state.view !== 'windows') setPage('groups', null);
+  if (!inPageSelection(tab)) setPage(state.view, null);
+  if (!matches(tab)) {
+    search.value = '';
+    state.query = '';
+    state.selected = -1;
+  }
+  const keys = state.view === 'groups' ? [tab.group] : [`w:${tab.windowId}`, tab.tabGroup ? `tg:${tab.groupId}` : `w:${tab.windowId}:${tab.group}`];
+  for (const key of keys) state.openGroups.add(key);
+  if (tab.isDup) state.openKeepers.add(tab.set.keeper.id);
+  render();
+  const row = body.querySelector(`.row[data-id="${tab.id}"]`);
+  if (!row) return;
+  for (let details = row.closest('details'); details; details = details.parentElement.closest('details')) details.open = true;
+  row.scrollIntoView({ block: 'nearest' });
+  row.querySelector('.row-main').focus({ preventScroll: true });
+}
+
+function wide() {
+  return matchMedia('(min-width: 1000px)').matches;
+}
+
+// Below 1000 px the pane is not shown, whatever the setting says.
+function detailsVisible() {
+  return IS_PAGE && state.detailsShown && wide();
+}
+
+let detailsHtml = '';
+function renderDetails() {
+  const tab = state.tabs.find(t => t.id === state.detailsTab);
+  const html = tab ? detailsOf(tab) : '<p class="details-empty">Select a tab to see its details.</p>';
+  if (html === detailsHtml) return;
+  detailsHtml = html;
+  const pane = $('#details');
+  const focused = pane.contains(document.activeElement) ? document.activeElement.dataset.detail : null;
+  pane.innerHTML = html;
+  // The tab closed from its own Close button: focus goes to the search, not to the page.
+  if (focused) (pane.querySelector(`[data-detail="${focused}"]`) ?? search).focus();
+}
+
+function detailsOf(tab) {
+  const fields = [['Window', `${windowLabel(tab.windowId)}<span>${esc(windowName(tab.windowId))}</span>`]];
+  if (state.tabGroupsOn) {
+    fields.push(['Tab group', tab.tabGroup ? `<span class="tg-dot" style="${tabGroupColor(tab.tabGroup)}"></span><span>${esc(tab.tabGroup.name)}</span>` : 'None']);
+  }
+  const others = tab.set ? tab.set.size - 1 : 0;
+  fields.push(['Group', esc(tab.group)], ['Last used', ago(tab.lastAccessed)], ['Duplicates', others ? String(others) : 'None']);
+  if (state.libraryOn) {
+    const key = duplicateKey(tab.url, state.dev);
+    const item = isSaved(tab) ? state.saved.find(saved => duplicateKey(saved.url, state.dev) === key) : null;
+    fields.push(['Saved', item ? esc(item.topic ?? 'No topic') : 'No']);
+  }
+  const save = state.libraryOn ? `<button type="button" class="btn" data-detail="save"${isWeb(tab.url) ? '' : ' disabled'}>Save &amp; close</button>` : '';
+  return `${favicon(tab)}<h3>${esc(tab.title || tab.url)}</h3><p class="details-url">${esc(tab.url)}</p>
+    <dl>${fields.map(([name, value]) => `<dt>${name}</dt><dd>${value}</dd>`).join('')}</dl>
+    <div class="details-actions"><button type="button" class="btn" data-detail="switch">Switch to tab</button>${save}<button type="button" class="btn danger" data-detail="close">Close</button></div>`;
+}
+
+$('#details')?.addEventListener('click', async event => {
+  const button = event.target.closest('[data-detail]');
+  if (!button) return;
+  const id = state.detailsTab;
+  if (button.dataset.detail === 'switch') return switchTo(id);
+  await oneAtATime(async () => {
+    if (button.dataset.detail === 'save') await saveTabs([id]);
+    if (button.dataset.detail === 'close') await closeWithUndo([id]);
+  });
+});
+
+// The pane follows focus in the list (a click, ↑/↓, a re-render) and never takes it.
+body.addEventListener('focusin', event => {
+  if (!IS_PAGE) return;
+  const row = event.target.closest('.row[data-id]');
+  if (row) state.detailsTab = Number(row.dataset.id);
+  else if (event.target.matches('summary')) state.detailsTab = null;
+  renderDetails();
+});
+
+// Everything open, whatever the sidebar and the search show. Plain text: a live region would speak on every tab event.
+function renderStatusBar() {
+  const parts = [plural(state.tabs.length, 'tab'), plural(state.windows.length, 'window'), plural(state.duplicates, 'duplicate')];
+  if (state.stale) parts.push(`${state.staleShown.size} stale`);
+  parts.push(`${state.tabs.filter(tab => tab.discarded).length} suspended`);
+  const text = parts.join(' · ');
+  if ($('#status-bar').textContent !== text) $('#status-bar').textContent = text;
+}
+
+// appearance.js applies the same classes before the first paint, from this copy.
+function showPanes() {
+  applyPanes(state);
+  try {
+    localStorage.setItem('panes', JSON.stringify({ sideShown: state.sideShown, detailsShown: state.detailsShown }));
+  } catch {
+    // Storage blocked: the panes still show as set, after a moment on the next open.
+  }
+  $('#toggle-side').setAttribute('aria-pressed', String(state.sideShown));
+  $('#toggle-details').setAttribute('aria-pressed', String(state.detailsShown));
+}
+
+async function togglePane(key) {
+  const inDetails = $('#details').contains(document.activeElement);
+  const saved = saveSetting(key, !state[key]);
+  showPanes();
+  if (!state.sideShown && side.contains(document.activeElement)) $('#toggle-side').focus();
+  if (inDetails && !detailsVisible()) focusOutOfDetails();
+  await saved;
+}
+
+// The details pane went away with the focus in it: to the row it described, else its toggle, else the search.
+function focusOutOfDetails() {
+  const row = body.querySelector(`.row[data-id="${state.detailsTab}"] .row-main`);
+  [row, $('#toggle-details'), search].find(el => el?.checkVisibility()).focus();
+}
+
+// A window made narrower than 1000 px hides the pane: by then the focus may already have fallen to the page.
+let focusInDetails = false;
+if (IS_PAGE) {
+  document.addEventListener('focusin', event => {
+    focusInDetails = $('#details').contains(event.target);
+  });
+  matchMedia('(min-width: 1000px)').addEventListener('change', event => {
+    if (event.matches || !focusInDetails) return;
+    if (document.activeElement === document.body || $('#details').contains(document.activeElement)) focusOutOfDetails();
+  });
+}
+
+$('#toggle-side')?.addEventListener('click', () => togglePane('sideShown'));
+$('#toggle-details')?.addEventListener('click', () => togglePane('detailsShown'));
 
 // Identifies a focused control by what it acts on, so focus survives a re-render.
 function focusKey(element) {
@@ -1215,6 +1420,8 @@ sideResize?.addEventListener('dblclick', () => {
 const menu = $('#menu');
 let menuTrigger = null;
 let menuLevels = [];
+// The pointer, for a menu opened by a right click; null under its ⋯ button.
+let menuAt = null;
 
 function moveItems(ids) {
   const from = new Set(state.tabs.filter(tab => ids.includes(tab.id)).map(tab => tab.windowId));
@@ -1373,16 +1580,22 @@ function renderMenu() {
 }
 
 function placeMenu() {
-  const anchor = menuTrigger.getBoundingClientRect();
   const box = menu.getBoundingClientRect();
+  if (menuAt) {
+    menu.style.top = `${menuAt.y + box.height > innerHeight - 8 ? Math.max(8, menuAt.y - box.height) : menuAt.y}px`;
+    menu.style.left = `${Math.max(8, Math.min(menuAt.x, innerWidth - box.width - 8))}px`;
+    return;
+  }
+  const anchor = menuTrigger.getBoundingClientRect();
   let top = anchor.bottom + 4;
   if (top + box.height > innerHeight - 8) top = Math.max(8, anchor.top - box.height - 4);
   menu.style.top = `${top}px`;
   menu.style.left = `${Math.max(8, anchor.right - box.width)}px`;
 }
 
-function openMenu(trigger, items) {
+function openMenu(trigger, items, at = null) {
   menuTrigger = trigger;
+  menuAt = at;
   menuLevels = [items];
   menu.showPopover();
   renderMenu();
@@ -1491,7 +1704,7 @@ body.addEventListener('click', async event => {
   if (pick) {
     // The state decides, and inside a <summary> the click must not also toggle the group.
     event.preventDefault();
-    togglePick(pick);
+    togglePick(pick, { range: event.shiftKey });
     return;
   }
   if (await handleWindowClick(target, event)) return;
@@ -1531,7 +1744,28 @@ body.addEventListener('click', async event => {
     return;
   }
   const row = target.closest('.row');
-  if (row) activateRow(row);
+  if (!row) return;
+  // With the details pane shown a click only focuses the tab, which the pane then describes. Enter (a click
+  // with no pointer, detail 0), a double click or Switch to tab switches.
+  if (row.dataset.id && detailsVisible() && event.detail > 0) row.querySelector('.row-main').focus();
+  else activateRow(row);
+});
+
+body.addEventListener('dblclick', event => {
+  const row = event.target.closest('.row[data-id]');
+  if (!row || !detailsVisible() || event.target.closest('button:not(.row-main), input')) return;
+  switchTo(Number(row.dataset.id));
+});
+
+// A right click on a tab row or on a group, window or tab group header opens its ⋯ menu at the pointer.
+// Anywhere else (the search, empty space) the browser's own menu stays.
+body.addEventListener('contextmenu', event => {
+  const owner = event.target.closest('.row, summary');
+  if (!owner) return;
+  const more = owner.querySelector(owner.matches('summary') ? ':scope > [data-menu]' : '.actions > [data-menu]');
+  if (!more) return;
+  event.preventDefault();
+  openMenu(more, menuFor(more), { x: event.clientX, y: event.clientY });
 });
 
 // A tab row switches to its tab; a saved row opens (or switches to) its page.
@@ -1689,6 +1923,15 @@ const LINKS = [
   ['Send feedback', 'https://github.com/pkasarda/oh-my-tabs/issues'],
 ];
 
+// The full page's own keys, listed under Settings → Shortcuts in the popup and on the page alike.
+const PAGE_KEYS = [
+  [[IS_MAC ? '⌘K' : 'Ctrl+K'], 'Command palette'],
+  [['↑', '↓'], 'Move in the list'],
+  [['←', '→'], 'Collapse / expand a group'],
+  [['Space'], 'Check the tab or group'],
+  [['Enter'], 'Switch to the tab'],
+];
+
 // Native radios drawn as a segmented switch: the arrow keys and the checked state come with them.
 function radios(name, label, options) {
   const items = options.map(([value, text]) => `<label><input type="radio" name="${name}" value="${value}">${text}</label>`).join('');
@@ -1726,7 +1969,8 @@ function settingsHtml() {
         </div>`)}
         ${panel('never', `<div class="card never-card"><label class="never-label" for="s-never"><span>Never stale or suspend</span><span class="hint-text">one site per line; slack.com covers its subdomains</span></label>
           <textarea id="s-never" spellcheck="false" autocomplete="off" placeholder="slack.com"></textarea></div>`)}
-        ${panel('shortcuts', `<div class="card"><div class="shortcuts" id="shortcuts"></div><div class="srow"><span></span><button type="button" class="btn" id="change-shortcuts">Change…</button></div></div>`)}
+        ${panel('shortcuts', `<div class="card"><div class="shortcuts" id="shortcuts"></div><div class="srow"><span></span><button type="button" class="btn" id="change-shortcuts">Change…</button></div></div>
+          <div class="card"><h3 class="card-title">On the full page</h3><div class="shortcuts">${PAGE_KEYS.map(([keys, label]) => `<span>${keys.map(key => `<kbd>${key}</kbd>`).join(' ')}</span><span>${label}</span>`).join('')}</div></div>`)}
         ${panel('about', `<div class="card sp-about"><strong>oh-my-tabs</strong><span class="hint-text">Version ${esc(browser.runtime.getManifest().version)}</span></div><div class="card">${links}</div>`)}
       </div>
     </div>
@@ -1753,19 +1997,25 @@ function chooseSection(id) {
 }
 
 // Reopens on the section used last; closing gives focus back to ⚙ (the dialog does that itself).
-$('#settings-button').addEventListener('click', () => {
+function openSettings() {
   if (!SECTIONS.some(([id]) => id === state.settingsSection)) state.settingsSection = 'general';
   showSection(state.settingsSection);
   settingsWin.showModal();
   $(`#tab-${state.settingsSection}`).focus();
-});
+}
+
+$('#settings-button').addEventListener('click', openSettings);
+
+// A click on the backdrop reaches the dialog itself, outside its box. (closedby="any" is newer than Chrome 123.)
+// A click a label passes on to its control targets the control, so it never counts as outside.
+function clickedOutside(dialog, event) {
+  const box = dialog.getBoundingClientRect();
+  const outside = event.clientX < box.left || event.clientX > box.right || event.clientY < box.top || event.clientY > box.bottom;
+  return event.target === dialog && outside;
+}
 
 settingsWin.addEventListener('click', event => {
-  // A click on the backdrop reaches the dialog itself, outside its box. (closedby="any" is newer than Chrome 123.)
-  // A click a label passes on to its control targets the control, so it never counts as outside.
-  const box = settingsWin.getBoundingClientRect();
-  const outside = event.clientX < box.left || event.clientX > box.right || event.clientY < box.top || event.clientY > box.bottom;
-  if (event.target === settingsWin && outside) {
+  if (clickedOutside(settingsWin, event)) {
     settingsWin.close();
     return;
   }
@@ -1852,6 +2102,12 @@ $('#s-font-custom').addEventListener('input', async event => {
 // the shared copy in localStorage.
 browser.storage.onChanged.addListener((changes, area) => {
   if (area !== 'local') return;
+  // The sidebar and the details pane, shown or hidden on another open page, follow here the same way.
+  const panes = ['sideShown', 'detailsShown'].filter(key => key in changes);
+  if (IS_PAGE && panes.length > 0) {
+    for (const key of panes) state[key] = changes[key].newValue ?? SETTINGS[key];
+    showPanes();
+  }
   const changed = LOOK.filter(key => key in changes);
   if (changed.length === 0) return;
   for (const key of changed) state[key] = changes[key].newValue ?? SETTINGS[key];
@@ -1860,6 +2116,135 @@ browser.storage.onChanged.addListener((changes, area) => {
 });
 // Where a click does not focus the button (Firefox on macOS), the dialog would hand focus back to the search.
 settingsWin.addEventListener('close', () => $('#settings-button').focus());
+
+// ---------- command palette (page only) ----------
+// One field narrows three lists: actions, places (what the sidebar lists) and, once something is typed, open
+// tabs. The focus stays in the field; aria-activedescendant tells a screen reader the current item.
+const palette = $('#palette');
+const paletteField = $('#palette-field');
+let paletteItems = [];
+let paletteIndex = 0;
+
+// Only what can run now; each calls the function the button for it calls.
+function paletteActions() {
+  const tree = state.view === 'groups' || state.view === 'windows';
+  return [
+    { label: 'Close duplicates', when: state.duplicates > 0, run: () => closeDuplicates() },
+    { label: 'Save & close stale tabs', when: state.libraryOn && state.staleShown.size > 0, run: () => saveTabs(staleIds()) },
+    { label: 'Open settings', when: true, run: openSettings },
+    { label: 'Collapse all', when: tree, run: () => setAllOpen(false) },
+    { label: 'Expand all', when: tree, run: () => setAllOpen(true) },
+    { label: 'Reveal last used tab', when: state.tabs.length > 0, run: revealLastUsed },
+    { label: 'Toggle sidebar', when: true, run: () => togglePane('sideShown') },
+    { label: 'Toggle details', when: wide(), run: () => togglePane('detailsShown') },
+  ].filter(action => action.when).map(action => ({ ...action, lead: icon('chevron') }));
+}
+
+// The sections, windows, tab groups and topics in the sidebar's order.
+function palettePlaces() {
+  const place = (view, item, label, lead = icon('chevron')) => ({ label, lead, run: () => selectPage(view, item) });
+  const places = [place('groups', null, 'Groups'), place('windows', null, 'Windows')];
+  for (const windowId of state.windows) {
+    places.push(place('windows', String(windowId), windowName(windowId), windowLabel(windowId)));
+    for (const tabs of tabGroupsIn(tabsIn(windowId))) {
+      const { tabGroup } = tabs[0];
+      places.push(place('windows', `${windowId}:${tabs[0].groupId}`, tabGroup.name, `<span class="tg-dot" style="${tabGroupColor(tabGroup)}"></span>`));
+    }
+  }
+  if (state.libraryOn) {
+    places.push(place('library', null, 'Library'));
+    for (const [key, label] of [['', 'No topic'], ...state.topics.map(topic => [topic.title, topic.title])]) {
+      places.push(place('library', key, label, `<span class="topic-icon">${icon('save')}</span>`));
+    }
+  }
+  if (state.staleShown.size > 0) places.push(place('stale', null, 'Stale'));
+  return places;
+}
+
+// Matches the way the search does: a part of the text, ignoring case and accents.
+function renderPalette() {
+  const query = fold(paletteField.value.trim());
+  const hit = text => fold(text ?? '').includes(query);
+  const tabs = query ? state.tabs.filter(tab => hit(tab.title) || hit(tab.url)) : [];
+  const sections = [
+    ['Actions', paletteActions().filter(item => hit(item.label))],
+    ['Places', palettePlaces().filter(item => hit(item.label))],
+    ['Tabs', tabs.map(tab => ({ label: tab.title || tab.url, sub: shortUrl(tab.url), lead: favicon(tab), run: () => switchTo(tab.id) }))],
+  ].filter(([, items]) => items.length > 0);
+  paletteItems = sections.flatMap(([, items]) => items);
+  paletteIndex = Math.min(paletteIndex, paletteItems.length - 1);
+  let i = 0;
+  const option = item => `<div role="option" class="palette-item" id="palette-${i}" data-i="${i++}" aria-selected="false">${item.lead}<span class="tt">${esc(item.label)}</span>${item.sub ? `<span class="url">${esc(item.sub)}</span>` : ''}</div>`;
+  $('#palette-list').innerHTML = sections
+    .map(([title, items]) => `<div role="group" aria-label="${title}"><div class="palette-head" aria-hidden="true">${title}</div>${items.map(option).join('')}</div>`)
+    .join('') || '<div class="palette-empty">Nothing matches.</div>';
+  showPaletteIndex();
+}
+
+function showPaletteIndex() {
+  for (const option of $('#palette-list').querySelectorAll('[role="option"]')) {
+    option.setAttribute('aria-selected', String(Number(option.dataset.i) === paletteIndex));
+  }
+  const current = paletteIndex >= 0 ? $(`#palette-${paletteIndex}`) : null;
+  if (!current) {
+    paletteField.removeAttribute('aria-activedescendant');
+    return;
+  }
+  paletteField.setAttribute('aria-activedescendant', current.id);
+  current.scrollIntoView({ block: 'nearest' });
+}
+
+// Not over another dialog. Closing gives focus back to where it was (the dialog does that itself).
+function openPalette() {
+  if (document.querySelector('dialog[open]')) return;
+  paletteField.value = '';
+  paletteIndex = 0;
+  renderPalette();
+  palette.showModal();
+}
+
+// Closed first, so an action that moves focus (Reveal) is not undone by the dialog giving it back.
+function runPaletteItem(i) {
+  const item = paletteItems[i];
+  if (!item) return;
+  palette.close();
+  item.run();
+}
+
+if (palette) {
+  $('#palette-key').textContent = IS_MAC ? '⌘K' : 'Ctrl+K';
+  $('#open-palette').setAttribute('aria-keyshortcuts', IS_MAC ? 'Meta+K' : 'Control+K');
+  $('#open-palette').addEventListener('click', openPalette);
+  document.addEventListener('keydown', event => {
+    if (event.key?.toLowerCase() !== 'k' || event.altKey || event.shiftKey) return;
+    if (IS_MAC ? !event.metaKey : !event.ctrlKey) return;
+    event.preventDefault();
+    openPalette();
+  });
+  paletteField.addEventListener('input', () => {
+    paletteIndex = 0;
+    renderPalette();
+  });
+  paletteField.addEventListener('keydown', event => {
+    const steps = { ArrowDown: 1, ArrowUp: -1 };
+    if (event.key in steps && paletteItems.length > 0) {
+      event.preventDefault();
+      paletteIndex = (paletteIndex + steps[event.key] + paletteItems.length) % paletteItems.length;
+      showPaletteIndex();
+    }
+    if (event.key === 'Enter') {
+      event.preventDefault();
+      runPaletteItem(paletteIndex);
+    }
+  });
+  // A press on an item must not take the focus out of the field.
+  $('#palette-list').addEventListener('mousedown', event => event.preventDefault());
+  palette.addEventListener('click', event => {
+    if (clickedOutside(palette, event)) return palette.close();
+    const option = event.target.closest('[role="option"]');
+    if (option) runPaletteItem(Number(option.dataset.i));
+  });
+}
 
 // ---------- header ----------
 for (const button of document.querySelectorAll('[data-view]')) {
@@ -2230,6 +2615,7 @@ async function start() {
   Object.assign(state, await browser.storage.local.get(SETTINGS));
   if (IS_PAGE) {
     setSideWidth(state.sideWidth);
+    showPanes();
     readHash();
   }
   // Before 1.3 developer mode also set the font. On update everyone keeps the font they saw, stored once,

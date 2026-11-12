@@ -45,9 +45,16 @@ button { cursor: pointer; }
 .app { position: relative; width: 780px; height: 580px; display: grid; grid-template-rows: auto auto 1fr; }
 :root.page body { background: var(--bg); }
 :root.page .app { width: 100%; height: 100vh; background: var(--surface); }
-/* The page fills its tab: a sidebar left of the list, which becomes a strip above it on narrow windows.
-   The bulk bar shares the list's cell and floats at its bottom. */
-:root.page .app { grid-template: "head head" auto "side results" auto "side main-head" auto "side body" 1fr / var(--side-w, 240px) minmax(0, 1fr); }
+/* The page fills its tab: a sidebar left of the list, which becomes a strip above it on narrow windows, the
+   details pane right of it, and the status bar at the bottom. The bulk bar shares the list's cell and floats
+   at its bottom. The header's buttons hide the sidebar and show the details pane (appearance.js, popup.js). */
+:root.page .app { grid-template: "head head head" auto "side results details" auto "side main-head details" auto "side body details" 1fr "status status status" auto / var(--side-w, 240px) minmax(0, 1fr) auto; }
+:root.page.side-off :is(.side, .side-resize) { display: none; }
+@media (min-width: 721px) { :root.page.side-off .app { grid-template-columns: 0 minmax(0, 1fr) auto; } }
+:root.page .details { grid-area: details; display: none; }
+@media (min-width: 1000px) { :root.page.details-on .details { display: block; } }
+@media (max-width: 999px) { #toggle-details { display: none; } }
+:root.page .status-bar { grid-area: status; }
 :root.page .head { grid-area: head; }
 :root.page .side { grid-area: side; }
 :root.page .results-bar { grid-area: results; }
@@ -55,10 +62,10 @@ button { cursor: pointer; }
 :root.page .body { grid-area: body; }
 :root.page .bulk-bar { grid-area: body; align-self: end; z-index: 4; }
 /* The sidebar's right edge drags (or takes ←/→) to resize it. */
-:root.page .side-resize { grid-column: 1; grid-row: 2 / -1; justify-self: end; width: 7px; margin-right: -4px; z-index: 5; cursor: col-resize; touch-action: none; outline: none; }
+:root.page .side-resize { grid-column: 1; grid-row: 2 / 5; justify-self: end; width: 7px; margin-right: -4px; z-index: 5; cursor: col-resize; touch-action: none; outline: none; }
 :root.page .side-resize:is(:hover, :focus-visible, .dragging) { background: linear-gradient(to right, transparent 3px, var(--accent) 3px 4px, transparent 4px); }
 @media (max-width: 720px) {
-  :root.page .app { grid-template: "head" auto "side" auto "results" auto "main-head" auto "body" 1fr / minmax(0, 1fr); }
+  :root.page .app { grid-template: "head" auto "side" auto "results" auto "main-head" auto "body" 1fr "status" auto / minmax(0, 1fr); }
   :root.page .side { display: flex; gap: 2px; padding: 6px 8px; border-right: 0; border-bottom: 1px solid var(--border); overflow: auto hidden; }
   :root.page .side button { flex: none; width: auto; max-width: 200px; }
   :root.page .side .side-head { margin: 0 0 0 10px; }
@@ -222,6 +229,7 @@ details.group.stale > summary .g-name { color: light-dark(#b45309, #fbbf24); }
 :root.page .app:has(.bulk-bar:not([hidden])) .undo-bar { bottom: 76px; }
 /* Centred over the list, like the bulk bar: half the 240px sidebar to the right. */
 :root.page .undo-bar { left: calc(50% + var(--side-w, 240px) / 2); }
+:root.page.side-off .undo-bar { left: 50%; }
 @media (max-width: 720px) { :root.page .undo-bar { left: 50%; } }
 
 .board { display: flex; gap: 12px; align-items: stretch; min-height: 100%; padding: 12px; }
@@ -245,10 +253,49 @@ ul.rows.col-body { display: grid; gap: 6px; align-content: start; padding: 0 8px
 
 /* ---------- the page's list: a flat tree, one full-width row per window, group and tab ---------- */
 .main-head { border-bottom: 1px solid var(--border); }
-.main-title { display: flex; gap: 10px; align-items: center; padding: 12px 18px; }
+/* The actions go to a second line when they would squeeze the title. */
+.main-title { display: flex; flex-wrap: wrap; gap: 8px 10px; align-items: center; padding: 12px 18px; }
 .main-title h2 { margin: 0; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 16px; }
 .main-title .sub { flex: none; color: var(--muted); font-size: 12.5px; }
-.tree-top { display: flex; flex-wrap: wrap; gap: 4px 14px; align-items: center; padding: 6px 18px; border-top: 1px solid var(--border); color: var(--muted); font-size: 12px; }
+.tree-top { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; padding: 3px 12px; border-top: 1px solid var(--border); color: var(--muted); font-size: 12px; }
+.tree-top select { margin-left: 4px; font: inherit; padding: 3px 6px; border: 1px solid var(--border); border-radius: 6px; background: var(--surface-2); color: var(--text); cursor: pointer; }
+.tree-top .icon-btn { width: 28px; height: 28px; }
+.tree-top .icon-btn .i { width: 16px; height: 16px; }
+
+/* The header's Commands button names its key. */
+#open-palette { display: inline-flex; gap: 6px; align-items: center; padding-block: 5px; color: var(--muted); }
+#open-palette kbd { color: var(--text); }
+@media (max-width: 720px) { #open-palette .label { display: none; } }
+/* The sidebar and details toggles say when their pane is shown. */
+:is(#toggle-side, #toggle-details)[aria-pressed="true"] { color: var(--accent); }
+
+/* The details pane: the focused tab's favicon, title, address, facts and buttons. */
+.details { width: 320px; overflow: auto; padding: 18px; border-left: 1px solid var(--border); background: var(--surface); }
+.details .fav { --fav: 48px; border-radius: 10px; }
+.details h3 { margin: 10px 0 4px; font-size: 15px; overflow-wrap: anywhere; }
+.details-url { margin: 0; color: var(--muted); font-size: 12px; overflow-wrap: anywhere; }
+.details dl { display: grid; grid-template-columns: auto minmax(0, 1fr); margin: 16px 0; border-top: 1px solid var(--border); font-size: 12.5px; }
+.details :is(dt, dd) { margin: 0; padding: 7px 0; border-bottom: 1px solid var(--border); }
+.details dt { padding-right: 12px; color: var(--muted); }
+.details dd { display: flex; gap: 6px; align-items: center; justify-content: flex-end; min-width: 0; text-align: right; overflow-wrap: anywhere; }
+.details dd .wl-icon { width: 20px; height: 17px; }
+.details-actions { display: grid; gap: 6px; }
+.details-empty { margin: 40px 0; color: var(--muted); text-align: center; }
+
+.status-bar { padding: 5px 16px; border-top: 1px solid var(--border); background: var(--surface-2); color: var(--muted); font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* The command palette: a field over three headed lists. No animation, it is a keyboard tool. */
+dialog.palette { width: min(560px, calc(100vw - 32px)); max-width: none; margin: 14vh auto auto; padding: 0; overflow: hidden; }
+#palette-field { display: block; width: 100%; padding: 13px 16px; border: 0; border-bottom: 1px solid var(--border); background: none; color: var(--text); font: inherit; font-size: 15px; outline: none; }
+.palette-list { max-height: min(380px, 60vh); overflow: auto; padding: 6px; }
+.palette-head { margin: 8px 10px 4px; color: var(--muted); font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; }
+.palette-item { --fav: 18px; display: flex; gap: 10px; align-items: center; min-width: 0; padding: 7px 10px; border-radius: 7px; cursor: pointer; }
+.palette-item[aria-selected="true"] { background: var(--accent-soft); }
+.palette-item > .i { width: 16px; height: 16px; color: var(--muted); }
+.palette-item .tt { flex: none; max-width: 70%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.palette-item .url { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); font-size: 11.5px; }
+.palette-item .wl-icon { width: 20px; height: 17px; }
+.palette-empty { padding: 24px; text-align: center; color: var(--muted); }
 
 :root.page .body { padding: 0 0 16px; }
 :root.page :is(.groups, .windows, .win-body) { display: block; }
@@ -295,8 +342,11 @@ ul.rows.col-body { display: grid; gap: 6px; align-content: start; padding: 0 8px
 :root.page .windows details.win > summary { background-color: var(--surface-2); border-top: 1px solid var(--border); font-weight: 600; }
 :root.page .windows details.win:first-child > summary { border-top: 0; }
 :root.page .windows details.win > summary .mini-stack, :root.page .windows .win-count { display: none; }
-:root.page .win-title { display: flex; gap: 8px; align-items: baseline; min-width: 0; }
-:root.page .win-title .g-name { flex: none; }
+/* The stats never break in the middle: they fit on the name's line, or go whole on a line of their own under
+   it, cut off at the end. Wrapping follows the width the header has, which the sidebar and the details pane change. */
+:root.page .win-title { display: flex; flex: 1; flex-wrap: wrap; column-gap: 8px; align-items: baseline; min-width: 0; }
+:root.page .win-title .g-name { flex: 0 1 auto; min-width: 0; max-width: 100%; }
+:root.page .win-stats { display: block; min-width: 0; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 :root.page .win-body { padding: 0; }
 :root.page .win-new { margin: 12px; }
 
@@ -375,6 +425,7 @@ label.srow { cursor: pointer; }
 .never-card { padding: 14px; }
 .never-label { display: grid; gap: 2px; margin-bottom: 8px; }
 .shortcuts { padding: 12px 14px; margin: 0; }
+.card-title { margin: 0; padding: 12px 14px 0; font-size: 12px; font-weight: 600; color: var(--muted); }
 .sp-about { display: grid; gap: 4px; padding: 18px; text-align: center; }
 a.srow { color: var(--text); text-decoration: none; }
 a.srow:hover { background: var(--surface-2); }

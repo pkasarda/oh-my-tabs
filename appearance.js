@@ -24,3 +24,16 @@ try {
   // Storage blocked or the copy unreadable: wait for popup.js as without a copy.
   document.documentElement.classList.add('look-pending');
 }
+
+// The full page's sidebar and details pane, shown or hidden: also before the first paint, from a copy of the
+// settings popup.js keeps here, so a reload does not flash them. Without a copy the defaults match the CSS.
+function applyPanes({ sideShown = true, detailsShown = false } = {}) {
+  document.documentElement.classList.toggle('side-off', !sideShown);
+  document.documentElement.classList.toggle('details-on', detailsShown);
+}
+
+try {
+  applyPanes(JSON.parse(localStorage.getItem('panes')) ?? {});
+} catch {
+  // Storage blocked or the copy unreadable: popup.js applies the stored settings a moment later.
+}
