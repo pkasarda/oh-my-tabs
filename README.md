@@ -33,7 +33,7 @@ npm run e2e
 npm run package
 ```
 
-This writes `dist/oh-my-tabs-<version>-chrome.zip` and `dist/oh-my-tabs-<version>-firefox.zip`. The store listings, permission justifications and screenshots are in [CHROMEWEBSTORE.md](CHROMEWEBSTORE.md), [AMO.md](AMO.md) and [store/](store/). The privacy policy is [PRIVACY.md](PRIVACY.md).
+This writes `dist/oh-my-tabs-<version>-chrome.zip` and `dist/oh-my-tabs-<version>-firefox.zip`. `npm run screenshots` retakes the store screenshots from the extension itself. The store listings, permission justifications and screenshots are in [CHROMEWEBSTORE.md](CHROMEWEBSTORE.md), [AMO.md](AMO.md) and [store/](store/). The privacy policy is [PRIVACY.md](PRIVACY.md).
 
 ## License
 

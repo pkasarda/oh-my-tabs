@@ -80,21 +80,25 @@ English
 | Asset | Dimensions | Status | Filename |
 |-------|-----------|--------|----------|
 | Store Icon | 128×128 PNG | ✅ Ready ("OMT"; the toolbar shows "omt" at a prompt while developer mode is on) | icons/icon-128.png |
-| Screenshot 1 | 1280×800 | ✅ Ready | store/screenshot-1-groups.png |
-| Screenshot 2 | 1280×800 | ✅ Ready | store/screenshot-2-duplicates.png |
-| Screenshot 3 | 1280×800 | ✅ Ready | store/screenshot-3-windows.png |
-| Screenshot 4 | 1280×800 | ✅ Ready | store/screenshot-4-menu.png |
+| Screenshot 1 | 1280×800 | ✅ Ready (1.4) | store/screenshot-1-full-page.png |
+| Screenshot 2 | 1280×800 | ✅ Ready (1.4) | store/screenshot-2-duplicates.png |
+| Screenshot 3 | 1280×800 | ✅ Ready (1.4) | store/screenshot-3-windows-tab-groups.png |
+| Screenshot 4 | 1280×800 | ✅ Ready (1.4) | store/screenshot-4-command-palette.png |
+| Screenshot 5 | 1280×800 | ✅ Ready (1.4) | store/screenshot-5-reminders.png |
 | Small Promo Tile | 440×280 | ✅ Ready | store/promo-440x280.png |
 | Marquee Promo Tile | 1400×560 | ⬜ Not needed | |
 
 ### Screenshot Notes
 
-The screenshots use made-up tabs, and their icons are letter tiles, so no third-party logos appear.
+`npm run screenshots` writes the five screenshots from the extension itself, so run it after a change to the look and upload the new files with the release. The status above names the version they were taken from.
 
-1. Groups view: groups per repository and project, one group open.
-2. Duplicates: a pull request open as Files, Changes and the PR itself, with the copies under the tab that stays.
-3. Windows view: windows as cards with stats, opened into their groups.
-4. The ⋯ menu on a tab: move to another window, suspend.
+The screenshots use made-up tabs, and their icons are letter tiles, so no third-party logos appear. The full page fills the picture; the popup is shown at its real size on a plain backdrop with a caption.
+
+1. The full page: the sidebar (groups, windows with their tab groups, Library topics), the tree, the details pane on a pull request with two duplicates, and the status bar.
+2. Duplicates in the popup: one pull request open as the PR, Files changed and Commits, with the copies under the tab that stays.
+3. The Windows view on the full page: a window with two of the browser's tab groups, then its groups.
+4. The command palette: one word finds an action, places and tabs.
+5. Reminders in the popup: two due reminders at the top, and `Remind me later` open on a tab.
 
 ## Permissions Justification
 
