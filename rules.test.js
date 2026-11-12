@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { groupName, groupChain, rollUp, duplicateKey, findDuplicates, staleTabs, planSave, isNeverListed, neverEntry } from './rules.js';
+import { groupName, groupChain, rollUp, duplicateKey, findDuplicates, staleTabs, planSave, isNeverListed, neverEntry, reminderTimes, withReminders, withoutReminder } from './rules.js';
 
 const DEV = true;
 const PLAIN = false;
@@ -306,4 +306,124 @@ test('staleTabs skips audible tabs and never-listed sites', () => {
     { id: 3, url: 'https://app.slack.com/', lastAccessed: now - 9 * DAY },
   ];
   assert.deepEqual(staleTabs(tabs, now, 7, ['slack.com']).map(t => t.id), [1]);
+});
+
+// ---------- reminders ----------
+// Local times, so the tests hold in any time zone.
+function local(year, month, day, hour = 0, minute = 0) {
+  return new Date(year, month - 1, day, hour, minute).getTime();
+}
+
+function times(now) {
+  return Object.fromEntries(reminderTimes(now));
+}
+
+test('reminder times: the four presets, in the order the menu shows them', () => {
+  // A Thursday afternoon.
+  const now = local(2026, 11, 12, 14, 30);
+  assert.deepEqual(reminderTimes(now), [
+    ['In 1 hour', local(2026, 11, 12, 15, 30)],
+    ['In 3 hours', local(2026, 11, 12, 17, 30)],
+    ['Tomorrow 9:00', local(2026, 11, 13, 9)],
+    ['Next Monday 9:00', local(2026, 11, 16, 9)],
+  ]);
+});
+
+test('reminder times: Tomorrow 9:00 is the next day even before 9:00 today', () => {
+  assert.equal(times(local(2026, 11, 12, 7))['Tomorrow 9:00'], local(2026, 11, 13, 9));
+});
+
+test('reminder times: Next Monday is the first Monday after today, a week away on a Monday', () => {
+  const monday = local(2026, 11, 23, 9);
+  // Monday the 16th, before and after 9:00: never today.
+  assert.equal(times(local(2026, 11, 16, 8))['Next Monday 9:00'], monday);
+  assert.equal(times(local(2026, 11, 16, 10))['Next Monday 9:00'], monday);
+  // Tuesday to Sunday of that week.
+  for (let day = 17; day <= 22; day++) assert.equal(times(local(2026, 11, day, 12))['Next Monday 9:00'], monday);
+  // On a Sunday it is the same moment as Tomorrow 9:00.
+  assert.equal(times(local(2026, 11, 22, 12))['Tomorrow 9:00'], monday);
+});
+
+test('reminder times: across the end of a month and of a year', () => {
+  assert.equal(times(local(2026, 11, 30, 18))['Tomorrow 9:00'], local(2026, 12, 1, 9));
+  // 31 December 2026 is a Thursday.
+  assert.equal(times(local(2026, 12, 31, 23, 59))['Tomorrow 9:00'], local(2027, 1, 1, 9));
+  assert.equal(times(local(2026, 12, 31, 23, 59))['Next Monday 9:00'], local(2027, 1, 4, 9));
+});
+
+test('reminder times: 9:00 stays 9:00 across a clock change', t => {
+  const zone = process.env.TZ;
+  t.after(() => {
+    if (zone === undefined) delete process.env.TZ;
+    else process.env.TZ = zone;
+  });
+  // Clocks go back on Sunday 25 October 2026 (a 25-hour day) and forward on Sunday 28 March 2027 (23 hours).
+  process.env.TZ = 'Europe/Bratislava';
+  const HOUR = 60 * 60 * 1000;
+  for (const [saturday, hours] of [[local(2026, 10, 24, 20), 14], [local(2027, 3, 27, 20), 12]]) {
+    const tomorrow = times(saturday)['Tomorrow 9:00'];
+    assert.equal(new Date(tomorrow).getHours(), 9);
+    // 13 hours on the clock from 20:00 to 9:00; one more or one fewer really pass.
+    assert.equal(tomorrow - saturday, hours * HOUR);
+    assert.equal(new Date(times(saturday)['Next Monday 9:00']).getHours(), 9);
+    // The hour presets count real hours.
+    assert.equal(times(saturday)['In 3 hours'] - saturday, 3 * HOUR);
+  }
+});
+
+test('withReminders keeps the address, the title and the time, one per page', () => {
+  const pages = [
+    { url: 'https://github.com/acme/client/pull/12', title: 'Fix login' },
+    // The same pull request on another of its pages: the same page in developer mode.
+    { url: 'https://github.com/acme/client/pull/12/files', title: 'Files changed' },
+    { url: 'https://docs.example.org/guide', title: '' },
+    // Not a web page: nothing to come back to by address.
+    { url: 'chrome://extensions/', title: 'Extensions' },
+  ];
+  assert.deepEqual(withReminders([], pages, 500, DEV), [
+    { url: 'https://github.com/acme/client/pull/12', title: 'Fix login', at: 500 },
+    { url: 'https://docs.example.org/guide', title: 'https://docs.example.org/guide', at: 500 },
+  ]);
+  // Without developer mode the two addresses are two pages.
+  assert.equal(withReminders([], pages, 500, PLAIN).length, 3);
+});
+
+test('withReminders replaces the reminder a page already has and leaves the others', () => {
+  const before = [
+    { url: 'https://docs.example.org/guide#intro', title: 'Guide', at: 100 },
+    { url: 'https://docs.example.org/api', title: 'API', at: 200 },
+  ];
+  const after = withReminders(before, [{ url: 'https://docs.example.org/guide', title: 'Guide' }], 900, DEV);
+  assert.deepEqual(after, [
+    { url: 'https://docs.example.org/api', title: 'API', at: 200 },
+    { url: 'https://docs.example.org/guide', title: 'Guide', at: 900 },
+  ]);
+  // The list given is not changed.
+  assert.equal(before.length, 2);
+  assert.equal(before[0].at, 100);
+});
+
+test('withoutReminder drops the reminder of that page, whichever of its addresses is given', () => {
+  const reminders = [
+    { url: 'https://docs.example.org/guide', title: 'Guide', at: 100 },
+    { url: 'https://docs.example.org/api', title: 'API', at: 200 },
+  ];
+  assert.deepEqual(withoutReminder(reminders, 'https://docs.example.org/guide/?utm_source=mail#intro', DEV), [reminders[1]]);
+  assert.deepEqual(withoutReminder(reminders, 'https://docs.example.org/other', DEV), reminders);
+});
+
+test('staleTabs keeps a tab whose page has a scheduled reminder; a due one no longer holds it', () => {
+  const now = 100 * DAY;
+  const old = now - 9 * DAY;
+  const tabs = [
+    { id: 1, url: 'https://a.example/', lastAccessed: old },
+    { id: 2, url: 'https://b.example/page#intro', lastAccessed: old },
+    { id: 3, url: 'https://c.example/', lastAccessed: old },
+  ];
+  const reminders = [
+    { url: 'https://b.example/page', title: 'B', at: now + DAY },
+    { url: 'https://c.example/', title: 'C', at: now - DAY },
+  ];
+  assert.deepEqual(staleTabs(tabs, now, 7, [], reminders, DEV).map(t => t.id), [1, 3]);
+  assert.deepEqual(staleTabs(tabs, now, 7, [], [], DEV).map(t => t.id), [1, 2, 3]);
 });

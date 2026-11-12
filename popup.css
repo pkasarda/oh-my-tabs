@@ -16,6 +16,8 @@
   --accent-soft: light-dark(oklch(94% 0.04 265), oklch(32% 0.07 265));
   --danger: light-dark(oklch(55% 0.2 25), oklch(70% 0.17 25));
   --danger-soft: light-dark(oklch(95% 0.035 25), oklch(31% 0.07 25));
+  /* Stale tabs and due reminders. */
+  --amber: light-dark(#b45309, #fbbf24);
   /* The browser names a tab group's color; these are our own light and dark values for the nine names. */
   --tg-grey: light-dark(#6b7280, #9ca3af); --tg-blue: light-dark(#2563eb, #60a5fa); --tg-red: light-dark(#dc2626, #f87171);
   --tg-yellow: light-dark(#ca8a04, #facc15); --tg-green: light-dark(#16a34a, #4ade80); --tg-pink: light-dark(#db2777, #f472b6);
@@ -185,10 +187,16 @@ ul.rows.singles { padding: 0; }
 .side .side-item.sub { padding-left: 22px; }
 .side .side-item.sub .tg-dot { margin: 0 5px; }
 
-/* ---------- stale tabs and the library ---------- */
-details.group.stale { border-color: color-mix(in oklch, #f59e0b 45%, var(--border)); }
-details.group.stale > summary .g-name { color: light-dark(#b45309, #fbbf24); }
-.stale-icon { flex: none; display: grid; place-items: center; width: 32px; height: 32px; border-radius: 8px; background: light-dark(#fef3c7, #3b2a0b); color: light-dark(#b45309, #fbbf24); }
+/* ---------- stale tabs, reminders and the library ---------- */
+details.group:is(.stale, .reminders) { border-color: color-mix(in oklch, #f59e0b 45%, var(--border)); }
+details.group:is(.stale, .reminders) > summary .g-name { color: var(--amber); }
+/* The due reminders sit above the view's own list, outside its grid. */
+details.group.reminders { margin-bottom: 6px; }
+/* A bell on a tab whose page has a reminder: quiet while scheduled, amber once due, like its row's time. */
+.bell { flex: none; display: grid; color: var(--muted); }
+.bell .i { width: 15px; height: 15px; }
+.bell.due, .row.reminder.due .age, .side button.due .n { color: var(--amber); }
+.stale-icon { flex: none; display: grid; place-items: center; width: 32px; height: 32px; border-radius: 8px; background: light-dark(#fef3c7, #3b2a0b); color: var(--amber); }
 .stale-icon .i { width: 20px; height: 20px; }
 .filters { display: flex; flex-wrap: wrap; gap: 6px; padding: 0 0 8px; }
 .chip { display: inline-flex; gap: 6px; align-items: center; padding: 3px 10px; border: 1px solid var(--border); border-radius: 999px; background: var(--surface-2); color: var(--muted); font-size: 12px; }
@@ -387,7 +395,7 @@ dialog { border: 1px solid var(--border); border-radius: 12px; background: var(-
 dialog::backdrop { background: oklch(0% 0 0 / 0.35); }
 dialog p { margin: 0 0 14px; }
 dialog form { display: flex; gap: 8px; justify-content: flex-end; }
-#topic-dialog form { display: block; }
+:is(#topic-dialog, #remind-dialog) form { display: block; }
 
 /* ---------- settings window: sections on the left, the chosen one on the right ---------- */
 dialog.settings-win { width: 680px; height: 460px; max-width: calc(100vw - 16px); max-height: calc(100vh - 16px); padding: 0; overflow: hidden; }

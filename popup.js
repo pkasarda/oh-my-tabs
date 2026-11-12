@@ -1,4 +1,7 @@
-import { groupChain, rollUp, findDuplicates, isWeb, duplicateKey, staleTabs, isNeverListed, neverEntry } from './rules.js';
+import {
+  groupChain, rollUp, findDuplicates, isWeb, duplicateKey, staleTabs, isNeverListed, neverEntry,
+  reminderTimes, withReminders, withoutReminder,
+} from './rules.js';
 import * as Library from './library.js';
 
 globalThis.browser ??= chrome;
@@ -7,7 +10,7 @@ globalThis.browser ??= chrome;
 const SETTINGS = {
   dev: true, sort: 'recent', view: 'groups', stale: true, staleDays: 7, never: [], sideWidth: 240,
   font: null, fontCustom: '', textSize: 'default', theme: 'auto', badge: 'all', button: 'popup', settingsSection: 'general',
-  tabGroupHint: true, sideShown: true, detailsShown: false,
+  tabGroupHint: true, sideShown: true, detailsShown: false, notifyHint: true,
 };
 const DAY = 24 * 60 * 60 * 1000;
 const IS_PAGE = location.pathname.endsWith('/page.html');
@@ -19,6 +22,8 @@ const IS_MAC = /Mac/.test(navigator.platform);
 const CONFIRM_ABOVE = 10;
 // Tab groups (the browser's own) show while this optional permission is granted, like the Library.
 const TAB_GROUPS = { permissions: ['tabGroups'] };
+// Notify me is on while this one is granted.
+const NOTIFY = { permissions: ['notifications'] };
 
 const state = {
   ...SETTINGS,
@@ -29,6 +34,8 @@ const state = {
   libraryOn: false, saved: [], topics: [], savedKeys: new Set(), topic: 'All',
   // Tab groups by id, and the ids seen so far: a tab group starts collapsed or open as the browser has it.
   tabGroupsOn: false, tabGroups: new Map(), seenTabGroups: new Set(),
+  // Reminders as stored, [{ url, title, at }], and whether a due one also shows a system notification.
+  reminders: [], notifyOn: false,
   // Page only: the sidebar's choice within the view (a group name, a window id, a topic or '' for no topic),
   // the checked tab ids for the bulk bar, and the stale tab ids of the last render.
   pageItem: null, checked: new Set(), staleShown: new Set(),
@@ -67,6 +74,8 @@ const ICONS = {
   unfold: '<path d="m7 15 5 5 5-5"/><path d="m7 9 5-5 5 5"/>',
   locate: '<path d="M2 12h3M19 12h3M12 2v3M12 19v3"/><circle cx="12" cy="12" r="7"/>',
   newWindow: '<rect width="18" height="16" x="3" y="4" rx="2"/><path d="M3 9h18"/><path d="M12 12v5M9.5 14.5h5"/>',
+  bell: '<path d="M10.268 21a2 2 0 0 0 3.464 0"/><path d="M3.262 15.326A1 1 0 0 0 4 17h16a1 1 0 0 0 .74-1.673C19.41 13.956 18 12.499 18 8A6 6 0 0 0 6 8c0 4.499-1.411 5.956-2.738 7.326"/>',
+  check: '<path d="M20 6 9 17l-5-5"/>',
 };
 
 function icon(name) {
@@ -87,11 +96,13 @@ function fold(text) {
 let loadToken = 0;
 async function load() {
   const token = ++loadToken;
-  const [windows, current] = await Promise.all([
+  const [windows, current, stored] = await Promise.all([
     browser.windows.getAll({ populate: true, windowTypes: ['normal'] }),
     browser.windows.getCurrent(),
+    browser.storage.local.get({ reminders: [] }),
   ]);
   if (token !== loadToken) return false;
+  state.reminders = stored.reminders;
   windows.sort((a, b) => a.id - b.id);
   state.windows = windows.map(w => w.id);
   state.windowInfo = new Map(windows.map(w => [w.id, { state: w.state, width: w.width, height: w.height }]));
@@ -125,9 +136,12 @@ function groupsFor(items) {
 
 function analyze() {
   const groups = groupsFor(state.tabs);
+  // A reminder is for a page: every open tab of that page carries it.
+  const reminders = new Map(state.reminders.map(reminder => [duplicateKey(reminder.url, state.dev), reminder]));
   for (const tab of state.tabs) {
     tab.group = groups.get(tab);
     tab.tabGroup = state.tabGroups.get(tab.groupId) ?? null;
+    tab.reminder = reminders.get(duplicateKey(tab.url, state.dev)) ?? null;
     tab.set = null;
     tab.isDup = false;
   }
@@ -169,8 +183,23 @@ function savedMatches(item) {
   return [item.title, item.url, item.group, item.topic].some(text => fold(text ?? '').includes(query));
 }
 
+// The stale tabs among these: a tab whose page has a scheduled reminder is not one (rules.js).
+function staleOf(tabs) {
+  return staleTabs(tabs, Date.now(), state.staleDays, state.never, state.reminders, state.dev);
+}
+
 function staleIds() {
-  return staleTabs(state.tabs, Date.now(), state.staleDays, state.never).map(tab => tab.id);
+  return staleOf(state.tabs).map(tab => tab.id);
+}
+
+function isDue(reminder) {
+  return reminder.at <= Date.now();
+}
+
+function reminderMatches(reminder) {
+  if (!state.query) return true;
+  const query = fold(state.query);
+  return [reminder.title, reminder.url].some(text => fold(text ?? '').includes(query));
 }
 
 // On the page the sidebar narrows the list to one group or window, or to the stale tabs.
@@ -425,6 +454,21 @@ function tabGroupChip(tab) {
   return `<span class="tg-chip" style="${tabGroupColor(tab.tabGroup)}"><span class="tg-dot"></span><span class="tg-name">${esc(tab.tabGroup.name)}</span></span>`;
 }
 
+// "Mon 16 Nov, 9:00". The UI is English, whatever language the browser speaks.
+const WHEN = new Intl.DateTimeFormat('en-GB', { weekday: 'short', day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' });
+
+function whenText(reminder) {
+  return isDue(reminder) ? `due ${ago(reminder.at)}` : WHEN.format(reminder.at);
+}
+
+// A tab whose page has a reminder carries a bell: quiet while it is scheduled, amber once it is due.
+function bell(tab) {
+  if (!tab.reminder) return '';
+  const due = isDue(tab.reminder);
+  const label = `Reminder${due ? '' : ':'} ${whenText(tab.reminder)}`;
+  return `<span class="bell${due ? ' due' : ''}" role="img" data-tip="${esc(label)}" aria-label="${esc(label)}">${icon('bell')}</span>`;
+}
+
 function rowHtml(tab, nested = false, list = []) {
   const age = Date.now() - tab.lastAccessed > DAY ? `<span class="age">used ${ago(tab.lastAccessed)}</span>` : '';
   return `<li class="row${nested ? ' nested' : ''}${tab.discarded ? ' suspended' : ''}" data-id="${tab.id}">
@@ -434,6 +478,7 @@ function rowHtml(tab, nested = false, list = []) {
       <span class="t"><span class="title">${esc(tab.title || tab.url)}</span><span class="url">${esc(shortUrl(tab.url))}</span></span>
     </button>
     ${tabGroupChip(tab)}
+    ${bell(tab)}
     ${age}
     ${nested ? '' : copiesButton(tab, list)}
     ${windowLabel(tab.windowId, { interactive: true })}
@@ -507,7 +552,7 @@ function renderGroups(list) {
 // Open, unpinned tabs not used for a while, oldest first, in a group of their own (collapsed by default).
 function staleGroupHtml() {
   if (!state.stale) return '';
-  const stale = staleTabs(state.tabs, Date.now(), state.staleDays, state.never).sort((a, b) => a.lastAccessed - b.lastAccessed);
+  const stale = staleOf(state.tabs).sort((a, b) => a.lastAccessed - b.lastAccessed);
   if (stale.length === 0) return '';
   const open = state.openGroups.has('stale');
   const save = state.libraryOn ? `<button type="button" class="icon-btn" data-save-stale data-tip="Save & close all" aria-label="Save & close all stale tabs">${icon('save')}</button>` : '';
@@ -523,6 +568,56 @@ function staleGroupHtml() {
     </summary>
     <ul class="rows">${stale.map(tab => rowHtml(tab)).join('')}</ul>
   </details>`;
+}
+
+// A reminder's row. The page may be closed by now, so the row is made from what the reminder keeps; Open
+// switches to its tab or opens the page again.
+function reminderRowHtml(reminder) {
+  const url = esc(reminder.url);
+  const tab = state.tabs.find(open => open.reminder === reminder);
+  const button = (attr, name, label) => `<button type="button" class="icon-btn" ${attr}="${url}" data-tip="${label}" aria-label="${label}">${icon(name)}</button>`;
+  return `<li class="row reminder${isDue(reminder) ? ' due' : ''}" data-reminder="${url}">
+    <button type="button" class="row-main" data-open-reminder="${url}">
+      ${favicon(tab ?? reminder)}
+      <span class="t"><span class="title">${esc(reminder.title)}</span><span class="url">${esc(shortUrl(reminder.url))}</span></span>
+    </button>
+    <span class="age">${whenText(reminder)}</span>
+    <span class="actions">
+      ${button('data-open-reminder', 'open', 'Open')}
+      ${button('data-done-reminder', 'check', 'Done')}
+      <button type="button" class="icon-btn" data-menu="reminder" data-url="${url}" aria-haspopup="menu" aria-expanded="false" data-tip="Remind again" aria-label="Remind again">${icon('bell')}</button>
+    </span>
+  </li>`;
+}
+
+function byTime(a, b) {
+  return a.at - b.at;
+}
+
+// The popup lists the due reminders in a group of their own above everything else, the way stale tabs are,
+// but open from the start: they are what the amber badge counts.
+function remindersGroupHtml() {
+  const due = state.reminders.filter(isDue).sort(byTime);
+  if (due.length === 0) return '';
+  return `<details class="group reminders" data-key="reminders" ${state.openGroups.has('reminders') ? 'open' : ''}>
+    <summary>
+      <span class="chev">${icon('chevron')}</span>
+      <span class="stale-icon">${icon('bell')}</span>
+      <span class="g-name">Reminders</span>
+      <span class="g-meta">${due.length}</span>
+    </summary>
+    <ul class="rows">${due.map(reminderRowHtml).join('')}</ul>
+  </details>`;
+}
+
+// Page only: every reminder, the due ones first, then the scheduled ones, each by its time.
+function renderReminders(list) {
+  if (list.length === 0) return '<div class="empty">No reminders match.</div>';
+  const section = (title, reminders) => {
+    if (reminders.length === 0) return '';
+    return `<div class="singles-head">${title} · ${reminders.length}</div><ul class="rows">${reminders.sort(byTime).map(reminderRowHtml).join('')}</ul>`;
+  };
+  return `<div class="groups flat">${section('Due', list.filter(isDue))}${section('Scheduled', list.filter(reminder => !isDue(reminder)))}</div>`;
 }
 
 // Library view: saved tabs by topic chip and by the usual groups, newest first.
@@ -594,7 +689,7 @@ function renderBoard(list) {
 
 // Page only: the stale tabs as plain rows, oldest first; the header above names them and holds their actions.
 function renderStale(list) {
-  const stale = staleTabs(list, Date.now(), state.staleDays, state.never).sort((a, b) => a.lastAccessed - b.lastAccessed);
+  const stale = staleOf(list).sort((a, b) => a.lastAccessed - b.lastAccessed);
   if (stale.length === 0) return '<div class="empty">No stale tabs match.</div>';
   return `<div class="groups flat"><ul class="rows">${stale.map(tab => rowHtml(tab)).join('')}</ul></div>`;
 }
@@ -691,8 +786,14 @@ function leaveView() {
   else state.view = 'groups';
 }
 
-// While tab groups are off and some tab is in one (a tab's groupId needs no permission).
+// One row above the list offers what is off and would help now.
+// Notify me: once the first reminder is set, until the offer is taken or dismissed.
+// Tab groups: while they are off and some tab is in one (a tab's groupId needs no permission).
 function hintHtml() {
+  if (!state.notifyOn && state.notifyHint && state.reminders.length > 0) {
+    return `<span>Get a notification when a reminder is due?</span><button type="button" class="btn" id="notify-on">Notify me</button>
+      <button type="button" class="icon-btn" id="notify-hint-close" data-tip="Dismiss" aria-label="Dismiss">${icon('close')}</button>`;
+  }
   if (state.tabGroupsOn || !state.tabGroupHint || !state.tabs.some(tab => tab.groupId > -1)) return '';
   return `<span>You use tab groups. Show them here?</span><button type="button" class="btn" id="tab-groups-on">Turn on</button>
     <button type="button" class="icon-btn" id="tab-groups-hint-close" data-tip="Dismiss" aria-label="Dismiss">${icon('close')}</button>`;
@@ -703,6 +804,8 @@ let bodyHtml = '';
 function render() {
   if (state.view === 'library' && !state.libraryOn) leaveView();
   if (state.view === 'stale' && !state.stale) leaveView();
+  // The last reminder was opened or marked done: its sidebar entry is gone too.
+  if (state.view === 'reminders' && state.reminders.length === 0) leaveView();
   if (IS_PAGE) {
     state.staleShown = new Set(state.stale ? staleIds() : []);
     // The last stale tab was closed or used: its sidebar entry is gone too.
@@ -710,9 +813,18 @@ function render() {
     if (!pageItemExists()) setPage(state.view, pageItemFallback());
   }
   const inLibrary = state.view === 'library';
-  const list = inLibrary ? state.saved.filter(savedMatches) : state.tabs.filter(matches);
+  const inReminders = state.view === 'reminders';
+  let list = state.tabs.filter(matches);
+  search.placeholder = 'Search tabs, URLs, groups…';
+  if (inLibrary) {
+    list = state.saved.filter(savedMatches);
+    search.placeholder = 'Search saved tabs…';
+  }
+  if (inReminders) {
+    list = state.reminders.filter(reminderMatches);
+    search.placeholder = 'Search reminders…';
+  }
   if (!IS_PAGE) $('[data-view="library"]').hidden = !state.libraryOn;
-  search.placeholder = inLibrary ? 'Search saved tabs…' : 'Search tabs, URLs, groups…';
 
   // Always there, so the view switch beside it never moves; duplicates are about open tabs, the Library has none.
   const closeDups = $('#close-dups');
@@ -724,11 +836,12 @@ function render() {
   closeDups.disabled = inLibrary || state.duplicates === 0;
 
   const none = list.length ? '' : 'disabled';
-  const actions = inLibrary
-    ? `<button type="button" class="btn" id="open-results" ${none}>Open results (${list.length})</button>`
-    : `${state.libraryOn ? `<button type="button" class="btn" id="save-results" ${none}>Save &amp; close results (${list.length})</button>` : ''}
+  let actions = `${state.libraryOn ? `<button type="button" class="btn" id="save-results" ${none}>Save &amp; close results (${list.length})</button>` : ''}
       <button type="button" class="btn" id="move-results" ${none}>Move results (${list.length}) to new window</button>
       <button type="button" class="btn danger" id="close-results" ${none}>Close results (${list.length})</button>`;
+  if (inLibrary) actions = `<button type="button" class="btn" id="open-results" ${none}>Open results (${list.length})</button>`;
+  // Reminders are acted on one by one, on their rows.
+  if (inReminders) actions = '';
   const results = state.query ? `<span role="status">${plural(list.length, 'result')}</span>${actions}` : hintHtml();
   // render() runs on every tab event: rewrite only on a change, so a focused button stays.
   if (results !== resultsHtml) {
@@ -741,16 +854,19 @@ function render() {
   }
   const scroll = body.scrollTop;
   const focused = focusKey(document.activeElement);
-  const views = { groups: renderGroups, windows: renderWindows, library: IS_PAGE ? renderBoard : renderLibrary, stale: renderStale };
+  const views = { groups: renderGroups, windows: renderWindows, library: IS_PAGE ? renderBoard : renderLibrary, stale: renderStale, reminders: renderReminders };
+  let html = views[state.view](list);
+  // The page has a Reminders section of its own in the sidebar.
+  if (!IS_PAGE && !state.query) html = remindersGroupHtml() + html;
   // Only on a change: a rewrite between a press and its release would swallow the click.
-  const html = views[state.view](list);
   if (html !== bodyHtml) {
     bodyHtml = html;
     body.innerHTML = html;
   }
   // In the Windows view a tab row can be dragged onto another window; on the page every row can be dragged,
   // onto a window or a topic in the sidebar, and a saved card onto another topic.
-  for (const row of body.querySelectorAll(IS_PAGE ? '.row' : '.windows .row')) row.draggable = true;
+  // A reminder's row stays put: its page may not even be open.
+  for (const row of body.querySelectorAll(IS_PAGE ? '.row:not(.reminder)' : '.windows .row')) row.draggable = true;
   for (const box of body.querySelectorAll('.pick.partial')) box.indeterminate = true;
   body.scrollTop = scroll;
   if (focused) [...body.querySelectorAll('button, summary, input')].find(el => focusKey(el) === focused)?.focus({ preventScroll: true });
@@ -768,6 +884,7 @@ function render() {
 function mainTitle() {
   const item = state.pageItem;
   if (state.view === 'stale') return `Not used for ${state.staleDays}+ days`;
+  if (state.view === 'reminders') return 'Reminders';
   if (state.view === 'library') return item === null ? 'Library' : item || 'No topic';
   if (state.view === 'windows') {
     if (item === null) return 'Windows';
@@ -781,15 +898,20 @@ function mainTitle() {
 let mainHeadHtml = '';
 function renderMainHead(list) {
   const inLibrary = state.view === 'library';
+  const inReminders = state.view === 'reminders';
   const none = list.length ? '' : ' disabled';
   let actions = '';
+  let what = 'tab';
+  if (inLibrary) what = 'saved tab';
+  if (inReminders) what = 'reminder';
   if (inLibrary && state.pageItem !== null) actions = `<button type="button" class="btn" data-head="open"${none}>Open all</button>`;
-  if (!inLibrary) {
+  // Reminders have no action for all of them: each is opened, marked done or set again on its row.
+  if (!inLibrary && !inReminders) {
     const save = state.libraryOn ? `<button type="button" class="btn" data-head="save"${none}>Save &amp; close all</button>` : '';
     const more = state.view === 'stale' ? moreButton('stale', '', 'More stale tab actions') : '';
     actions = `${save}<button type="button" class="btn danger" data-head="close"${none}>Close all</button>${more}`;
   }
-  const html = `<div class="main-title"><h2>${esc(mainTitle())}</h2><span class="sub">${plural(list.length, inLibrary ? 'saved tab' : 'tab')}</span><span class="g-spacer"></span>${actions}</div>${toolbarHtml()}`;
+  const html = `<div class="main-title"><h2>${esc(mainTitle())}</h2><span class="sub">${plural(list.length, what)}</span><span class="g-spacer"></span>${actions}</div>${toolbarHtml()}`;
   // render() runs on every tab event: rewrite only on a change, and keep focus on the same button.
   if (html === mainHeadHtml) return;
   mainHeadHtml = html;
@@ -799,9 +921,9 @@ function renderMainHead(list) {
   if (focused) head.querySelector(focused === 'more' ? '[data-menu]' : `[data-head="${focused}"]`)?.focus({ preventScroll: true });
 }
 
-// Stale tabs are a flat list, oldest first: nothing there to collapse or sort.
+// Stale tabs are a flat list, oldest first: nothing there to collapse or sort. Reminders are no tree at all.
 function toolbarHtml() {
-  if (state.view === 'library') return '';
+  if (state.view === 'library' || state.view === 'reminders') return '';
   const button = (head, name, label) => `<button type="button" class="icon-btn" data-head="${head}" data-tip="${label}" aria-label="${label}">${icon(name)}</button>`;
   const reveal = button('reveal', 'locate', 'Reveal last used tab');
   if (state.view === 'stale') return `<div class="tree-top" role="group" aria-label="Tree">${reveal}</div>`;
@@ -835,7 +957,7 @@ $('#main-head')?.addEventListener('click', async event => {
 });
 
 // ---------- the page: sidebar, hash and bulk bar ----------
-const PAGE_VIEWS = ['groups', 'windows', 'library', 'stale'];
+const PAGE_VIEWS = ['groups', 'windows', 'library', 'stale', 'reminders'];
 
 // The page's selection lives in the hash, so a reload keeps it: #groups, #windows/12, #library/Read%20later.
 // "No topic" is the empty item: #library/. A tab group is window:tab group, #windows/12%3A3, as its id does not
@@ -925,6 +1047,12 @@ function renderSidebar() {
         { lead: topicIcon, drop: ` data-drop-topic="${esc(key)}"` })),
     );
   }
+  // Due and scheduled ones together; the count turns amber while some are due.
+  if (state.reminders.length > 0) {
+    const due = state.reminders.filter(isDue).length;
+    parts.push(sideButton('reminders', null, 'Reminders', state.reminders.length,
+      { tip: `${due} due · ${state.reminders.length - due} scheduled`, cls: due > 0 ? 'due' : '' }));
+  }
   if (state.staleShown.size > 0) {
     parts.push(sideButton('stale', null, 'Stale', state.staleShown.size, { tip: `Not used for ${state.staleDays}+ days` }));
   }
@@ -941,7 +1069,7 @@ function checkedShown() {
 
 function renderBulkBar() {
   const count = checkedShown().length;
-  $('#bulk-bar').hidden = count === 0 || state.view === 'library';
+  $('#bulk-bar').hidden = count === 0 || state.view === 'library' || state.view === 'reminders';
   // Only on a change: the count is a live region, and render() runs on every tab event.
   const text = `${count} selected`;
   if ($('#bulk-count').textContent !== text) $('#bulk-count').textContent = text;
@@ -1001,6 +1129,13 @@ async function bulkAction(button) {
   if (action === 'move') {
     const items = moveItems(ids).map(item => item === '-' ? item : { ...item, run: async () => { await item.run(); clearPicks(ids); } });
     return openMenu(button, items);
+  }
+  if (action === 'remind') {
+    const pages = webTabs(ids);
+    return openMenu(button, remindItems(async at => {
+      await remind(pages, at);
+      clearPicks(ids);
+    }));
   }
   await oneAtATime(async () => {
     let done = false;
@@ -1092,6 +1227,9 @@ function detailsOf(tab) {
   }
   const others = tab.set ? tab.set.size - 1 : 0;
   fields.push(['Group', esc(tab.group)], ['Last used', ago(tab.lastAccessed)], ['Duplicates', others ? String(others) : 'None']);
+  let reminder = 'None';
+  if (tab.reminder) reminder = isDue(tab.reminder) ? `Due ${ago(tab.reminder.at)}` : WHEN.format(tab.reminder.at);
+  fields.push(['Reminder', reminder]);
   if (state.libraryOn) {
     const key = duplicateKey(tab.url, state.dev);
     const item = isSaved(tab) ? state.saved.find(saved => duplicateKey(saved.url, state.dev) === key) : null;
@@ -1187,7 +1325,7 @@ let refreshPending = false;
 function refresh() {
   clearTimeout(refreshTimer);
   refreshTimer = setTimeout(async () => {
-    if ($('#menu').matches(':popover-open') || $('#confirm').open || $('#topic-dialog').open) {
+    if ($('#menu').matches(':popover-open') || $('#confirm').open || $('#topic-dialog').open || $('#remind-dialog').open) {
       refreshPending = true;
       return;
     }
@@ -1372,6 +1510,74 @@ function savedById(id) {
   return state.saved.find(item => item.id === id);
 }
 
+// ---------- reminders ----------
+// A reminder is for a page, so only web tabs take one: a browser page has no address to come back to.
+function webTabs(ids) {
+  return state.tabs.filter(tab => ids.includes(tab.id) && isWeb(tab.url));
+}
+
+// Read from storage first: another open popup or page, or the background (Open), may have changed them.
+async function changeReminders(change) {
+  const { reminders } = await browser.storage.local.get({ reminders: [] });
+  state.reminders = change(reminders);
+  await browser.storage.local.set({ reminders: state.reminders });
+  analyze();
+  render();
+}
+
+// pages: tabs, or reminders set again; each has an address and a title. A page that has a reminder gets
+// the new time.
+async function remind(pages, at) {
+  if (pages.length === 0) return;
+  await changeReminders(reminders => withReminders(reminders, pages, at, state.dev));
+  showBar(`Reminder set for ${WHEN.format(at)}`, false);
+}
+
+// The row goes with its reminder; focus that was on it goes to the search box instead of the page.
+async function doneReminder(url) {
+  await changeReminders(reminders => withoutReminder(reminders, url, state.dev));
+  if (document.activeElement === document.body) search.focus();
+}
+
+// The background switches to the page's tab or opens the page again, and a due reminder is done with that.
+// It does so for a click on the notification too, when no popup or page is open.
+async function openReminder(url) {
+  await browser.runtime.sendMessage({ type: 'open-reminder', url }).catch(() => {});
+  if (!IS_PAGE) window.close();
+}
+
+// One definition for popup.html and page.html, like the settings window.
+document.body.insertAdjacentHTML('beforeend', `<dialog id="remind-dialog" aria-labelledby="remind-label">
+  <form method="dialog">
+    <label id="remind-label" class="topic-field"><span>Remind me at</span> <input id="remind-time" type="datetime-local" required></label>
+    <div class="dialog-actions">
+      <button class="btn" value="cancel" formnovalidate>Cancel</button>
+      <button class="btn" value="ok">Set reminder</button>
+    </div>
+  </form>
+</dialog>`);
+
+// Custom…: the browser's own date and time field. Returns the time, or null when cancelled.
+async function askTime() {
+  const dialog = $('#remind-dialog');
+  const input = $('#remind-time');
+  // The field speaks local time without a zone, to the minute: "2026-11-13T09:00".
+  const fieldValue = time => {
+    const date = new Date(time);
+    date.setMinutes(date.getMinutes() - date.getTimezoneOffset());
+    return date.toISOString().slice(0, 16);
+  };
+  const now = Date.now();
+  // From the next minute on: this one has already begun.
+  input.min = fieldValue(now + 60 * 1000);
+  input.value = fieldValue(Object.fromEntries(reminderTimes(now))['Tomorrow 9:00']);
+  dialog.returnValue = '';
+  dialog.showModal();
+  await new Promise(resolve => dialog.addEventListener('close', resolve, { once: true }));
+  const at = new Date(input.value).getTime();
+  return dialog.returnValue === 'ok' && at > Date.now() ? at : null;
+}
+
 async function saveSetting(key, value) {
   state[key] = value;
   await browser.storage.local.set({ [key]: value });
@@ -1477,6 +1683,21 @@ function saveItems(ids, what) {
   ];
 }
 
+// The times of Remind me later (and of Remind again); run gets the time picked.
+// Counted from the click, not from when the menu opened: "In 1 hour" is an hour from the choice.
+function remindItems(run) {
+  return [
+    ...reminderTimes(Date.now()).map(([label], i) => ({ icon: 'bell', label, run: () => run(reminderTimes(Date.now())[i][1]) })),
+    '-',
+    { icon: 'clock', label: 'Custom…', run: async () => { const at = await askTime(); if (at) await run(at); } },
+  ];
+}
+
+function remindItem(ids) {
+  const pages = webTabs(ids);
+  return { icon: 'bell', label: 'Remind me later', disabled: pages.length === 0, items: remindItems(at => remind(pages, at)) };
+}
+
 function staleMenu() {
   // The stale tabs the list shows, so the page's search narrows these like the header buttons.
   const stale = new Set(staleIds());
@@ -1519,6 +1740,10 @@ function rowMenu(tab) {
   const others = (inTabGroup ? tabGroupTabIds(tab.groupId) : groupTabIds(tab.group, windowId)).filter(id => id !== tab.id);
   return tidy([
     ...saveItems([tab.id], ''),
+    remindItem([tab.id]),
+    // A scheduled reminder has no row of its own in the popup: this is where it is taken back.
+    tab.reminder ? { icon: 'close', label: 'Remove reminder', run: () => doneReminder(tab.reminder.url) } : null,
+    '-',
     { icon: 'move', label: 'Move to window', items: moveItems([tab.id]) },
     '-',
     tab.active
@@ -1534,6 +1759,7 @@ function groupMenu(name, windowId) {
   const ids = groupTabIds(name, windowId);
   return [
     ...saveItems(ids, ' group'),
+    remindItem(ids),
     { icon: 'move', label: 'Move group to', items: moveItems(ids) },
     suspendItem('Suspend group', ids),
     '-',
@@ -1609,6 +1835,11 @@ function menuFor(trigger) {
   if (kind === 'tab-group') return tabGroupMenu(Number(trigger.dataset.tabGroup));
   if (kind === 'group') return groupMenu(trigger.dataset.group, trigger.dataset.w ? Number(trigger.dataset.w) : null);
   if (kind === 'stale') return staleMenu();
+  if (kind === 'reminder') {
+    // Remind again: the same page, a new time.
+    const reminder = state.reminders.find(item => item.url === trigger.dataset.url);
+    return remindItems(at => remind([reminder], at));
+  }
   if (kind === 'saved') return savedMenu(savedById(trigger.dataset.id));
   if (kind === 'saved-group') return savedGroupMenu(trigger.dataset.group);
   return windowMenu(Number(trigger.dataset.w));
@@ -1667,6 +1898,7 @@ menu.addEventListener('toggle', event => {
 });
 $('#confirm').addEventListener('close', refreshIfPending);
 $('#topic-dialog').addEventListener('close', refreshIfPending);
+$('#remind-dialog').addEventListener('close', refreshIfPending);
 
 // ---------- list events ----------
 // Window actions in the Windows view, and the window glyph that leads there.
@@ -1735,6 +1967,17 @@ body.addEventListener('click', async event => {
     return;
   }
   if (await handleLibraryClick(target, event)) return;
+  // Open and Done on a reminder's row; Remind again is a menu, opened above.
+  const openDue = target.closest('[data-open-reminder]');
+  if (openDue) {
+    await openReminder(openDue.dataset.openReminder);
+    return;
+  }
+  const done = target.closest('[data-done-reminder]');
+  if (done) {
+    await doneReminder(done.dataset.doneReminder);
+    return;
+  }
   const copies = target.closest('[data-copies]');
   if (copies) {
     const id = Number(copies.dataset.copies);
@@ -1775,9 +2018,10 @@ body.addEventListener('contextmenu', event => {
   }
 });
 
-// A tab row switches to its tab; a saved row opens (or switches to) its page.
+// A tab row switches to its tab; a saved row and a reminder's row open (or switch to) their page.
 function activateRow(row) {
   if (row.dataset.saved) openSaved(savedById(row.dataset.saved), { active: true });
+  else if (row.dataset.reminder) openReminder(row.dataset.reminder);
   else switchTo(Number(row.dataset.id));
 }
 
@@ -1895,6 +2139,17 @@ function highlightSelection() {
 }
 
 $('#results-bar').addEventListener('click', async event => {
+  if (event.target.closest('#notify-on')) {
+    await turnOnNotify();
+    search.focus();
+    return;
+  }
+  if (event.target.closest('#notify-hint-close')) {
+    await saveSetting('notifyHint', false);
+    render();
+    search.focus();
+    return;
+  }
   if (event.target.closest('#tab-groups-on')) {
     await turnOnTabGroups();
     search.focus();
@@ -1973,6 +2228,9 @@ function settingsHtml() {
         <div class="card">
           <label class="srow"><span>Stale tabs</span><input type="checkbox" class="switch" id="s-stale"></label>
           <div class="srow"><label for="s-stale-days">Not used for</label><span><select id="s-stale-days"><option value="3">3</option><option value="7">7</option><option value="14">14</option><option value="30">30</option></select> days</span></div>
+        </div>
+        <div class="card">
+          <label class="srow"><span class="lbl"><span>Notify me</span><span class="hint-text" id="s-notify-hint">A system notification when a reminder is due. Asks to display notifications.</span></span><input type="checkbox" class="switch" id="s-notify" aria-describedby="s-notify-hint"></label>
         </div>`)}
         ${panel('never', `<div class="card never-card"><label class="never-label" for="s-never"><span>Never stale or suspend</span><span class="hint-text">one site per line; slack.com covers its subdomains</span></label>
           <textarea id="s-never" spellcheck="false" autocomplete="off" placeholder="slack.com"></textarea></div>`)}
@@ -2109,6 +2367,8 @@ $('#s-font-custom').addEventListener('input', async event => {
 // the shared copy in localStorage.
 browser.storage.onChanged.addListener((changes, area) => {
   if (area !== 'local') return;
+  // Reminders set or done elsewhere: another open popup or page, or Open, which the background does.
+  if (changes.reminders) refresh();
   // The sidebar and the details pane, shown or hidden on another open page, follow here the same way.
   const panes = ['sideShown', 'detailsShown'].filter(key => key in changes);
   if (IS_PAGE && panes.length > 0) {
@@ -2164,6 +2424,7 @@ function palettePlaces() {
       places.push(place('library', key, label, `<span class="topic-icon">${icon('save')}</span>`));
     }
   }
+  if (state.reminders.length > 0) places.push(place('reminders', null, 'Reminders'));
   if (state.staleShown.size > 0) places.push(place('stale', null, 'Stale'));
   return places;
 }
@@ -2287,11 +2548,34 @@ $('#s-library').addEventListener('change', async event => {
 browser.permissions.onAdded?.addListener(change => {
   if (change.permissions?.includes('bookmarks')) setLibrary(true);
   if (change.permissions?.includes('tabGroups')) setTabGroups(true);
+  if (change.permissions?.includes('notifications')) setNotify(true);
 });
 browser.permissions.onRemoved?.addListener(change => {
   if (change.permissions?.includes('bookmarks')) setLibrary(false);
   if (change.permissions?.includes('tabGroups')) setTabGroups(false);
+  if (change.permissions?.includes('notifications')) setNotify(false);
 });
+
+// Notify me, like the Library, is on exactly while its permission is granted; the request comes straight from
+// the click (the switch, or Notify me in the offer above the list). Asked once, the offer does not come back;
+// the switch stays in the settings.
+async function turnOnNotify() {
+  const granted = await browser.permissions.request(NOTIFY).catch(() => false);
+  await saveSetting('notifyHint', false);
+  setNotify(granted);
+}
+
+$('#s-notify').addEventListener('change', async event => {
+  if (event.target.checked) return turnOnNotify();
+  await browser.permissions.remove(NOTIFY).catch(() => {});
+  setNotify(false);
+});
+
+function setNotify(on) {
+  state.notifyOn = on;
+  $('#s-notify').checked = on;
+  render();
+}
 
 // Tab groups, like the Library, are on exactly while their permission is granted; the request comes straight
 // from the click (the switch or the hint's Turn on).
@@ -2613,6 +2897,17 @@ browser.tabs.onUpdated.addListener((tabId, changeInfo) => {
 });
 browser.windows.onCreated.addListener(refresh);
 browser.windows.onRemoved.addListener(refresh);
+// The background says when a reminder comes due, at the moment it turns the badge amber.
+browser.runtime.onMessage.addListener(message => {
+  if (message.type === 'reminders-due') refresh();
+});
+// A click on a notification for several reminders sends the open page to its Reminders section.
+if (IS_PAGE) {
+  addEventListener('hashchange', () => {
+    readHash();
+    render();
+  });
+}
 
 async function start() {
   for (const element of document.querySelectorAll('[data-icon]')) element.innerHTML = icon(element.dataset.icon);
@@ -2637,12 +2932,15 @@ async function start() {
   state.tabGroupsOn = await browser.permissions.contains(TAB_GROUPS).catch(() => false);
   $('#s-tab-groups').checked = state.tabGroupsOn;
   if (state.tabGroupsOn) listenToTabGroups();
+  state.notifyOn = await browser.permissions.contains(NOTIFY).catch(() => false);
+  $('#s-notify').checked = state.notifyOn;
 
   browser.runtime.sendMessage({ type: 'refresh-badge' }).catch(() => {});
   await load();
   const active = state.tabs.find(tab => tab.windowId === state.currentWindow && tab.active);
   if (active) state.openGroups.add(active.group);
   state.openGroups.add(`w:${state.currentWindow}`);
+  state.openGroups.add('reminders');
   render();
   search.focus();
   renderShortcuts();
