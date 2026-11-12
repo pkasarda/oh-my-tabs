@@ -454,6 +454,19 @@ test('a right click opens the ⋯ menu in the popup too', async t => {
   assert.ok((await rightClickMenu(page, row.locator('.title'))).some(item => item.startsWith('Move to window')));
 });
 
+// Firefox closes an open popover when the right button is released, so the menu must not open before that.
+test('a right click opens the menu when the button is released, not while it is held', async t => {
+  const app = await start(t);
+  const page = await app.openPopup();
+  const box = await page.locator('#body details.group > summary .g-name').first().boundingBox();
+  await page.mouse.move(box.x + 5, box.y + 5);
+  await page.mouse.down({ button: 'right' });
+  // The contextmenu event came with the button still down (macOS, Linux) or will come with the release (Windows).
+  assert.equal(await page.locator('#menu').evaluate(menu => menu.matches(':popover-open')), false);
+  await page.mouse.up({ button: 'right' });
+  await eventually(async () => assert.equal(await page.locator('#menu').evaluate(menu => menu.matches(':popover-open')), true));
+});
+
 test('Shift+click checks every shown row between it and the checkbox clicked last', async t => {
   const app = await start(t);
   const page = await app.openPage();

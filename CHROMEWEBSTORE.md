@@ -2,7 +2,7 @@
 
 > Last Updated: 2026-11-12
 
-Upload `dist/oh-my-tabs-1.3.0-chrome.zip`, built by `npm run package`.
+Upload `dist/oh-my-tabs-1.3.1-chrome.zip`, built by `npm run package`.
 
 **Listing**: https://chromewebstore.google.com/detail/oh-my-tabs/dfjcphmoeaknnkihfpeojfggfniipaek
 
@@ -150,7 +150,8 @@ https://github.com/pkasarda/oh-my-tabs/blob/main/PRIVACY.md (live once PR #1 is 
 
 | Version | Date | Changes | Status |
 |---------|------|---------|--------|
-| 1.3.0 | 2026-11-12 | Settings window with sections; font, text size and theme; toolbar badge and button options; the browser's tab groups shown (optional); on the full page a command palette, details pane, tree toolbar, status bar, a sidebar that hides, right click and Shift+click. New optional permission: tabGroups. No new install-time warning. | Ready to submit |
+| 1.3.1 | 2026-11-12 | The right-click menu stays open in Firefox on macOS and Linux (it closed when the button was released). Ships 1.3.0 too. | Ready to submit |
+| 1.3.0 | 2026-11-12 | Settings window with sections; font, text size and theme; toolbar badge and button options; the browser's tab groups shown (optional); on the full page a command palette, details pane, tree toolbar, status bar, a sidebar that hides, right click and Shift+click. New optional permission: tabGroups. No new install-time warning. | Not submitted, shipped in 1.3.1 |
 | 1.2.1 | 2026-11-04 | The settings panel scrolls inside the popup; lists keep their width when a scrollbar appears. Ships 1.1 and 1.2 too. | Ready to submit |
 | 1.2.0 | 2026-11-04 | Full page in its own tab: sidebar (groups, windows, topics, stale), one tree with checkboxes and a bulk bar, Library board, drag onto windows and topics, resizable sidebar. Ships 1.1 too. No new permissions. | Not submitted, shipped in 1.2.1 |
 | 1.1.0 | 2026-11-04 | Library (optional, saved tabs as bookmarks with topics), stale-tabs group, "used … ago" in rows, zZz on suspended tabs, Move group to a new window icon. New optional permission: bookmarks. | Not submitted, shipped in 1.2.1 |

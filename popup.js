@@ -1765,7 +1765,14 @@ body.addEventListener('contextmenu', event => {
   const more = owner.querySelector(owner.matches('summary') ? ':scope > [data-menu]' : '.actions > [data-menu]');
   if (!more) return;
   event.preventDefault();
-  openMenu(more, menuFor(more), { x: event.clientX, y: event.clientY });
+  const open = () => openMenu(more, menuFor(more), { x: event.clientX, y: event.clientY });
+  // On macOS and Linux the event comes while the button is still down, and Firefox closes an open popover
+  // when that button is released. So the menu opens after the release.
+  if (event.buttons === 0) {
+    open();
+  } else {
+    document.addEventListener('pointerup', () => setTimeout(open), { once: true });
+  }
 });
 
 // A tab row switches to its tab; a saved row opens (or switches to) its page.
