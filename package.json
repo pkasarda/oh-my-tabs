@@ -5,8 +5,12 @@
   "scripts": {
     "test": "node --test",
     "firefox": "node scripts/firefox.js",
-    "package": "node scripts/package.js"
+    "package": "node scripts/package.js",
+    "e2e": "node --test 'e2e/*.e2e.js'"
   },
   "version": "1.2.1",
-  "license": "MIT"
+  "license": "MIT",
+  "devDependencies": {
+    "playwright": "^1.65.0"
+  }
 }
