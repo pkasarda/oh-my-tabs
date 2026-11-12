@@ -363,16 +363,17 @@ A tab group is the browser's own group in the tab strip, with the name and color
 
 - **Optional.** `Tab groups` in Settings → Features asks for the optional `tabGroups` permission (Chrome: "View and manage your tab groups"; Firefox does not prompt). The feature is on exactly while the permission is granted, like the Library. Off, nothing differs from 1.2.
 - **Hint.** While it is off and some open tab is in a tab group (the tab's `groupId` needs no permission), one row above the list says `You use tab groups. Show them here?` with `Turn on` and a dismiss that is remembered.
-- **Windows view** (popup and full page): window → tab group → its tabs, in tab strip order, with no groups inside. Duplicates nest under their keeper as elsewhere. Tabs outside a tab group stay as they were: window → group → tab. In a window, tab groups come first, in tab strip order, then the groups.
+- **Windows view** (popup and full page): window → tab group → its tabs, in tab strip order, with no groups inside. A tab group always shows all of its own tabs. A copy nests under its keeper only when both are in the same list (the same tab group, or the same group outside tab groups); a copy whose keeper is in another list keeps the plain `copy` mark, and its tooltip says where the keeper is (`Copy of a tab in this window, outside this tab group`, `Copy of a tab in the tab group Login fix`, `Copy of a tab in window 2`). A keeper's `+N copies` counts only the copies nested under it. Tabs outside a tab group stay as they were: window → group → tab. In a window, tab groups come first, in tab strip order, then the groups.
 - **Header of a tab group**: a stripe in its color, its name, its tab count and a ⋯ menu with `Close`, `Save & close` (Library on), `Move to new window` and `Suspend`. One without a name is named like a window, from what it holds (`acme/client & 2 more`). On the full page its checkbox checks its tabs.
 - **Collapsed.** A tab group that is collapsed in the browser starts collapsed in oh-my-tabs. Opening or closing it in oh-my-tabs does not change the browser.
 - **Groups view**: a tab that is in a tab group carries a dot in the tab group's color and its name. There is no extra level.
 - **Sidebar** (full page): a window's tab groups are items under that window; choosing one shows only its tabs. A tab group that no longer exists falls back to its window.
-- **Search** also matches the tab group's name.
+- **Search** also matches the tab group's name, when the user gave it one (not the name made up for an unnamed one).
 - **Library**: `Save & close` on a tab group offers a topic with the tab group's name, creating it if needed. The topic can be changed before saving.
 - **Kept intact**:
   - Moving a whole tab group to another or a new window moves it as a tab group, with its name and color.
-  - Undo after closing a whole tab group brings it back as a tab group with its name and color.
+  - Moving a tab group while a search or the sidebar shows only some of its tabs moves just those tabs, like any tabs.
+  - Undo after any close (a tab, a group, a tab group, a window, a bulk close) puts each tab back into the tab group it was in: the same one if it still exists, otherwise a new one per original tab group, with its name and color.
   - Moving a single tab to another window takes it out of its tab group, as the browser itself does.
 - **Colors**: the browser gives a color name (grey, blue, red, yellow, green, pink, purple, cyan, orange), not a value. oh-my-tabs maps each to its own light and dark token.
 - **Not visible**: tab groups the browser has saved and closed. Extensions cannot read them.

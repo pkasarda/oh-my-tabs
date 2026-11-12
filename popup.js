@@ -7,6 +7,7 @@ globalThis.browser ??= chrome;
 const SETTINGS = {
   dev: true, sort: 'recent', view: 'groups', stale: true, staleDays: 7, never: [], sideWidth: 240,
   font: null, fontCustom: '', textSize: 'default', theme: 'auto', badge: 'all', button: 'popup', settingsSection: 'general',
+  tabGroupHint: true,
 };
 const DAY = 24 * 60 * 60 * 1000;
 const IS_PAGE = location.pathname.endsWith('/page.html');
@@ -15,6 +16,8 @@ const MOVED = new URLSearchParams(location.search).has('page');
 if (MOVED) location.replace(`page.html${location.hash}`);
 const IS_FIREFOX = typeof browser.runtime.getBrowserInfo === 'function';
 const CONFIRM_ABOVE = 10;
+// Tab groups (the browser's own) show while this optional permission is granted, like the Library.
+const TAB_GROUPS = { permissions: ['tabGroups'] };
 
 const state = {
   ...SETTINGS,
@@ -23,6 +26,8 @@ const state = {
   openGroups: new Set(), openKeepers: new Set(),
   // Library: on while the bookmarks permission is granted; saved tabs and topics come from library.js.
   libraryOn: false, saved: [], topics: [], savedKeys: new Set(), topic: 'All',
+  // Tab groups by id, and the ids seen so far: a tab group starts collapsed or open as the browser has it.
+  tabGroupsOn: false, tabGroups: new Map(), seenTabGroups: new Set(),
   // Page only: the sidebar's choice within the view (a group name, a window id, a topic or '' for no topic),
   // the checked tab ids for the bulk bar, and the stale tab ids of the last render.
   pageItem: null, checked: new Set(), staleShown: new Set(),
@@ -85,6 +90,16 @@ async function load() {
   state.currentWindow = current.id;
   state.tabs = windows.flatMap(w => w.tabs).filter(tab => tab.id !== state.ownTabId);
   for (const tab of state.tabs) tab.url ||= tab.pendingUrl ?? '';
+  if (state.tabGroupsOn && browser.tabGroups) {
+    const tabGroups = await browser.tabGroups.query({}).catch(() => []);
+    if (token !== loadToken) return false;
+    state.tabGroups = new Map(tabGroups.map(tabGroup => [tabGroup.id, tabGroup]));
+    for (const tabGroup of tabGroups) {
+      if (state.seenTabGroups.has(tabGroup.id)) continue;
+      state.seenTabGroups.add(tabGroup.id);
+      if (!tabGroup.collapsed) state.openGroups.add(`tg:${tabGroup.id}`);
+    }
+  } else state.tabGroups = new Map();
   if (state.libraryOn) {
     const library = await Library.load().catch(() => ({ items: [], topics: [] }));
     if (token !== loadToken) return false;
@@ -104,6 +119,7 @@ function analyze() {
   const groups = groupsFor(state.tabs);
   for (const tab of state.tabs) {
     tab.group = groups.get(tab);
+    tab.tabGroup = state.tabGroups.get(tab.groupId) ?? null;
     tab.set = null;
     tab.isDup = false;
   }
@@ -119,6 +135,10 @@ function analyze() {
   }
   // Computed once here: every row's window label needs its window's name.
   state.windowNames = new Map(state.windows.map(windowId => [windowId, nameFor(windowId)]));
+  // One without a name is named like a window, from what it holds.
+  for (const tabGroup of state.tabGroups.values()) {
+    tabGroup.name = tabGroup.title || nameOf(state.tabs.filter(tab => tab.groupId === tabGroup.id));
+  }
   const savedGroups = groupsFor(state.saved);
   for (const item of state.saved) item.group = savedGroups.get(item);
   state.savedKeys = new Set(state.saved.map(item => duplicateKey(item.url, state.dev)).filter(Boolean));
@@ -151,7 +171,11 @@ function inPageSelection(tab) {
   if (state.view === 'stale') return state.staleShown.has(tab.id);
   if (state.pageItem === null) return true;
   if (state.view === 'groups') return tab.group === state.pageItem;
-  if (state.view === 'windows') return String(tab.windowId) === state.pageItem;
+  if (state.view === 'windows') {
+    const [windowId, tabGroupId] = state.pageItem.split(':');
+    if (tabGroupId !== undefined) return Boolean(tab.tabGroup) && String(tab.groupId) === tabGroupId;
+    return String(tab.windowId) === windowId;
+  }
   return true;
 }
 
@@ -160,7 +184,8 @@ function matches(tab) {
   if (!inPageSelection(tab)) return false;
   if (!state.query) return true;
   const query = fold(state.query);
-  return fold(tab.title ?? '').includes(query) || fold(tab.url).includes(query) || fold(tab.group).includes(query);
+  // Only a name the user gave: an unnamed tab group's made-up name ("… & 2 more") would match "more".
+  return [tab.title, tab.url, tab.group, tab.tabGroup?.title].some(text => fold(text ?? '').includes(query));
 }
 
 function sortTabs(list) {
@@ -181,12 +206,16 @@ function tabsIn(windowId) {
   return state.tabs.filter(tab => tab.windowId === windowId);
 }
 
-// The window's biggest group plus how many others it holds.
-function nameFor(windowId) {
-  const groups = groupsOf(tabsIn(windowId));
+// The biggest group plus how many others there are: names a window, or a tab group without a name.
+function nameOf(tabs) {
+  const groups = groupsOf(tabs);
   if (groups.length === 0) return 'Empty window';
   const rest = groups.length - 1;
   return rest > 0 ? `${groups[0][0]} & ${rest} more` : groups[0][0];
+}
+
+function nameFor(windowId) {
+  return nameOf(tabsIn(windowId));
 }
 
 function windowName(windowId) {
@@ -306,13 +335,22 @@ function moreButton(kind, attrs, label) {
   return `<button type="button" class="icon-btn" data-menu="${kind}" ${attrs} aria-haspopup="menu" aria-expanded="false" data-tip="${label}" aria-label="${label}">${icon('more')}</button>`;
 }
 
+// Where a copy's keeper is, said from the copy's own place: another window, its tab group or none.
+function keeperPlace(copy) {
+  const keeper = copy.set.keeper;
+  if (keeper.windowId !== copy.windowId) return `in window ${state.windows.indexOf(keeper.windowId) + 1}`;
+  if (keeper.tabGroup && keeper.groupId === copy.groupId) return 'in this tab group';
+  if (keeper.tabGroup) return `in the tab group ${keeper.tabGroup.name}`;
+  if (copy.tabGroup) return 'in this window, outside this tab group';
+  return 'in this window';
+}
+
 // list: the rows rendered together, where the copies would nest.
 function copiesButton(tab, list) {
   if (!tab.set) return '';
   // A copy shown on its own row: its keeper is not in this list (another window in the Windows view).
   if (tab.isDup) {
-    const n = state.windows.indexOf(tab.set.keeper.windowId) + 1;
-    return `<span class="copy-pill" data-tip="Copy of a tab in window ${n}">copy</span>`;
+    return `<span class="copy-pill" data-tip="Copy of a tab ${esc(keeperPlace(tab))}">copy</span>`;
   }
   const copies = list.filter(t => t.isDup && t.set.keeper === tab).length;
   if (copies === 0) return '';
@@ -354,15 +392,29 @@ function pickBox(tab) {
 }
 
 function groupPickBox(name, windowId = null) {
-  if (!IS_PAGE) return '';
-  const ids = groupTabIds(name, windowId);
-  const picked = ids.filter(id => state.checked.has(id)).length;
   const w = windowId === null ? '' : ` data-w="${windowId}"`;
+  return pickAllBox(groupTabIds(name, windowId), `data-pick-group="${esc(name)}"${w}`, name);
+}
+
+function pickAllBox(ids, attrs, name) {
+  if (!IS_PAGE) return '';
+  const picked = ids.filter(id => state.checked.has(id)).length;
   const checked = picked > 0 && picked === ids.length ? ' checked' : '';
   // render() turns the partial class into the indeterminate state, which has no HTML attribute.
   // A class, not a data-* attribute: focusKey reads the dataset, and focus must survive the change.
   const partial = picked > 0 && picked < ids.length ? ' partial' : '';
-  return `<input type="checkbox" class="pick${partial}" data-pick-group="${esc(name)}"${w} aria-label="Select all tabs in ${esc(name)}"${checked}>`;
+  return `<input type="checkbox" class="pick${partial}" ${attrs} aria-label="Select all tabs in ${esc(name)}"${checked}>`;
+}
+
+// The browser gives a color name; popup.css maps each to a light and a dark value.
+function tabGroupColor(tabGroup) {
+  return `--c: var(--tg-${esc(tabGroup.color)})`;
+}
+
+// Outside the Windows view a tab in a tab group says which one, with its color.
+function tabGroupChip(tab) {
+  if (!tab.tabGroup || state.view === 'windows') return '';
+  return `<span class="tg-chip" style="${tabGroupColor(tab.tabGroup)}"><span class="tg-dot"></span><span class="tg-name">${esc(tab.tabGroup.name)}</span></span>`;
 }
 
 function rowHtml(tab, nested = false, list = []) {
@@ -373,6 +425,7 @@ function rowHtml(tab, nested = false, list = []) {
       ${rowFavicon(tab)}
       <span class="t"><span class="title">${esc(tab.title || tab.url)}</span><span class="url">${esc(shortUrl(tab.url))}</span></span>
     </button>
+    ${tabGroupChip(tab)}
     ${age}
     ${nested ? '' : copiesButton(tab, list)}
     ${windowLabel(tab.windowId, { interactive: true })}
@@ -561,13 +614,43 @@ function windowGroupHtml(windowId, name, members) {
   </details>`;
 }
 
+// A tab group in the Windows view: its tabs in tab strip order, with no groups inside.
+function tabGroupHtml(tabGroup, members) {
+  const key = `tg:${tabGroup.id}`;
+  const open = state.query || state.openGroups.has(key);
+  const ids = members.map(tab => tab.id);
+  return `<details class="group tg" data-key="${key}" style="${tabGroupColor(tabGroup)}" ${open ? 'open' : ''}>
+    <summary draggable="true" data-drag-tab-group="${tabGroup.id}">
+      <span class="chev">${icon('chevron')}</span>
+      ${pickAllBox(ids, `data-pick-tab-group="${tabGroup.id}"`, tabGroup.name)}
+      <span class="tg-stripe"></span>
+      <span class="g-name">${esc(tabGroup.name)}</span>
+      <span class="g-meta">${members.length}</span>
+      <span class="g-spacer"></span>
+      ${moreButton('tab-group', `data-tab-group="${tabGroup.id}"`, 'More tab group actions')}
+    </summary>
+    <ul class="rows">${groupRows(members)}</ul>
+  </details>`;
+}
+
+// In tab strip order: by the position of each tab group's first tab.
+function tabGroupsIn(members) {
+  const byId = new Map();
+  for (const tab of members.filter(tab => tab.tabGroup).sort((a, b) => a.index - b.index)) {
+    if (!byId.has(tab.groupId)) byId.set(tab.groupId, []);
+    byId.get(tab.groupId).push(tab);
+  }
+  return [...byId.values()];
+}
+
 function renderWindows(list) {
   const cards = state.windows.map(windowId => {
     const members = list.filter(tab => tab.windowId === windowId);
     if (members.length === 0) return '';
     const n = state.windows.indexOf(windowId) + 1;
     const groups = groupsOf(members);
-    const { multi, singles } = splitSingles(groups);
+    const tabGroups = tabGroupsIn(members);
+    const { multi, singles } = splitSingles(groupsOf(members.filter(tab => !tab.tabGroup)));
     const current = windowId === state.currentWindow;
     const minimized = state.windowInfo.get(windowId).state === 'minimized';
     const key = `w:${windowId}`;
@@ -584,6 +667,7 @@ function renderWindows(list) {
         <span class="win-count">${current ? 'This window' : `Window ${n}`}</span>
       </summary>
       <div class="win-body">
+        ${tabGroups.map(tabs => tabGroupHtml(tabs[0].tabGroup, tabs)).join('')}
         ${multi.map(([name, groupTabs]) => windowGroupHtml(windowId, name, groupTabs)).join('')}
         ${singlesHtml(sortTabs(singles), tab => rowHtml(tab, false, singles))}
       </div>
@@ -599,6 +683,15 @@ function leaveView() {
   else state.view = 'groups';
 }
 
+// While tab groups are off and some tab is in one (a tab's groupId needs no permission).
+function hintHtml() {
+  if (state.tabGroupsOn || !state.tabGroupHint || !state.tabs.some(tab => tab.groupId > -1)) return '';
+  return `<span>You use tab groups. Show them here?</span><button type="button" class="btn" id="tab-groups-on">Turn on</button>
+    <button type="button" class="icon-btn" id="tab-groups-hint-close" data-tip="Dismiss" aria-label="Dismiss">${icon('close')}</button>`;
+}
+
+let resultsHtml = '';
+let bodyHtml = '';
 function render() {
   if (state.view === 'library' && !state.libraryOn) leaveView();
   if (state.view === 'stale' && !state.stale) leaveView();
@@ -606,7 +699,7 @@ function render() {
     state.staleShown = new Set(state.stale ? staleIds() : []);
     // The last stale tab was closed or used: its sidebar entry is gone too.
     if (state.view === 'stale' && state.staleShown.size === 0) leaveView();
-    if (!pageItemExists()) setPage(state.view, null);
+    if (!pageItemExists()) setPage(state.view, pageItemFallback());
   }
   const inLibrary = state.view === 'library';
   const list = inLibrary ? state.saved.filter(savedMatches) : state.tabs.filter(matches);
@@ -628,7 +721,12 @@ function render() {
     : `${state.libraryOn ? `<button type="button" class="btn" id="save-results" ${none}>Save &amp; close results (${list.length})</button>` : ''}
       <button type="button" class="btn" id="move-results" ${none}>Move results (${list.length}) to new window</button>
       <button type="button" class="btn danger" id="close-results" ${none}>Close results (${list.length})</button>`;
-  $('#results-bar').innerHTML = state.query ? `<span role="status">${plural(list.length, 'result')}</span>${actions}` : '';
+  const results = state.query ? `<span role="status">${plural(list.length, 'result')}</span>${actions}` : hintHtml();
+  // render() runs on every tab event: rewrite only on a change, so a focused button stays.
+  if (results !== resultsHtml) {
+    resultsHtml = results;
+    $('#results-bar').innerHTML = results;
+  }
 
   for (const button of document.querySelectorAll('[data-view]')) {
     button.setAttribute('aria-pressed', String(button.dataset.view === state.view));
@@ -636,7 +734,12 @@ function render() {
   const scroll = body.scrollTop;
   const focused = focusKey(document.activeElement);
   const views = { groups: renderGroups, windows: renderWindows, library: IS_PAGE ? renderBoard : renderLibrary, stale: renderStale };
-  body.innerHTML = views[state.view](list);
+  // Only on a change: a rewrite between a press and its release would swallow the click.
+  const html = views[state.view](list);
+  if (html !== bodyHtml) {
+    bodyHtml = html;
+    body.innerHTML = html;
+  }
   // In the Windows view a tab row can be dragged onto another window; on the page every row can be dragged,
   // onto a window or a topic in the sidebar, and a saved card onto another topic.
   for (const row of body.querySelectorAll(IS_PAGE ? '.row' : '.windows .row')) row.draggable = true;
@@ -656,7 +759,12 @@ function mainTitle() {
   const item = state.pageItem;
   if (state.view === 'stale') return `Not used for ${state.staleDays}+ days`;
   if (state.view === 'library') return item === null ? 'Library' : item || 'No topic';
-  if (state.view === 'windows') return item === null ? 'Windows' : windowName(Number(item));
+  if (state.view === 'windows') {
+    if (item === null) return 'Windows';
+    const [windowId, tabGroupId] = item.split(':');
+    if (tabGroupId !== undefined) return state.tabGroups.get(Number(tabGroupId))?.name ?? '';
+    return windowName(Number(windowId));
+  }
   return item ?? 'Groups';
 }
 
@@ -700,12 +808,17 @@ $('#main-head')?.addEventListener('click', async event => {
 const PAGE_VIEWS = ['groups', 'windows', 'library', 'stale'];
 
 // The page's selection lives in the hash, so a reload keeps it: #groups, #windows/12, #library/Read%20later.
-// "No topic" is the empty item: #library/.
+// "No topic" is the empty item: #library/. A tab group is window:tab group, #windows/12%3A3, as its id does not
+// survive a browser restart: once it is gone the page falls back to its window.
 function setPage(view, item) {
   state.view = view;
   state.pageItem = item;
   if (item !== null && view === 'groups') state.openGroups.add(item);
-  if (item !== null && view === 'windows') state.openGroups.add(`w:${item}`);
+  if (item !== null && view === 'windows') {
+    const [windowId, tabGroupId] = item.split(':');
+    state.openGroups.add(`w:${windowId}`);
+    if (tabGroupId !== undefined) state.openGroups.add(`tg:${tabGroupId}`);
+  }
   const hash = item === null ? view : `${view}/${encodeURIComponent(item)}`;
   history.replaceState(null, '', `#${hash}`);
 }
@@ -733,15 +846,27 @@ function pageItemExists() {
   const item = state.pageItem;
   if (item === null) return true;
   if (state.view === 'groups') return state.tabs.some(tab => tab.group === item);
-  if (state.view === 'windows') return state.windows.some(windowId => String(windowId) === item);
+  if (state.view === 'windows') {
+    const [windowId, tabGroupId] = item.split(':');
+    if (tabGroupId !== undefined) return state.tabs.some(tab => tab.tabGroup && `${tab.windowId}:${tab.groupId}` === item);
+    return state.windows.some(id => String(id) === windowId);
+  }
   if (state.view === 'library') return item === '' || state.topics.some(topic => topic.title === item);
   return false;
 }
 
+// A tab group that is gone falls back to its window, when that is still open; anything else to the whole view.
+function pageItemFallback() {
+  if (state.view !== 'windows' || state.pageItem === null) return null;
+  const [windowId, tabGroupId] = state.pageItem.split(':');
+  if (tabGroupId === undefined || !state.windows.some(id => String(id) === windowId)) return null;
+  return windowId;
+}
+
 // item null is the section heading, which shows the whole view. drop: the attribute that makes it a drop target.
-function sideButton(view, item, label, count, { lead = '', drop = '', tip = '' } = {}) {
+function sideButton(view, item, label, count, { lead = '', drop = '', tip = '', cls: extra = '' } = {}) {
   const current = state.view === view && state.pageItem === item;
-  const cls = item === null ? 'side-head' : 'side-item';
+  const cls = `${item === null ? 'side-head' : 'side-item'}${extra ? ` ${extra}` : ''}`;
   const data = item === null ? '' : ` data-item="${esc(item)}"`;
   const tipAttr = tip ? ` data-tip="${esc(tip)}"` : '';
   return `<button type="button" class="${cls}" data-section="${view}"${data}${drop}${tipAttr} aria-current="${current}">${lead}<span class="nm">${esc(label)}</span><span class="n">${count}</span></button>`;
@@ -754,8 +879,12 @@ function renderSidebar() {
     sideButton('groups', null, 'Groups', groups.length),
     ...groups.map(([name, members]) => sideButton('groups', name, name, members.length, { lead: favicon(members[0]) })),
     sideButton('windows', null, 'Windows', state.windows.length),
-    ...state.windows.map(windowId => sideButton('windows', String(windowId), windowName(windowId), tabsIn(windowId).length,
-      { lead: windowLabel(windowId), drop: ` data-drop-w="${windowId}"` })),
+    ...state.windows.flatMap(windowId => [
+      sideButton('windows', String(windowId), windowName(windowId), tabsIn(windowId).length,
+        { lead: windowLabel(windowId), drop: ` data-drop-w="${windowId}"` }),
+      ...tabGroupsIn(tabsIn(windowId)).map(tabs => sideButton('windows', `${windowId}:${tabs[0].groupId}`, tabs[0].tabGroup.name, tabs.length,
+        { lead: `<span class="tg-dot" style="${tabGroupColor(tabs[0].tabGroup)}"></span>`, cls: 'sub' })),
+    ]),
   ];
   if (state.libraryOn) {
     const topicIcon = `<span class="topic-icon">${icon('save')}</span>`;
@@ -792,6 +921,7 @@ function renderBulkBar() {
 function togglePick(box) {
   let ids = [Number(box.dataset.pick)];
   if (box.dataset.pickGroup !== undefined) ids = groupTabIds(box.dataset.pickGroup, box.dataset.w ? Number(box.dataset.w) : null);
+  if (box.dataset.pickTabGroup !== undefined) ids = tabGroupTabIds(Number(box.dataset.pickTabGroup));
   const all = ids.every(id => state.checked.has(id));
   for (const id of ids) {
     if (all) state.checked.delete(id);
@@ -884,11 +1014,38 @@ async function moveTabs(ids, target) {
   await browser.tabs.move(ids, { windowId: target, index: -1 });
 }
 
+// A whole tab group moves as one and keeps its name and color; while a search or the sidebar shows only some of
+// its tabs, just those move, like any tabs. A new window is the background's job: it takes focus and closes the
+// popup. Never rejects: a tab group gone meanwhile (or the API missing) only logs.
+async function moveTabGroup(id, target) {
+  const shown = tabGroupTabIds(id);
+  const all = state.tabs.filter(tab => tab.tabGroup && tab.groupId === id);
+  try {
+    if (shown.length < all.length) await moveTabs(shown, target);
+    else if (target === 'new') await browser.runtime.sendMessage({ type: 'move-tab-group-to-new-window', id });
+    else await browser.tabGroups.move(id, { windowId: target, index: -1 });
+  } catch (error) {
+    console.error('oh-my-tabs: move failed', error);
+  }
+}
+
+// Offers a topic named after the tab group, which can be changed first; saving creates it if needed.
+async function saveTabGroup(id) {
+  const name = await askTopic({ value: state.tabGroups.get(id)?.name ?? '', label: 'Save to topic', ok: 'Save & close' });
+  if (name) await saveTabs(tabGroupTabIds(id), { topic: name });
+}
+
 // Only the tabs the list shows: while searching, a group action applies to its results.
+// In the Windows view (a window given) a group leaves out the tabs shown in their tab groups.
 function groupTabIds(name, windowId = null) {
   return state.tabs
-    .filter(tab => tab.group === name && matches(tab) && (windowId === null || tab.windowId === windowId))
+    .filter(tab => tab.group === name && matches(tab))
+    .filter(tab => windowId === null || (tab.windowId === windowId && !tab.tabGroup))
     .map(tab => tab.id);
+}
+
+function tabGroupTabIds(id) {
+  return state.tabs.filter(tab => tab.tabGroup && tab.groupId === id && matches(tab)).map(tab => tab.id);
 }
 
 const CONSEQUENCES = {
@@ -992,11 +1149,13 @@ async function moveSaved(ids, topic) {
   refresh();
 }
 
-// Returns the new topic's name, or null when cancelled.
-async function askTopic() {
+// Returns the topic's name, or null when cancelled.
+async function askTopic({ value = '', label = 'New topic', ok = 'Create' } = {}) {
   const dialog = $('#topic-dialog');
   const input = $('#topic-name');
-  input.value = '';
+  $('#topic-label-text').textContent = label;
+  $('#topic-ok').textContent = ok;
+  input.value = value;
   dialog.returnValue = '';
   dialog.showModal();
   await new Promise(resolve => dialog.addEventListener('close', resolve, { once: true }));
@@ -1148,7 +1307,9 @@ function savedGroupMenu(name) {
 function rowMenu(tab) {
   // In the Windows view a group lives inside one window, so "other tabs in this group" stays there too.
   const windowId = state.view === 'windows' ? tab.windowId : null;
-  const others = groupTabIds(tab.group, windowId).filter(id => id !== tab.id);
+  // There a tab in a tab group sits in that tab group, not in a group.
+  const inTabGroup = windowId !== null && tab.tabGroup;
+  const others = (inTabGroup ? tabGroupTabIds(tab.groupId) : groupTabIds(tab.group, windowId)).filter(id => id !== tab.id);
   return tidy([
     ...saveItems([tab.id], ''),
     { icon: 'move', label: 'Move to window', items: moveItems([tab.id]) },
@@ -1156,7 +1317,7 @@ function rowMenu(tab) {
     tab.active
       ? { icon: 'suspend', label: 'Suspend this tab (it is active)', disabled: true }
       : suspendItem('Suspend this tab', [tab.id], { bulk: false }),
-    suspendItem('Suspend other tabs in this group', others),
+    suspendItem(`Suspend other tabs in this ${inTabGroup ? 'tab group' : 'group'}`, others),
     '-',
     neverItem(tab),
   ].filter(Boolean));
@@ -1171,6 +1332,17 @@ function groupMenu(name, windowId) {
     '-',
     { icon: 'close', label: 'Close group', danger: true, run: async () => { if (await confirmMany(ids.length)) await closeWithUndo(ids); } },
   ];
+}
+
+function tabGroupMenu(id) {
+  const ids = tabGroupTabIds(id);
+  return tidy([
+    state.libraryOn ? { icon: 'save', label: 'Save & close', run: () => saveTabGroup(id) } : '-',
+    { icon: 'newWindow', label: 'Move to new window', run: () => moveTabGroup(id, 'new') },
+    suspendItem('Suspend', ids),
+    '-',
+    { icon: 'close', label: 'Close', danger: true, run: async () => { if (await confirmMany(ids.length)) await closeWithUndo(ids); } },
+  ]);
 }
 
 function windowMenu(windowId) {
@@ -1221,6 +1393,7 @@ function openMenu(trigger, items) {
 function menuFor(trigger) {
   const kind = trigger.dataset.menu;
   if (kind === 'row') return rowMenu(state.tabs.find(tab => tab.id === Number(trigger.dataset.id)));
+  if (kind === 'tab-group') return tabGroupMenu(Number(trigger.dataset.tabGroup));
   if (kind === 'group') return groupMenu(trigger.dataset.group, trigger.dataset.w ? Number(trigger.dataset.w) : null);
   if (kind === 'stale') return staleMenu();
   if (kind === 'saved') return savedMenu(savedById(trigger.dataset.id));
@@ -1393,12 +1566,14 @@ async function handleLibraryClick(target, event) {
   return true;
 }
 
-body.addEventListener('toggle', event => {
-  const details = event.target;
+// Keeps a group's open state, so that a re-render shows it the same.
+function recordOpen(details) {
   if (state.query || !details.matches('details[data-key]')) return;
   if (details.open) state.openGroups.add(details.dataset.key);
   else state.openGroups.delete(details.dataset.key);
-}, true);
+}
+
+body.addEventListener('toggle', event => recordOpen(event.target), true);
 
 // On the page the list is a keyboard tree: ↑/↓ move between visible rows and group headers, → opens a group,
 // ← closes it or goes up to the header it sits in, Space checks the tab or group. Enter keeps its meaning.
@@ -1413,10 +1588,16 @@ body.addEventListener('keydown', event => {
   else if (event.key === 'ArrowUp') stops[i - 1]?.focus();
   else if (event.key === 'ArrowRight' && isHeader) {
     if (details.open) stops[i + 1]?.focus();
-    else details.open = true;
+    else {
+      details.open = true;
+      // Recorded now: 'toggle' runs later, and a re-render before it would close the group again.
+      recordOpen(details);
+    }
   } else if (event.key === 'ArrowLeft') {
-    if (isHeader && details.open) details.open = false;
-    else (isHeader ? details.parentElement : current).closest('details')?.querySelector(':scope > summary').focus();
+    if (isHeader && details.open) {
+      details.open = false;
+      recordOpen(details);
+    } else (isHeader ? details.parentElement : current).closest('details')?.querySelector(':scope > summary').focus();
   } else if (event.key === ' ') {
     const box = pickFor(current);
     if (!box) return;
@@ -1473,6 +1654,17 @@ function highlightSelection() {
 }
 
 $('#results-bar').addEventListener('click', async event => {
+  if (event.target.closest('#tab-groups-on')) {
+    await turnOnTabGroups();
+    search.focus();
+    return;
+  }
+  if (event.target.closest('#tab-groups-hint-close')) {
+    await saveSetting('tabGroupHint', false);
+    render();
+    search.focus();
+    return;
+  }
   if (event.target.id === 'open-results') return openSavedMany(state.saved.filter(savedMatches));
   const ids = state.tabs.filter(matches).map(tab => tab.id);
   await oneAtATime(async () => {
@@ -1526,6 +1718,7 @@ function settingsHtml() {
         </div>`)}
         ${panel('features', `<div class="card">
           <label class="srow"><span class="lbl"><span>Library</span><span class="hint-text" id="s-library-hint">Save &amp; close tabs into an "oh-my-tabs" bookmarks folder, synced by your browser. Asks for bookmarks access.</span></span><input type="checkbox" class="switch" id="s-library" aria-describedby="s-library-hint"></label>
+          <label class="srow"><span class="lbl"><span>Tab groups</span><span class="hint-text" id="s-tab-groups-hint">Show the browser’s tab groups in the window hierarchy. Asks to view and manage your tab groups.</span></span><input type="checkbox" class="switch" id="s-tab-groups" aria-describedby="s-tab-groups-hint"></label>
         </div>
         <div class="card">
           <label class="srow"><span>Stale tabs</span><input type="checkbox" class="switch" id="s-stale"></label>
@@ -1639,17 +1832,20 @@ function fillSettings() {
   $('#s-never').value = state.never.join('\n');
 }
 
-// Every change applies at once and is saved; there is no Save button.
+// Every change applies at once and is saved; there is no Save button. saveSetting sets the state before it
+// writes, so the change shows first and the write to storage follows.
 settingsWin.addEventListener('change', async event => {
   const { name, value } = event.target;
   if (!CHOICES.includes(name)) return;
-  await saveSetting(name, value);
+  const saved = saveSetting(name, value);
   if (name === 'sort') render();
   if (LOOK.includes(name)) applyLook();
+  await saved;
 });
 $('#s-font-custom').addEventListener('input', async event => {
-  await saveSetting('fontCustom', event.target.value);
+  const saved = saveSetting('fontCustom', event.target.value);
   applyLook();
+  await saved;
 });
 
 // A look picked in another open popup or page shows here too, so this one never writes a stale look into
@@ -1696,8 +1892,51 @@ $('#s-library').addEventListener('change', async event => {
   }
 });
 // Firefox may close the popup for the permission prompt; another open page still hears about the change.
-browser.permissions.onAdded?.addListener(change => { if (change.permissions?.includes('bookmarks')) setLibrary(true); });
-browser.permissions.onRemoved?.addListener(change => { if (change.permissions?.includes('bookmarks')) setLibrary(false); });
+browser.permissions.onAdded?.addListener(change => {
+  if (change.permissions?.includes('bookmarks')) setLibrary(true);
+  if (change.permissions?.includes('tabGroups')) setTabGroups(true);
+});
+browser.permissions.onRemoved?.addListener(change => {
+  if (change.permissions?.includes('bookmarks')) setLibrary(false);
+  if (change.permissions?.includes('tabGroups')) setTabGroups(false);
+});
+
+// Tab groups, like the Library, are on exactly while their permission is granted; the request comes straight
+// from the click (the switch or the hint's Turn on).
+async function turnOnTabGroups() {
+  const granted = await browser.permissions.request(TAB_GROUPS).catch(() => false);
+  await setTabGroups(granted);
+}
+
+$('#s-tab-groups').addEventListener('change', async event => {
+  if (event.target.checked) return turnOnTabGroups();
+  await browser.permissions.remove(TAB_GROUPS).catch(() => {});
+  await setTabGroups(false);
+});
+
+async function setTabGroups(on) {
+  state.tabGroupsOn = on;
+  $('#s-tab-groups').checked = on;
+  if (on) listenToTabGroups();
+  else stopListeningToTabGroups();
+  refresh();
+}
+
+// The API object a grant brings can be a new one after a revoke: listen again on each grant.
+const TAB_GROUP_EVENTS = ['onCreated', 'onUpdated', 'onRemoved', 'onMoved'];
+let tabGroupsHeard = null;
+function listenToTabGroups() {
+  if (!browser.tabGroups || tabGroupsHeard === browser.tabGroups) return;
+  stopListeningToTabGroups();
+  tabGroupsHeard = browser.tabGroups;
+  for (const event of TAB_GROUP_EVENTS) tabGroupsHeard[event].addListener(refresh);
+}
+
+function stopListeningToTabGroups() {
+  if (!tabGroupsHeard) return;
+  for (const event of TAB_GROUP_EVENTS) tabGroupsHeard[event]?.removeListener(refresh);
+  tabGroupsHeard = null;
+}
 
 async function setLibrary(on) {
   state.libraryOn = on;
@@ -1749,6 +1988,8 @@ async function renderShortcuts() {
 const DRAG_TYPE = 'application/x-oh-my-tabs';
 // Saved cards on the page's board carry bookmark ids under a type of their own: they go to a topic, never a window.
 const SAVED_DRAG_TYPE = 'application/x-oh-my-tabs-saved';
+// A tab group's header also carries its id, so a drop on a window moves it as one.
+const TAB_GROUP_DRAG_TYPE = 'application/x-oh-my-tabs-tab-group';
 body.addEventListener('dragstart', event => {
   const card = event.target.closest('.row[data-saved]');
   if (card) {
@@ -1758,9 +1999,13 @@ body.addEventListener('dragstart', event => {
   }
   const row = event.target.closest('.row');
   const group = event.target.closest('[data-drag-group]');
+  const tabGroup = event.target.closest('[data-drag-tab-group]');
   let ids = [];
   if (row) ids = [Number(row.dataset.id)];
-  else if (group) ids = groupTabIds(group.dataset.dragGroup, group.dataset.w ? Number(group.dataset.w) : null);
+  else if (tabGroup) {
+    ids = tabGroupTabIds(Number(tabGroup.dataset.dragTabGroup));
+    event.dataTransfer.setData(TAB_GROUP_DRAG_TYPE, tabGroup.dataset.dragTabGroup);
+  } else if (group) ids = groupTabIds(group.dataset.dragGroup, group.dataset.w ? Number(group.dataset.w) : null);
   event.dataTransfer.setData(DRAG_TYPE, ids.join(','));
   event.dataTransfer.effectAllowed = 'move';
 });
@@ -1799,8 +2044,10 @@ for (const area of IS_PAGE ? [body, side] : [body]) {
     }
     const ids = event.dataTransfer.getData(DRAG_TYPE).split(',').filter(Boolean).map(Number);
     if (ids.length === 0 || ids.some(Number.isNaN)) return;
+    const tabGroup = event.dataTransfer.getData(TAB_GROUP_DRAG_TYPE);
     // "No topic" is the empty topic.
     if (topic !== undefined) saveTabs(ids, { topic: topic || null });
+    else if (tabGroup) moveTabGroup(Number(tabGroup), zone.dataset.dropW === 'new' ? 'new' : Number(zone.dataset.dropW));
     else moveTabs(ids, zone.dataset.dropW === 'new' ? 'new' : Number(zone.dataset.dropW));
   });
 }
@@ -1816,7 +2063,14 @@ function snapshotOf(ids) {
   return state.tabs
     .filter(tab => ids.includes(tab.id))
     .sort((a, b) => a.index - b.index)
-    .map(tab => ({ url: tab.url, windowId: tab.windowId, index: tab.index, pinned: tab.pinned }));
+    .map(tab => ({ url: tab.url, windowId: tab.windowId, index: tab.index, pinned: tab.pinned, tabGroup: tabGroupSnapshot(tab) }));
+}
+
+// The tab group a closed tab was in, so Undo can put it back (null while tab groups are off).
+function tabGroupSnapshot(tab) {
+  if (!tab.tabGroup) return null;
+  const { id, title, color } = tab.tabGroup;
+  return { id, title, color };
 }
 
 function showBar(text, withUndo) {
@@ -1846,21 +2100,51 @@ async function closeWindowWithUndo(windowId) {
   showBar(`Closed a window with ${plural(tabs.length, 'tab')}`, true);
 }
 
-async function reopen({ tabs, newWindow }) {
+// Every kind of close ends here: the reopened tabs go back into their tab groups.
+async function reopen(closed) {
+  const reopened = await reopenTabs(closed);
+  const byTabGroup = new Map();
+  closed.tabs.forEach((saved, i) => {
+    if (!saved.tabGroup || !reopened[i]) return;
+    const entry = byTabGroup.get(saved.tabGroup.id) ?? { tabGroup: saved.tabGroup, tabs: [] };
+    entry.tabs.push(reopened[i]);
+    byTabGroup.set(saved.tabGroup.id, entry);
+  });
+  for (const { tabGroup, tabs } of byTabGroup.values()) await regroup(tabGroup, tabs).catch(() => {});
+}
+
+// The new tabs in the order of closed.tabs; null where one could not be made.
+async function reopenTabs({ tabs, newWindow }) {
   if (newWindow) {
-    await browser.windows.create({ url: tabs.map(tab => tab.url), focused: false });
-    return;
+    const created = await browser.windows.create({ url: tabs.map(tab => tab.url), focused: false });
+    return created.tabs;
   }
   const open = new Set((await browser.windows.getAll({ windowTypes: ['normal'] })).map(w => w.id));
   // More than a handful reopen suspended, so dozens of pages don't all load at once.
   const sleep = tabs.length > CONFIRM_ABOVE;
+  const reopened = [];
   for (const saved of tabs) {
     const options = { url: saved.url, index: saved.index, pinned: saved.pinned, active: false };
     options.windowId = open.has(saved.windowId) ? saved.windowId : state.currentWindow;
     if (sleep && IS_FIREFOX && !saved.pinned) options.discarded = true;
     const tab = await browser.tabs.create(options).catch(() => null);
     if (tab && sleep && !IS_FIREFOX && !saved.pinned) browser.tabs.discard(tab.id).catch(() => {});
+    reopened.push(tab);
   }
+  return reopened;
+}
+
+// Into the tab group when it is still there (some of its tabs were closed), otherwise into a new one with the
+// old name and color. A tab group holds no pinned tabs, so tabs.group() unpins nothing here.
+async function regroup(tabGroup, tabs) {
+  const tabIds = tabs.map(tab => tab.id);
+  const existing = await browser.tabGroups.get(tabGroup.id).catch(() => null);
+  if (existing) {
+    await browser.tabs.group({ groupId: tabGroup.id, tabIds });
+    return;
+  }
+  const groupId = await browser.tabs.group({ tabIds, createProperties: { windowId: tabs[0].windowId } });
+  await browser.tabGroups.update(groupId, { title: tabGroup.title, color: tabGroup.color });
 }
 
 $('#undo-button').addEventListener('click', async () => {
@@ -1930,7 +2214,8 @@ for (const event of ['onCreated', 'onRemoved', 'onMoved', 'onAttached', 'onDetac
   browser.tabs[event].addListener(refresh);
 }
 // Only changes the list shows; loading progress and the like would re-render for nothing.
-const SHOWN_CHANGES = ['url', 'title', 'favIconUrl', 'discarded', 'pinned'];
+// groupId: a tab joins or leaves a tab group (the hint row needs it even while tab groups are off).
+const SHOWN_CHANGES = ['url', 'title', 'favIconUrl', 'discarded', 'pinned', 'groupId'];
 browser.tabs.onUpdated.addListener((tabId, changeInfo) => {
   if (SHOWN_CHANGES.some(key => key in changeInfo)) refresh();
 });
@@ -1955,6 +2240,10 @@ async function start() {
   state.libraryOn = await Library.isEnabled().catch(() => false);
   $('#s-library').checked = state.libraryOn;
   if (state.libraryOn) listenToBookmarks();
+  // Firefox before 139 knows no such permission and may throw: the feature stays off.
+  state.tabGroupsOn = await browser.permissions.contains(TAB_GROUPS).catch(() => false);
+  $('#s-tab-groups').checked = state.tabGroupsOn;
+  if (state.tabGroupsOn) listenToTabGroups();
 
   browser.runtime.sendMessage({ type: 'refresh-badge' }).catch(() => {});
   await load();

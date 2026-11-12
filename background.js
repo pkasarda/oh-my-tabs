@@ -96,6 +96,20 @@ async function moveToNewWindow(ids) {
   if (rest.length > 0) await browser.tabs.move(rest, { windowId: created.id, index: -1 });
 }
 
+// A whole tab group moves as one, keeping its name and color. The new window's own blank tab goes after.
+// A tab group gone meanwhile (or no tabGroups API here) makes no window; a failed move takes its window away.
+async function moveTabGroupToNewWindow(id) {
+  await browser.tabGroups.get(id);
+  const created = await browser.windows.create({});
+  try {
+    await browser.tabGroups.move(id, { windowId: created.id, index: -1 });
+  } catch (error) {
+    await browser.windows.remove(created.id).catch(() => {});
+    throw error;
+  }
+  await browser.tabs.remove(created.tabs.map(tab => tab.id));
+}
+
 // Closing 30 duplicates fires 30 events; one recompute after they settle avoids a stale count winning.
 let refreshTimer;
 function refresh() {
@@ -135,6 +149,9 @@ browser.runtime.onMessage.addListener(message => {
   if (message.type === 'open-page') openPage().catch(error => console.error('oh-my-tabs: open page failed', error));
   if (message.type === 'move-to-new-window') {
     moveToNewWindow(message.ids).catch(error => console.error('oh-my-tabs: move failed', error));
+  }
+  if (message.type === 'move-tab-group-to-new-window') {
+    moveTabGroupToNewWindow(message.id).catch(error => console.error('oh-my-tabs: move failed', error));
   }
 });
 browser.commands.onCommand.addListener(command => {
