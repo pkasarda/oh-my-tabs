@@ -427,8 +427,9 @@ Six additions to the full page. The popup gets only the right click.
 
 ## Testing
 
-- `node --test` runs `rules.test.js`.
-- The popup and the full page are driven end to end with Playwright against the unpacked extension in Chromium.
+- `npm test` (`node --test`) runs `rules.test.js`.
+- `npm run e2e` runs `e2e/*.e2e.js`: Playwright drives the unpacked extension in headless Chromium, with a fresh profile per test. It needs `npm install` and Playwright's Chromium (`npx playwright install chromium`); every page request is answered by the test, so nothing reaches the network.
+- The Library tests load a copy of the extension whose manifest grants `bookmarks`, because headless Chromium never answers the permission prompt. Firefox is not covered by the e2e suite.
 - The UI is checked by loading the extension unpacked in both browsers.
 
 ## Out of v1 (roadmap issues)
