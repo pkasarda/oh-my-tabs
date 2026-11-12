@@ -1,0 +1,809 @@
+<!doctype html>
+<html lang="en" class="mono">
+<head>
+<meta charset="utf-8">
+<meta name="color-scheme" content="light dark">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Settings and page preview</title>
+<link rel="icon" href="data:,">
+<!-- The extension's own stylesheet, so the preview looks like the product. Only what is new is below. -->
+<link rel="stylesheet" href="../../popup.css">
+<style>
+  :root {
+    --fs: 13px;
+    /* The browser's nine tab group colors, as our own light and dark values. */
+    --tg-grey: light-dark(#6b7280, #9ca3af); --tg-blue: light-dark(#2563eb, #60a5fa); --tg-red: light-dark(#dc2626, #f87171);
+    --tg-yellow: light-dark(#ca8a04, #facc15); --tg-green: light-dark(#16a34a, #4ade80); --tg-pink: light-dark(#db2777, #f472b6);
+    --tg-purple: light-dark(#7c3aed, #a78bfa); --tg-cyan: light-dark(#0891b2, #22d3ee); --tg-orange: light-dark(#ea580c, #fb923c);
+    --amber: light-dark(#b45309, #fbbf24); --amber-soft: light-dark(#fef3c7, #3b2a0b);
+  }
+  :root:root body { font-size: var(--fs); }
+  :where(button, a, select, input, textarea, summary):focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  [hidden] { display: none !important; }
+  html, body { height: 100%; }
+  body { display: grid; grid-template-rows: auto 1fr; background: var(--bg); overflow: hidden; }
+  .preview-bar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding: 10px 16px; background: var(--surface); border-bottom: 1px solid var(--border); font: 13px var(--sans); }
+  .preview-bar strong { margin-right: 8px; }
+  .preview-bar button { border: 1px solid var(--border); background: var(--surface-2); padding: 5px 10px; border-radius: 8px; }
+  .preview-bar button[aria-pressed="true"] { border-color: var(--accent); background: var(--accent-soft); }
+  .preview-bar p { flex-basis: 100%; margin: 2px 0 0; color: var(--muted); }
+  .preview-bar label { display: inline-flex; gap: 5px; align-items: center; cursor: pointer; }
+  .ctx { display: contents; }
+  .tb { position: relative; display: inline-grid; place-items: center; width: 30px; height: 30px; border: 1px solid var(--border); border-radius: 7px; background: var(--surface-2); font: 700 10px var(--mono); }
+  .tb b { position: absolute; right: -6px; bottom: -6px; min-width: 16px; padding: 0 4px; border-radius: 8px; background: #f59e0b; color: #1c1917; font: 700 10px/16px var(--sans); text-align: center; }
+  .stage { min-height: 0; min-width: 0; display: grid; padding: 12px 16px 16px; overflow: auto; }
+  .popup-frame { width: 800px; height: 600px; margin: auto; padding: 10px; border: 1px solid var(--border); border-radius: 14px; background: var(--bg); box-shadow: var(--shadow); }
+  .popup-frame .app { border: 1px solid var(--border); border-radius: 8px; background: var(--surface); overflow: hidden; }
+  .popup-frame .body { padding-top: 8px; }
+
+  /* Header: icon button with the duplicate count on it. */
+  .dup { position: relative; color: var(--danger); }
+  .dup:disabled { opacity: 0.4; cursor: default; }
+  .badge { position: absolute; top: -4px; right: -4px; min-width: 16px; height: 16px; padding: 0 4px; border-radius: 8px; background: var(--danger); color: light-dark(#fff, oklch(20% 0.03 25)); font: 700 10px/16px var(--sans); text-align: center; }
+  .head .btn { display: inline-flex; gap: 6px; align-items: center; }
+  .dot { flex: none; width: 9px; height: 9px; border-radius: 50%; background: var(--c); }
+  .tgchip { flex: none; display: inline-flex; gap: 5px; align-items: center; max-width: 150px; color: var(--muted); font-size: 11.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .stale-tag { flex: none; border-radius: 9px; padding: 1px 7px; font-size: 11px; font-weight: 600; background: var(--amber-soft); color: var(--amber); }
+  .rem-tag { flex: none; display: inline-flex; gap: 4px; align-items: center; border-radius: 9px; padding: 1px 7px; font-size: 11px; font-weight: 600; background: var(--amber-soft); color: var(--amber); white-space: nowrap; }
+  .rem-tag .i { width: 12px; height: 12px; }
+  .btn.sm { padding: 3px 9px; font-size: 12px; }
+
+  /* The page: header, sidebar, list, optional details pane and status bar. */
+  .pg { min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr) auto; border: 1px solid var(--border); border-radius: 12px; overflow: hidden; background: var(--surface); box-shadow: var(--shadow); }
+  .pg-body { display: grid; min-height: 0; }
+  .pg .side { min-width: 0; }
+  .pg .side .sub { padding-left: 36px; }
+  .pg .side .stale-icon { width: 20px; height: 20px; border-radius: 5px; }
+  .pg .side .stale-icon .i { width: 13px; height: 13px; }
+  .main { display: flex; flex-direction: column; min-height: 0; min-width: 0; }
+  .main-head { display: flex; gap: 10px; align-items: center; padding: 12px 18px; }
+  .main-head h2 { margin: 0; font-size: 16px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .main-head .sub { color: var(--muted); font-size: 12.5px; white-space: nowrap; }
+  .main .results-bar { border-top: 1px solid var(--border); }
+  .tree-top { display: flex; flex-wrap: wrap; gap: 4px 14px; align-items: center; padding: 6px 18px; border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); color: var(--muted); font-size: 12px; min-height: 40px; }
+  .tree-top.tools { padding: 4px 12px; gap: 4px; }
+  .tree-top select, .srow select { font: inherit; padding: 4px 8px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface-2); color: var(--text); cursor: pointer; }
+  .tree-scroll { flex: 1; min-height: 0; overflow: auto; padding-bottom: 12px; }
+  #tree { outline: none; }
+  #tree:focus-visible { box-shadow: inset 0 0 0 2px var(--accent); }
+  .tr { --lvl: 0; --fav: 20px; position: relative; display: flex; gap: 8px; align-items: center; min-height: calc(var(--fs) * 2.6); padding: 2px 12px 2px calc(12px + var(--lvl) * 24px); cursor: pointer; background-image: repeating-linear-gradient(to right, transparent 0 22px, var(--border) 22px 23px, transparent 23px 24px); background-size: calc(var(--lvl) * 24px + 12px) 100%; background-repeat: no-repeat; }
+  .tr:hover { background-color: var(--surface-2); }
+  .tr.sel { background-color: var(--raised); box-shadow: inset 0 0 0 1px var(--accent); }
+  .tr.w { background-color: var(--surface-2); border-top: 1px solid var(--border); font-weight: 600; }
+  .tr.g, .tr.tg, .tr.rg { font-weight: 600; }
+  .tr.tg::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 3px; background: var(--c); }
+  .tr.rg { color: var(--amber); }
+  .tr .chev, .tr .spacer { width: 16px; flex: none; }
+  .tr:not(.collapsed) > .chev { rotate: 90deg; }
+  .tr .tt { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .tr .tt.grow { flex: 1; }
+  .tr .url { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); font-size: 11.5px; }
+  .tr.suspended .tt { color: var(--muted); }
+  .tr.suspended .fav { opacity: 0.45; }
+  .tr input[type="checkbox"] { flex: none; width: 16px; height: 16px; margin: 0; accent-color: var(--accent); cursor: pointer; }
+  .tr .age { min-width: 70px; text-align: right; }
+  .tr .icon-btn { width: 28px; height: 28px; }
+  .bulk-bar { position: sticky; bottom: 12px; width: max-content; margin: 12px auto 0; }
+  .details { min-width: 0; overflow: auto; padding: 18px; border-left: 1px solid var(--border); }
+  .details h3 { margin: 12px 0 4px; font-size: 15px; overflow-wrap: anywhere; }
+  .details .full { color: var(--muted); font-size: 12px; overflow-wrap: anywhere; }
+  .details .fav { --fav: 56px; border-radius: 12px; }
+  .details dl { display: grid; grid-template-columns: auto 1fr; margin: 16px 0; border-top: 1px solid var(--border); }
+  .details dt, .details dd { margin: 0; padding: 7px 0; border-bottom: 1px solid var(--border); font-size: 12.5px; }
+  .details dt { color: var(--muted); padding-right: 12px; }
+  .details dd { display: flex; gap: 6px; align-items: center; justify-content: flex-end; text-align: right; }
+  .details .btns { display: grid; gap: 6px; }
+  .details .head-row { display: flex; justify-content: space-between; align-items: center; color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; }
+  .empty-d { display: grid; place-items: center; height: 100%; color: var(--muted); text-align: center; }
+  .statusbar { display: flex; gap: 8px; padding: 6px 16px; border-top: 1px solid var(--border); background: var(--surface-2); color: var(--muted); font-size: 12px; }
+
+  /* Menu, palette, toast. */
+  .menu hr + button.sub-back { color: var(--muted); }
+  .palette { width: min(560px, calc(100vw - 32px)); margin: 14vh auto auto; padding: 0; max-width: none; overflow: hidden; }
+  .pal-in { display: flex; gap: 10px; align-items: center; padding: 12px 14px; border-bottom: 1px solid var(--border); color: var(--muted); }
+  .pal-in input { flex: 1; border: 0; background: none; outline: none; font-size: 15px; color: var(--text); }
+  .pal-list { max-height: 360px; overflow: auto; padding: 6px; }
+  .pal-list h4 { margin: 8px 8px 4px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); }
+  .pal-item { display: flex; gap: 10px; align-items: center; padding: 7px 10px; border-radius: 7px; cursor: pointer; min-width: 0; }
+  .pal-item[aria-selected="true"] { background: var(--accent-soft); }
+  .pal-item .url { color: var(--muted); font-size: 11.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .pal-item .tt { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .toast { left: 50%; bottom: 28px; top: auto; translate: -50% 0; min-width: 0; }
+  .toast:popover-open { translate: -50% 0; }
+
+  /* Settings window: macOS System Settings style. */
+  dialog.settings-win { width: 680px; height: 460px; max-width: none; padding: 0; overflow: hidden; border-radius: 12px; }
+  dialog.settings-win[open] { display: grid; grid-template-columns: 180px minmax(0, 1fr); }
+  dialog::backdrop { background: oklch(0% 0 0 / 0.4); }
+  .sp-nav { display: flex; flex-direction: column; gap: 2px; padding: 14px 10px; background: var(--surface-2); border-right: 1px solid var(--border); }
+  .sp-nav button { display: flex; gap: 10px; align-items: center; padding: 6px 8px; border: 0; border-radius: 8px; background: none; text-align: left; }
+  .sp-nav button[aria-selected="true"] { background: var(--accent); color: light-dark(#fff, oklch(18% 0.02 265)); }
+  .tile { display: grid; place-items: center; width: 24px; height: 24px; border-radius: 6px; background: var(--tc); color: #fff; }
+  .tile .i { width: 14px; height: 14px; }
+  .sp-main { display: grid; grid-template-rows: auto minmax(0, 1fr); min-width: 0; }
+  .sp-title { display: flex; justify-content: space-between; align-items: center; padding: 14px 16px 6px 22px; }
+  .sp-title h2 { margin: 0; font-size: 18px; }
+  .sp-body { overflow: auto; padding: 8px 22px 22px; display: grid; gap: 16px; align-content: start; }
+  .card { border: 1px solid var(--border); border-radius: 10px; background: var(--surface); }
+  .srow { display: flex; gap: 16px; align-items: center; justify-content: space-between; padding: 10px 14px; }
+  .srow + .srow, .srow + .field { border-top: 1px solid var(--border); }
+  .lbl { display: grid; gap: 2px; min-width: 0; }
+  .lbl > span:first-child { white-space: nowrap; }
+  .desc { color: var(--muted); font-size: 11.5px; line-height: 1.35; }
+  .srow .switch { flex: none; margin: 0; cursor: pointer; }
+  .srow .seg { flex: none; }
+  .srow input[type="text"], .never { padding: 6px 9px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface-2); color: var(--text); font: inherit; outline: none; }
+  .srow input[type="text"]:focus-visible, .never:focus-visible { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+  .never { display: block; width: 100%; height: 190px; resize: none; font: 12px/1.5 var(--mono); }
+  .err { display: block; margin-top: 4px; color: var(--danger); font-size: 11.5px; }
+  .pill14 { margin-left: 6px; padding: 0 6px; border-radius: 8px; background: var(--amber-soft); color: var(--amber); font-size: 10px; font-weight: 700; vertical-align: 1px; }
+  .srow.link { color: var(--text); text-decoration: none; }
+  .srow.link:hover { background: var(--surface-2); }
+  .srow.link .i { color: var(--muted); }
+  .kbds { display: flex; gap: 4px; }
+  .center { text-align: center; padding: 18px; display: grid; gap: 4px; }
+  @media (max-width: 1100px) { .tr .url { display: none; } }
+</style>
+</head>
+<body>
+<div class="preview-bar">
+  <strong>Settings and page preview</strong>
+  <button type="button" data-scene="1">1 · Popup · Settings</button>
+  <button type="button" data-scene="2">2 · Page · Tab groups</button>
+  <button type="button" data-scene="3">3 · Page · Ideas</button>
+  <button type="button" data-scene="4">4 · Page · Reminders (1.4)</button>
+  <button type="button" id="reset">Reset data</button>
+  <button type="button" id="theme">Light / dark</button>
+  <span class="ctx" id="ctx"></span>
+  <p id="hint"></p>
+</div>
+<div class="stage" id="stage"></div>
+<dialog class="settings-win" id="settings" aria-label="Settings"></dialog>
+<dialog class="palette" id="palette" aria-label="Command palette">
+  <div class="pal-in"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg><input id="pal-q" type="text" placeholder="Type an action or a tab…" autocomplete="off" aria-label="Command palette"></div>
+  <div class="pal-list" id="pal-list" role="listbox"></div>
+</dialog>
+<div popover id="menu" class="menu" role="menu" aria-label="Actions"></div>
+<div popover="manual" id="toast" class="toast" role="status"></div>
+
+<script type="module">
+// Lucide shapes (same set as popup.js plus a few for the new bits).
+const ICONS = {
+  chevron: '<path d="m9 18 6-6-6-6"/>', close: '<path d="M18 6 6 18"/><path d="m6 6 12 12"/>',
+  more: '<circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/>',
+  page: '<path d="M15 3h6v6"/><path d="M10 14 21 3"/><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>',
+  settings: '<circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9 7 7M17 17l2.1 2.1M4.9 19.1 7 17M17 7l2.1-2.1"/>',
+  save: '<path d="m19 21-7-4-7 4V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16z"/><path d="M12 7v6M9 10h6"/>',
+  move: '<path d="m16 3 4 4-4 4"/><path d="M20 7H4"/><path d="m8 21-4-4 4-4"/><path d="M4 17h16"/>',
+  suspend: '<path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/>', clock: '<circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>',
+  open: '<path d="M7 17 17 7"/><path d="M7 7h10v10"/>', win: '<rect width="18" height="16" x="3" y="4" rx="2"/><path d="M3 9h18"/><path d="M12 12v5M9.5 14.5h5"/>',
+  copy: '<rect width="14" height="14" x="8" y="8" rx="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/>',
+  search: '<circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/>',
+  panelL: '<rect width="18" height="18" x="3" y="3" rx="2"/><path d="M9 3v18"/>', panelR: '<rect width="18" height="18" x="3" y="3" rx="2"/><path d="M15 3v18"/>',
+  bell: '<path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/>',
+  fold: '<path d="m7 20 5-5 5 5"/><path d="m7 4 5 5 5-5"/>', unfold: '<path d="m7 15 5 5 5-5"/><path d="m7 9 5-5 5 5"/>',
+  locate: '<path d="M2 12h3M19 12h3M12 2v3M12 19v3"/><circle cx="12" cy="12" r="7"/>', list: '<path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/>',
+  sliders: '<path d="M4 21v-7M4 10V3M12 21v-9M12 8V3M20 21v-5M20 12V3M1 14h6M9 8h6M17 16h6"/>',
+  palette: '<circle cx="13.5" cy="6.5" r="1"/><circle cx="17.5" cy="10.5" r="1"/><circle cx="8.5" cy="7.5" r="1"/><circle cx="6.5" cy="12.5" r="1"/><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c1 0 1.6-.8 1.6-1.7 0-.4-.2-.8-.4-1.1-.3-.3-.4-.7-.4-1.1a1.6 1.6 0 0 1 1.7-1.7H16c3 0 5.5-2.5 5.5-5.5C21.5 6 17.5 2 12 2z"/>',
+  spark: '<path d="m12 3 1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9z"/>', ban: '<circle cx="12" cy="12" r="10"/><path d="m4.9 4.9 14.2 14.2"/>',
+  keyboard: '<rect width="20" height="16" x="2" y="4" rx="2"/><path d="M6 8h.01M10 8h.01M14 8h.01M18 8h.01M8 12h.01M12 12h.01M16 12h.01M7 16h10"/>',
+  info: '<circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/>',
+};
+const icon = n => `<svg class="i" viewBox="0 0 24 24" aria-hidden="true">${ICONS[n]}</svg>`;
+const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const hostOf = u => u.split('/')[0];
+const unique = a => [...new Set(a)];
+const $ = s => document.querySelector(s);
+function tile(host) {
+  let hue = 0;
+  for (const ch of host) hue = (hue * 31 + ch.charCodeAt(0)) % 360;
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><rect width="32" height="32" rx="7" fill="hsl(${hue} 50% 46%)"/><text x="16" y="22" text-anchor="middle" font-family="Arial" font-size="17" font-weight="700" fill="white">${host[0].toUpperCase()}</text></svg>`;
+  return `<img class="fav" alt="" src="data:image/svg+xml,${encodeURIComponent(svg)}">`;
+}
+const ago = d => (d === 0 ? 'today' : d < 7 ? `${d} d ago` : d < 30 ? `${Math.floor(d / 7)} wk ago` : `${Math.floor(d / 30)} mo ago`);
+
+// ---------- mock data: windows -> groups -> [title, url, days since last used] ----------
+const DEF = [
+  ['acme/client & 4 more', [
+    ['acme/client', [['Checkout refactor · Pull Request #812', 'github.com/acme/client/pull/812', 0], ['Flaky e2e on CI · Issue #799', 'github.com/acme/client/issues/799', 9], ['acme/client: Web client', 'github.com/acme/client', 1], ['Release notes draft · Wiki', 'github.com/acme/client/wiki/Release-notes', 23], ['Bundle size budget · Issue #650', 'github.com/acme/client/issues/650', 2]]],
+    ['Jira · PAY', [['[PAY-1421] Invoice export fails', 'jira.acme.com/browse/PAY-1421', 0], ['[PAY-1388] Retry webhook deliveries', 'jira.acme.com/browse/PAY-1388', 14], ['[PAY-1290] Currency rounding', 'jira.acme.com/browse/PAY-1290', 31]]],
+    ['Linear · WEB', [['WEB-210 Dark mode contrast', 'linear.app/acme/issue/WEB-210', 1], ['WEB-198 Tab drag polish', 'linear.app/acme/issue/WEB-198', 3], ['WEB-175 Onboarding copy', 'linear.app/acme/issue/WEB-175', 0]]],
+    ['acme.slite.com', [['Onboarding checklist', 'acme.slite.com/app/docs/aB12', 2], ['Incident runbook', 'acme.slite.com/app/docs/cD34', 40], ['Q3 retro notes', 'acme.slite.com/app/docs/eF56', 60]]],
+    ['docs.example.org', [['Popover API · Docs', 'docs.example.org/api/popover', 3], ['CSS anchor positioning · Docs', 'docs.example.org/css/anchor', 12]]],
+    ['figma.com', [['Tabs page · Design file', 'figma.com/design/xY12/Tabs-page', 1], ['Icon set · Design file', 'figma.com/design/zQ34/Icon-set', 5], ['Handoff notes · FigJam', 'figma.com/board/kL56/Handoff', 19]]],
+    ['news.ycombinator.com', [['Show HN: A tab manager that keeps up', 'news.ycombinator.com/item?id=4242', 18]]],
+  ]],
+  ['acme/api & 3 more', [
+    ['acme/api', [['Add idempotency keys · Pull Request #455', 'github.com/acme/api/pull/455', 0], ['Rate limit middleware · Pull Request #451', 'github.com/acme/api/pull/451', 4], ['acme/api: Billing API', 'github.com/acme/api', 1], ['Migration 0042 · Issue #430', 'github.com/acme/api/issues/430', 16]]],
+    ['Jira · PAY', [['[PAY-1421] Invoice export fails', 'jira.acme.com/browse/PAY-1421', 0], ['[PAY-1405] Webhook signature', 'jira.acme.com/browse/PAY-1405', 2]]],
+    ['docs.google.com', [['Q4 planning · Sheets', 'docs.google.com/spreadsheets/d/q4plan', 1], ['API changelog · Docs', 'docs.google.com/document/d/api-changelog', 5], ['Pricing notes · Docs', 'docs.google.com/document/d/pricing-notes', 27]]],
+    ['postgresql.org', [['Window functions · PostgreSQL docs', 'postgresql.org/docs/current/tutorial-window.html', 5], ['EXPLAIN · PostgreSQL docs', 'postgresql.org/docs/current/sql-explain.html', 20]]],
+    ['stackoverflow.com', [['Upsert with ON CONFLICT', 'stackoverflow.com/questions/1109061', 6], ['Retry with exponential backoff', 'stackoverflow.com/questions/1350441', 0]]],
+  ]],
+  ['nrwl/nx & 2 more', [
+    ['nrwl/nx', [['Affected graph perf · Issue #31002', 'github.com/nrwl/nx/issues/31002', 0], ['nrwl/nx: Smart monorepos', 'github.com/nrwl/nx', 1], ['Task pipeline cache · Pull Request #30988', 'github.com/nrwl/nx/pull/30988', 3], ['Release 21.0 notes', 'github.com/nrwl/nx/releases/tag/21.0.0', 12]]],
+    ['nx.dev', [['Project graph · Nx docs', 'nx.dev/docs/features/explore-graph', 0], ['Module federation · Nx docs', 'nx.dev/docs/technologies/module-federation', 9]]],
+    ['npmjs.com', [['nx · npm', 'npmjs.com/package/nx', 2], ['esbuild · npm', 'npmjs.com/package/esbuild', 21]]],
+    ['web.dev', [['Core Web Vitals', 'web.dev/articles/vitals', 5], ['Back/forward cache', 'web.dev/articles/bfcache', 30]]],
+  ]],
+  ['Reading & docs', [
+    ['news.ycombinator.com', [['Show HN: A tab manager that keeps up', 'news.ycombinator.com/item?id=4242', 18], ['Ask HN: How do you tame your tabs?', 'news.ycombinator.com/item?id=4318', 1], ['Hacker News front page', 'news.ycombinator.com/news', 0]]],
+    ['web.dev', [['Building a tab manager UI', 'web.dev/articles/tab-ui', 3], ['Popover API', 'web.dev/articles/popover-api', 6]]],
+    ['docs.google.com', [['Roadmap · Docs', 'docs.google.com/document/d/roadmap', 0], ['Q4 planning · Sheets', 'docs.google.com/spreadsheets/d/q4plan', 1]]],
+    ['youtube.com', [['Talk: Fast UIs without frameworks', 'youtube.com/watch?v=aB3dE', 15], ['Lo-fi mix for focus', 'youtube.com/watch?v=lF0mX', 0]]],
+    ['wikipedia.org', [['Tab (interface) · Wikipedia', 'wikipedia.org/wiki/Tab_(interface)', 40], ['Window manager · Wikipedia', 'wikipedia.org/wiki/Window_manager', 41], ['Kanban · Wikipedia', 'wikipedia.org/wiki/Kanban', 62]]],
+  ]],
+];
+// Tab groups: [window, name ('' = unnamed), color, collapsed in the browser, member urls].
+const TG_DEF = [
+  [1, 'Checkout', 'blue', false, ['github.com/acme/client/pull/812', 'github.com/acme/client/issues/799', 'jira.acme.com/browse/PAY-1421']],
+  [1, 'Design', 'pink', true, ['figma.com/design/xY12/Tabs-page', 'figma.com/design/zQ34/Icon-set', 'figma.com/board/kL56/Handoff']],
+  [1, '', 'grey', false, ['docs.example.org/api/popover', 'docs.example.org/css/anchor', 'news.ycombinator.com/item?id=4242']],
+  [2, 'API work', 'green', false, ['github.com/acme/api/pull/455', 'github.com/acme/api/pull/451', 'jira.acme.com/browse/PAY-1421', 'jira.acme.com/browse/PAY-1405']],
+  [2, 'Planning', 'orange', false, ['docs.google.com/spreadsheets/d/q4plan', 'docs.google.com/document/d/api-changelog', 'docs.google.com/document/d/pricing-notes']],
+  [3, 'Perf', 'purple', false, ['github.com/nrwl/nx/issues/31002', 'github.com/nrwl/nx/pull/30988', 'nx.dev/docs/features/explore-graph', 'nx.dev/docs/technologies/module-federation']],
+  [3, 'Packages', 'cyan', false, ['npmjs.com/package/nx', 'npmjs.com/package/esbuild']],
+  [4, 'Reading', 'yellow', false, ['web.dev/articles/tab-ui', 'web.dev/articles/popover-api', 'news.ycombinator.com/item?id=4318', 'news.ycombinator.com/news']],
+  [4, 'Breaks', 'red', false, ['youtube.com/watch?v=aB3dE', 'youtube.com/watch?v=lF0mX']],
+];
+const SUSPENDED = new Set(['wikipedia.org/wiki/Tab_(interface)', 'wikipedia.org/wiki/Window_manager', 'wikipedia.org/wiki/Kanban', 'youtube.com/watch?v=aB3dE', 'npmjs.com/package/esbuild', 'postgresql.org/docs/current/sql-explain.html']);
+const SAVED_DEF = [['Feature flags RFC · Discussion #77', 'github.com/acme/client/discussions/77', 12, 'Release 2.0'], ['Release checklist · Wiki', 'acme.slite.com/app/docs/gH78', 5, 'Release 2.0'], ['[PAY-1102] Refund flow', 'jira.acme.com/browse/PAY-1102', 21, null], ['Rust for JavaScript developers', 'blog.example.org/rust-for-js', 60, 'Read later'], ['Incident runbook', 'acme.slite.com/app/docs/cD34', 3, 'Read later']];
+// Reminders (1.4): by url, in the window noted. due = how long ago it came due; at = when it is scheduled.
+const REM_DEF = [['github.com/acme/api/pull/455', { due: '5 min ago' }], ['jira.acme.com/browse/PAY-1388', { due: '12 min ago' }], ['github.com/acme/client/pull/812', { at: 'tomorrow 9:00' }], ['acme.slite.com/app/docs/aB12', { at: 'tomorrow 9:00' }], ['linear.app/acme/issue/WEB-210', { at: 'Mon 9:00' }]];
+const ACTIVE_URL = 'github.com/acme/client/pull/812';
+const ACTIONS = ['Close duplicates', 'Save & close stale tabs', 'Move checked tabs to a new window', 'Suspend all other tabs', 'Go to Library', 'Go to Groups', 'Open settings', 'Collapse all windows', 'Reveal active tab'];
+
+// ---------- state ----------
+const S = { scene: 1, pview: 'groups', sec: 'general', sel: 'groups', cur: null, last: null, hintGone: false, sbHidden: false, dHidden: false };
+const ideaDefault = () => ({ palette: true, details: true, toolbar: true, status: true, sidebar: true, menu: true });
+const prefDefault = () => ({ dev: true, sort: 'recent', badge: 'both', button: 'popup', font: 'fira', custom: '', size: 'default', theme: 'auto', library: true, stale: true, days: 7, tabGroups: true, notify: false, never: 'slack.com\nmail.example.com' });
+function reset() {
+  let id = 1;
+  S.wins = DEF.map(([name], i) => ({ id: i + 1, name }));
+  S.tabs = DEF.flatMap(([, groups], i) => groups.flatMap(([g, rows]) => rows.map(([t, u, d]) => ({ id: id++, t, u, d, w: i + 1, g, tg: null, sus: SUSPENDED.has(u) }))));
+  S.collapsed = new Set();
+  S.tgs = TG_DEF.map(([w, name, color, col, urls], i) => {
+    const g = { id: i + 1, w, name, color };
+    for (const u of urls) S.tabs.find(t => t.w === w && t.u === u && !t.tg).tg = g.id;
+    if (col) S.collapsed.add(`tg${g.id}`);
+    return g;
+  });
+  S.saved = SAVED_DEF.map(([t, u, d, topic]) => ({ id: id++, t, u, d, topic }));
+  S.rem = {};
+  for (const [u, r] of REM_DEF) S.rem[S.tabs.find(t => t.u === u).id] = r;
+  S.checked = new Set();
+  S.cur = null;
+  S.hintGone = false;
+  S.prefs = prefDefault();
+  S.ideas = ideaDefault();
+  S.sel = S.scene === 4 ? 'groups' : 'all';
+}
+
+// ---------- derived ----------
+const tgOn = () => S.prefs.tabGroups;
+const tgById = id => S.tgs.find(g => g.id === id);
+const tgName = g => g.name || (() => { const l = S.tabs.filter(t => t.tg === g.id); return l.length ? `${hostOf(l[0].u)} & ${l.length - 1} more` : 'Tab group'; })();
+const tgOf = t => (tgOn() && t.tg ? tgById(t.tg) : null);
+const urlCounts = () => S.tabs.reduce((m, t) => m.set(t.u, (m.get(t.u) || 0) + 1), new Map());
+const dupTotal = () => [...urlCounts().values()].reduce((s, n) => s + (n > 1 ? n - 1 : 0), 0);
+const isStale = t => S.prefs.stale && t.d >= S.prefs.days && !(S.scene === 4 && S.rem[t.id]);
+const dueIds = () => S.tabs.filter(t => S.rem[t.id]?.due).map(t => t.id);
+const schedIds = () => S.tabs.filter(t => S.rem[t.id]?.at).map(t => t.id);
+const winName = id => S.wins.find(w => w.id === id)?.name ?? '';
+const tabOf = key => S.tabs.find(t => `t${t.id}` === key);
+const sorted = list => (S.prefs.sort === 'recent' ? [...list].sort((a, b) => a.d - b.d) : list);
+const tgChip = t => { const g = tgOf(t); return g ? `<span class="tgchip" style="--c:var(--tg-${g.color})"><i class="dot"></i>${esc(tgName(g))}</span>` : ''; };
+function badges(t) {
+  const dup = urlCounts().get(t.u) > 1 ? '<span class="copy-pill">dup</span>' : '';
+  const stale = isStale(t) ? '<span class="stale-tag">stale</span>' : '';
+  const r = S.scene === 4 && S.rem[t.id]?.at ? `<span class="rem-tag">${icon('bell')}${esc(S.rem[t.id].at)}</span>` : '';
+  return dup + stale + r;
+}
+
+// ---------- header, shared by popup and page ----------
+function dupButton(disabled) {
+  const n = dupTotal();
+  const label = `Close duplicates (${n})`;
+  return `<button type="button" class="icon-btn dup" data-do="dups" title="${label}" aria-label="${label}" ${disabled || !n ? 'disabled' : ''}>${icon('copy')}${n ? `<span class="badge">${n}</span>` : ''}</button>`;
+}
+const gearButton = '<button type="button" class="icon-btn" data-do="settings" title="Settings" aria-label="Settings">' + icon('settings') + '</button>';
+
+// ---------- scene 1: popup ----------
+function popupRow(t) {
+  return `<li class="row ${t.sus ? 'suspended' : ''}"><button type="button" class="row-main">${tile(hostOf(t.u))}<span class="t"><span class="title">${esc(t.t)}</span><span class="url">${esc(t.u)}</span></span></button>${tgChip(t)}${badges(t)}<span class="actions"><button type="button" class="icon-btn" title="Save &amp; close">${icon('save')}</button><button type="button" class="icon-btn" data-close title="Close">${icon('close')}</button></span></li>`;
+}
+function popupGroup(name, rows, open, meta) {
+  const favs = unique(rows.map(r => r.host)).slice(0, 3).map(tile).join('');
+  return `<details class="group" ${open ? 'open' : ''}><summary><span class="chev">${icon('chevron')}</span><span class="mini-stack">${favs}</span><span class="g-name">${esc(name)}</span><span class="g-meta">${meta}</span><span class="g-spacer"></span></summary><ul class="rows">${rows.map(r => r.html).join('')}</ul></details>`;
+}
+function popupBody() {
+  const tabRow = t => ({ host: hostOf(t.u), html: popupRow(t) });
+  if (S.pview === 'library') {
+    return `<div class="groups">${unique(S.saved.map(s => s.topic)).map((tp, i) => { const l = S.saved.filter(s => s.topic === tp); return popupGroup(tp ?? 'No topic', l.map(s => ({ host: hostOf(s.u), html: `<li class="row"><button type="button" class="row-main">${tile(hostOf(s.u))}<span class="t"><span class="title">${esc(s.t)}</span><span class="url">${esc(s.u)}</span></span></button><span class="age">saved ${ago(s.d)}</span></li>` })), i === 0, `${l.length}`); }).join('')}</div>`;
+  }
+  const byWin = S.pview === 'windows';
+  const keys = byWin ? S.wins.map(w => w.id) : unique(S.tabs.map(t => t.g));
+  return `<div class="${byWin ? 'windows' : 'groups'}">${keys.map((k, i) => {
+    const list = S.tabs.filter(t => (byWin ? t.w === k : t.g === k));
+    return popupGroup(byWin ? winName(k) : k, sorted(list).map(tabRow), i === 0, `${list.length}`);
+  }).join('')}</div>`;
+}
+function scene1() {
+  const seg = ['Groups', 'Windows', ...(S.prefs.library ? ['Library'] : [])].map(n => `<button type="button" data-pview="${n.toLowerCase()}" aria-pressed="${S.pview === n.toLowerCase()}">${n}</button>`).join('');
+  return `<div class="popup-frame"><main class="app"><div class="head"><input class="search" type="search" placeholder="Search tabs, URLs, groups…" aria-label="Search tabs">
+    ${dupButton(S.pview === 'library')}<div class="seg" role="group" aria-label="View">${seg}</div>
+    <button type="button" class="icon-btn" title="Open as page" aria-label="Open as page">${icon('page')}</button>${gearButton}</div>
+    <div class="results-bar"></div><div class="body">${popupBody()}</div></main></div>`;
+}
+
+// ---------- scenes 2-4: the page ----------
+// A row is {key, type, lvl, parent, ids, kids, ...}. Collapsed parents hide their children, unless "all" asks for every key.
+function addGroup(out, o, list, all, extra = {}) {
+  out.push({ type: 'g', parent: null, ...o, ids: list.map(t => t.id), kids: list.length, ...extra });
+  if (all || !S.collapsed.has(o.key)) for (const t of sorted(list)) out.push({ key: `t${t.id}`, type: 't', lvl: o.lvl + 1, parent: o.key, ids: [t.id], kids: 0, tab: t });
+}
+function addWindow(out, w, all) {
+  const wt = S.tabs.filter(t => t.w === w.id);
+  const key = `w${w.id}`;
+  out.push({ key, type: 'w', lvl: 0, parent: null, ids: wt.map(t => t.id), kids: wt.length, win: w });
+  if (!all && S.collapsed.has(key)) return;
+  let rest = wt;
+  if (tgOn()) {
+    for (const g of S.tgs.filter(g => g.w === w.id && wt.some(t => t.tg === g.id))) addGroup(out, { key: `tg${g.id}`, type: 'tg', lvl: 1, parent: key }, wt.filter(t => t.tg === g.id), all, { tg: g, name: tgName(g) });
+    rest = wt.filter(t => !t.tg);
+  }
+  for (const name of unique(rest.map(t => t.g))) addGroup(out, { key: `g${w.id}|${name}`, lvl: 1, parent: key }, rest.filter(t => t.g === name), all, { name });
+}
+function buildRows(all = false) {
+  const out = [];
+  const sel = S.sel;
+  if (sel === 'all') S.wins.filter(w => S.tabs.some(t => t.w === w.id)).forEach(w => addWindow(out, w, all));
+  else if (/^w\d+$/.test(sel)) addWindow(out, S.wins.find(w => `w${w.id}` === sel), all);
+  else if (/^tg\d+$/.test(sel)) { const g = tgById(Number(sel.slice(2))); addGroup(out, { key: sel, type: 'tg', lvl: 0 }, S.tabs.filter(t => t.tg === g.id), all, { tg: g, name: tgName(g) }); }
+  else if (sel === 'stale') addGroup(out, { key: 'gstale', lvl: 0 }, S.tabs.filter(isStale), all, { name: `Not used for ${S.prefs.days}+ days` });
+  else if (sel === 'sched') for (const id of schedIds()) out.push({ key: `t${id}`, type: 't', lvl: 0, parent: null, ids: [id], kids: 0, tab: S.tabs.find(t => t.id === id) });
+  else if (sel.startsWith('topic:')) for (const s of S.saved.filter(s => (s.topic ?? '') === sel.slice(6))) out.push({ key: `s${s.id}`, type: 's', lvl: 0, ids: [], kids: 0, saved: s });
+  else {
+    const due = dueIds();
+    const showRem = S.scene === 4 || sel === 'due';
+    if (showRem && due.length) {
+      out.push({ key: 'rg', type: 'rg', lvl: 0, parent: null, ids: due, kids: due.length });
+      if (all || !S.collapsed.has('rg')) for (const id of due) out.push({ key: `t${id}`, type: 'due', lvl: 1, parent: 'rg', ids: [id], kids: 0, tab: S.tabs.find(t => t.id === id) });
+    }
+    if (sel !== 'due') {
+      const rest = S.tabs.filter(t => !(S.scene === 4 && S.rem[t.id]?.due));
+      for (const name of unique(rest.map(t => t.g))) addGroup(out, { key: `g|${name}`, lvl: 0 }, rest.filter(t => t.g === name), all, { name });
+    }
+  }
+  return out;
+}
+function titleOf() {
+  const sel = S.sel;
+  if (sel === 'groups') return 'Groups';
+  if (sel === 'all') return 'All windows';
+  if (/^w\d+$/.test(sel)) return winName(Number(sel.slice(1)));
+  if (/^tg\d+$/.test(sel)) return tgName(tgById(Number(sel.slice(2))));
+  if (sel === 'stale') return `Not used for ${S.prefs.days}+ days`;
+  if (sel === 'due') return 'Reminders · due';
+  if (sel === 'sched') return 'Reminders · scheduled';
+  return sel.slice(6) || 'No topic';
+}
+function rowHtml(r) {
+  const done = r.ids.filter(id => S.checked.has(id)).length;
+  const box = r.ids.length && r.type !== 'due' && r.type !== 'rg' ? `<input type="checkbox" data-ck aria-label="Select" ${done && done === r.ids.length ? 'checked' : ''} ${done && done < r.ids.length ? 'data-ind' : ''}>` : '';
+  const chev = r.kids ? `<span class="chev">${icon('chevron')}</span>` : '<span class="spacer"></span>';
+  const more = `<button type="button" class="icon-btn" data-more aria-haspopup="menu" aria-label="More actions" title="More">${icon('more')}</button>`;
+  const t = r.tab;
+  let cls = `tr ${r.type}`;
+  let body = '';
+  let style = `--lvl:${r.lvl}`;
+  if (r.type === 'w') body = `<span class="wl-icon">${S.wins.findIndex(w => w.id === r.win.id) + 1}</span><span class="tt">${esc(r.win.name)}</span><span class="g-meta">${r.kids} tabs</span><span class="g-spacer"></span>${more}`;
+  else if (r.type === 'tg') { style += `;--c:var(--tg-${r.tg.color})`; body = `<span class="tt">${esc(r.name)}</span><span class="g-meta">${r.kids} tabs</span><span class="g-spacer"></span>${more}`; }
+  else if (r.type === 'g') body = `<span class="mini-stack" style="--fav:22px">${unique(r.ids.map(id => hostOf(S.tabs.find(x => x.id === id).u))).slice(0, 3).map(tile).join('')}</span><span class="tt">${esc(r.name)}</span><span class="g-meta">${r.kids}</span><span class="g-spacer"></span>${more}`;
+  else if (r.type === 'rg') body = `<span class="stale-icon" style="width:22px;height:22px">${icon('bell')}</span><span class="tt">Reminders</span><span class="g-meta">${r.kids} due</span>`;
+  else if (r.type === 's') body = `${tile(hostOf(r.saved.u))}<span class="tt">${esc(r.saved.t)}</span><span class="url">${esc(r.saved.u)}</span><span class="age">saved ${ago(r.saved.d)}</span><button type="button" class="icon-btn" data-close title="Remove from Library" aria-label="Remove from Library">${icon('close')}</button>`;
+  else if (r.type === 'due') body = `${tile(hostOf(t.u))}<span class="tt grow">${esc(t.t)}</span><span class="rem-tag">${icon('bell')}due ${esc(S.rem[t.id].due)}</span><button type="button" class="btn sm" data-do="open">Open</button><button type="button" class="btn sm" data-do="done">Done</button><button type="button" class="btn sm" data-do="again" aria-haspopup="menu">Remind again ▸</button>`;
+  else { cls += t.sus ? ' suspended' : ''; body = `${tile(hostOf(t.u))}<span class="tt">${esc(t.t)}</span>${r.parent?.startsWith('tg') ? '' : tgChip(t)}<span class="url">${esc(t.u)}</span>${badges(t)}<span class="age">used ${ago(t.d)}</span>${more}`; }
+  const sel = r.key === S.cur ? ' sel' : '';
+  const col = r.kids && S.collapsed.has(r.key) ? ' collapsed' : '';
+  return `<div class="${cls}${sel}${col}" role="treeitem" aria-level="${r.lvl + 1}" ${r.kids ? `aria-expanded="${!col}"` : ''} data-key="${esc(r.key)}" style="${style}">${chev}${box}${body}</div>`;
+}
+function sidebar() {
+  const item = (sel, lead, label, n, cls = '') => `<button type="button" class="${cls}" data-sel="${esc(sel)}" aria-current="${S.sel === sel}">${lead}<span class="nm">${esc(label)}</span><span class="n">${n}</span></button>`;
+  const ti = svg => `<span class="topic-icon">${icon(svg)}</span>`;
+  let h = item('groups', ti('list'), 'Groups', unique(S.tabs.map(t => t.g)).length) + '<div class="side-head">Windows</div>' + item('all', ti('win'), 'All windows', S.tabs.length);
+  S.wins.forEach((w, i) => {
+    h += item(`w${w.id}`, `<span class="wl-icon">${i + 1}</span>`, w.name, S.tabs.filter(t => t.w === w.id).length);
+    if (tgOn()) for (const g of S.tgs.filter(g => g.w === w.id && S.tabs.some(t => t.tg === g.id))) h += item(`tg${g.id}`, `<i class="dot" style="--c:var(--tg-${g.color})"></i>`, tgName(g), S.tabs.filter(t => t.tg === g.id).length, 'sub');
+  });
+  if (S.scene === 4) h += `<div class="side-head">Reminders</div>` + item('due', `<span class="stale-icon">${icon('bell')}</span>`, 'Due', dueIds().length) + item('sched', `<span class="topic-icon">${icon('clock')}</span>`, 'Scheduled', schedIds().length);
+  if (S.prefs.library) h += '<div class="side-head">Library topics</div>' + [null, 'Release 2.0', 'Read later'].map(tp => item(`topic:${tp ?? ''}`, ti('save'), tp ?? 'No topic', S.saved.filter(s => s.topic === tp).length)).join('');
+  if (S.prefs.stale) h += '<div class="side-head">Stale</div>' + item('stale', `<span class="stale-icon">${icon('clock')}</span>`, `Not used for ${S.prefs.days}+ days`, S.tabs.filter(isStale).length);
+  return `<nav class="side" aria-label="Sections">${h}</nav>`;
+}
+function detailsPane() {
+  const t = S.cur?.startsWith('t') ? tabOf(S.cur) : null;
+  const head = `<div class="head-row"><span>Details</span><button type="button" class="icon-btn" data-do="toggleDetails" title="Hide details" aria-label="Hide details">${icon('close')}</button></div>`;
+  if (!t) return `<aside class="details" aria-label="Details">${head}<div class="empty-d"><span>Select a tab to see its details.</span></div></aside>`;
+  const g = tgById(t.tg);
+  const sv = S.saved.find(s => s.u === t.u);
+  const rem = S.rem[t.id];
+  const dd = (k, v) => `<dt>${k}</dt><dd>${v}</dd>`;
+  return `<aside class="details" aria-label="Details">${head}<div style="margin-top:14px">${tile(hostOf(t.u))}</div><h3>${esc(t.t)}</h3><div class="full">https://${esc(t.u)}</div>
+    <dl>${dd('Window', esc(winName(t.w)))}${dd('Tab group', g ? `<i class="dot" style="--c:var(--tg-${g.color})"></i>${esc(tgName(g))}` : '—')}${dd('Group', esc(t.g))}${dd('Last used', ago(t.d))}
+    ${dd('Duplicates', urlCounts().get(t.u) - 1 || 'None')}${dd('Saved', sv ? esc(sv.topic ?? 'No topic') : 'No')}${dd('Reminder', rem ? esc(rem.at ? rem.at : 'due ' + rem.due) : 'None')}</dl>
+    <div class="btns"><button type="button" class="btn" data-do="d-switch">Switch to tab</button><button type="button" class="btn" data-do="d-save">Save &amp; close</button><button type="button" class="btn danger" data-do="d-close">Close</button></div></aside>`;
+}
+function treeTop() {
+  if (S.scene === 3 && S.ideas.toolbar) {
+    const b = (d, i, l) => `<button type="button" class="icon-btn" data-do="${d}" title="${l}" aria-label="${l}">${icon(i)}</button>`;
+    return `<div class="tree-top tools" role="toolbar" aria-label="Tree">${b('collapse', 'fold', 'Collapse all')}${b('expand', 'unfold', 'Expand all')}${b('reveal', 'locate', 'Reveal active tab')}<span class="g-spacer"></span><label>Sort <select data-sort aria-label="Sort"><option value="recent" ${S.prefs.sort === 'recent' ? 'selected' : ''}>Recent</option><option value="order" ${S.prefs.sort === 'order' ? 'selected' : ''}>Tab order</option></select></label></div>`;
+  }
+  return '<div class="tree-top"><span><kbd>↑</kbd> <kbd>↓</kbd> move</span><span><kbd>←</kbd> <kbd>→</kbd> collapse / expand</span><span><kbd>Space</kbd> check</span><span><kbd>Enter</kbd> open</span></div>';
+}
+function hintRow() {
+  if (tgOn() || S.hintGone || !S.tabs.some(t => t.tg)) return '';
+  return `<div class="results-bar"><span>You use tab groups. Show them here?</span><button type="button" class="btn sm" data-do="hintOn">Turn on</button><button type="button" class="icon-btn" data-do="hintX" title="Dismiss" aria-label="Dismiss" style="width:26px;height:26px">${icon('close')}</button></div>`;
+}
+function statusBar() {
+  const stale = S.tabs.filter(isStale).length, sus = S.tabs.filter(t => t.sus).length;
+  return `<footer class="statusbar"><span>${S.tabs.length} tabs</span>·<span>${S.wins.length} windows</span>·<span>${dupTotal()} duplicates</span>·<span>${stale} stale</span>·<span>${sus} suspended</span></footer>`;
+}
+function pageScene() {
+  const i = S.ideas, s3 = S.scene === 3;
+  const hasSide = !(s3 && i.sidebar && S.sbHidden);
+  const hasDet = s3 && i.details && !S.dHidden;
+  const rows = buildRows();
+  const library = S.sel.startsWith('topic:');
+  const count = library ? `${rows.length} saved` : `${new Set(rows.filter(r => r.lvl === 0).flatMap(r => r.ids)).size} tabs`;
+  const bulk = S.checked.size ? `<div class="bulk-bar" role="group" aria-label="Checked tabs"><span id="bulk-count">${S.checked.size} selected</span><button type="button" class="btn" data-do="b-save">Save &amp; close</button><button type="button" class="btn" data-do="b-move">Move to new window</button><button type="button" class="btn" data-do="b-suspend">Suspend</button><button type="button" class="btn danger" data-do="b-close">Close</button><button type="button" class="btn" data-do="b-clear">Clear</button></div>` : '';
+  const head = `<div class="head">${s3 && i.sidebar ? `<button type="button" class="icon-btn" data-do="toggleSide" title="Toggle sidebar" aria-label="Toggle sidebar" aria-pressed="${!S.sbHidden}">${icon('panelL')}</button>` : ''}
+    <input class="search" type="search" placeholder="Search tabs, URLs, groups…" aria-label="Search tabs">
+    ${s3 && i.palette ? `<button type="button" class="btn" data-do="palette">${icon('search')} Commands <kbd>⌘K</kbd></button>` : ''}
+    ${dupButton(library)}${s3 && i.details ? `<button type="button" class="icon-btn" data-do="toggleDetails" title="Toggle details" aria-label="Toggle details" aria-pressed="${!S.dHidden}">${icon('panelR')}</button>` : ''}${gearButton}</div>`;
+  const cols = `${hasSide ? 'minmax(170px, 240px) ' : ''}minmax(0, 1fr)${hasDet ? ' minmax(240px, 300px)' : ''}`;
+  const actions = library ? '' : `<button type="button" class="btn" data-do="saveAll">Save &amp; close all</button><button type="button" class="btn danger" data-do="closeAll">Close all</button>`;
+  return `<main class="pg">${head}<div class="pg-body" style="grid-template-columns:${cols}">${hasSide ? sidebar() : ''}
+    <section class="main"><div class="main-head"><h2>${esc(titleOf())}</h2><span class="sub">${count}</span><span class="g-spacer"></span>${actions}</div>${hintRow()}${treeTop()}
+    <div class="tree-scroll"><div id="tree" role="tree" tabindex="0" aria-label="Tabs">${rows.map(rowHtml).join('') || '<div class="empty">Nothing here.</div>'}</div>${bulk}</div></section>${hasDet ? detailsPane() : ''}</div>
+    ${s3 && i.status ? statusBar() : '<span></span>'}</main>`;
+}
+
+// ---------- plumbing: scenes, preview bar ----------
+const HINTS = {
+  1: 'Popup with the new header (duplicates icon, switch, page, ⚙). The settings window is a native dialog: ↑/↓ change section, Esc or a click outside closes, ⚙ reopens on the last section. Font, text size, theme and tab groups are live.',
+  2: 'Windows view: window → tab group → tabs, then ordinary groups. Click a header to fold it. Sidebar: a window’s tab groups sit under it; “Groups” shows a dot and name on tab group rows. Toggle tab groups off for today’s tree and the hint row.',
+  3: 'Obsidian-inspired additions, each switchable. ⌘/Ctrl+K opens the palette; click a row for details; right-click a row for its menu; Shift+click a checkbox checks a range.',
+  4: '1.4 Reminders: pinned Reminders group with due tabs, bells on scheduled rows, sidebar section, “Remind me later ▸” in every ⋯ menu.',
+};
+function ctxBar() {
+  if (S.scene === 2) return `<button type="button" id="tgToggle" aria-pressed="${S.prefs.tabGroups}">Tab groups: ${S.prefs.tabGroups ? 'on' : 'off'}</button>`;
+  if (S.scene === 3) return [['palette', 'Command palette'], ['details', 'Details pane'], ['toolbar', 'Tree toolbar'], ['status', 'Status bar'], ['sidebar', 'Collapsible sidebar'], ['menu', 'Right-click, Shift+click']].map(([k, l]) => `<label><input type="checkbox" data-idea="${k}" ${S.ideas[k] ? 'checked' : ''}>${l}</label>`).join('');
+  if (S.scene === 4) return `<span class="tb" title="Toolbar icon">omt${dueIds().length ? `<b>${dueIds().length}</b>` : ''}</span><span style="color:var(--muted)">toolbar badge (amber = due reminders)</span>`;
+  return '';
+}
+function render() {
+  const keep = document.querySelector('.tree-scroll')?.scrollTop;
+  $('#stage').innerHTML = S.scene === 1 ? scene1() : pageScene();
+  $('#ctx').innerHTML = ctxBar();
+  $('#hint').textContent = HINTS[S.scene];
+  for (const b of document.querySelectorAll('[data-scene]')) b.setAttribute('aria-pressed', String(Number(b.dataset.scene) === S.scene));
+  for (const box of document.querySelectorAll('[data-ind]')) box.indeterminate = true;
+  const sc = document.querySelector('.tree-scroll');
+  if (sc && keep) sc.scrollTop = keep;
+}
+function setScene(n) {
+  S.scene = n;
+  S.sel = n === 4 ? 'groups' : 'all';
+  S.cur = null;
+  S.checked.clear();
+  render();
+  if (n === 1) openSettings();
+}
+function applyPrefs() {
+  const root = document.documentElement, p = S.prefs;
+  root.classList.toggle('mono', p.font === 'fira');
+  const custom = p.font === 'custom' && p.custom.trim();
+  if (custom) root.style.setProperty('--ui-font', `"${p.custom.trim()}", var(--sans)`);
+  else root.style.removeProperty('--ui-font');
+  root.style.colorScheme = p.theme === 'auto' ? '' : p.theme;
+  root.style.setProperty('--fs', `${(p.font === 'fira' ? 13 : 14) + { small: -1, default: 0, large: 1 }[p.size]}px`);
+}
+let toastTimer;
+function toast(text) {
+  const el = $('#toast');
+  el.textContent = text;
+  if (!el.matches(':popover-open')) el.showPopover();
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el.hidePopover(), 2400);
+}
+
+// ---------- tab actions ----------
+function act(a, ids, label = '') {
+  const list = S.tabs.filter(t => ids.includes(t.id));
+  const what = list.length === 1 ? `“${list[0].t}”` : `${list.length} tabs`;
+  if (a === 'close' || a === 'save') {
+    if (a === 'save') for (const t of list) S.saved.push({ id: Date.now() + t.id, t: t.t, u: t.u, d: 0, topic: null });
+    S.tabs = S.tabs.filter(t => !ids.includes(t.id));
+    S.wins = S.wins.filter(w => S.tabs.some(t => t.w === w.id));
+    for (const id of ids) { S.checked.delete(id); delete S.rem[id]; }
+    toast(`${a === 'save' ? 'Saved & closed' : 'Closed'} ${what}`);
+  } else if (a === 'suspend') { list.forEach(t => (t.sus = true)); toast(`Suspended ${what}`); }
+  else if (a === 'remind') { list.forEach(t => (S.rem[t.id] = { at: label.charAt(0).toLowerCase() + label.slice(1) })); toast(`Would remind you ${label.charAt(0).toLowerCase() + label.slice(1)}: ${what}`); }
+  else if (a === 'done') { list.forEach(t => delete S.rem[t.id]); toast(`Reminder done: ${what}`); }
+  else toast(`Would ${a}: ${what}`);
+  render();
+}
+function runAction(name) {
+  if (name === 'Close duplicates') return closeDups();
+  if (name === 'Open settings') return openSettings();
+  toast(`Would: ${name}`);
+}
+function closeDups() {
+  const seen = new Set();
+  const extra = S.tabs.filter(t => (seen.has(t.u) ? true : (seen.add(t.u), false))).map(t => t.id);
+  if (extra.length) act('close', extra);
+}
+
+// ---------- the ⋯ menu ----------
+let menuCtx = null;
+const REMIND = ['In 1 hour', 'In 3 hours', 'Tomorrow 9:00', 'Next Monday 9:00', 'Custom…'];
+function menuItems(r) {
+  const lib = S.prefs.library;
+  const it = (a, l, i, c = '') => `<button type="button" role="menuitem" data-m="${a}" class="${c}">${icon(i)}<span>${l}</span></button>`;
+  const common = [lib && it('save', 'Save &amp; close', 'save'), it('move', 'Move to new window', 'win'), it('suspend', 'Suspend', 'suspend')].filter(Boolean);
+  const rem = S.scene === 4 ? it('remindMenu', 'Remind me later ▸', 'bell') : '';
+  let list;
+  if (r.type === 't' || r.type === 'due') list = [it('switch', 'Switch to tab', 'open'), ...common, rem, '<hr>', it('close', 'Close', 'close', 'danger')];
+  else if (r.type === 'w') list = [...common, it('suspendOthers', 'Suspend all other tabs', 'suspend'), rem, '<hr>', it('close', 'Close window', 'close', 'danger')];
+  else list = [...common, rem, '<hr>', it('close', r.type === 'tg' ? 'Close tab group' : 'Close group', 'close', 'danger')];
+  return list.join('');
+}
+function openMenu(r, x, y, mode = 'main') {
+  const m = $('#menu');
+  menuCtx = { r, ids: r.ids };
+  m.innerHTML = mode === 'remind' ? `<button type="button" role="menuitem" data-m="back" class="sub-back">${icon('chevron')}<span>Back</span></button><hr>${REMIND.map(l => `<button type="button" role="menuitem" data-m="remind:${l}">${icon('clock')}<span>${l}</span></button>`).join('')}` : menuItems(r);
+  if (!m.matches(':popover-open')) m.showPopover();
+  const b = m.getBoundingClientRect();
+  m.style.left = `${Math.max(8, Math.min(x, innerWidth - b.width - 8))}px`;
+  m.style.top = `${Math.max(8, Math.min(y, innerHeight - b.height - 8))}px`;
+  m.querySelector('button')?.focus();
+}
+$('#menu').addEventListener('click', e => {
+  const b = e.target.closest('[data-m]');
+  if (!b) return;
+  const a = b.dataset.m, r = menuCtx.r;
+  if (a === 'remindMenu' || a === 'back') { const q = $('#menu').getBoundingClientRect(); return openMenu(r, q.left, q.top, a === 'remindMenu' ? 'remind' : 'main'); }
+  $('#menu').hidePopover();
+  if (a.startsWith('remind:')) return a.endsWith('Custom…') ? toast('Custom… opens the browser’s own date and time field') : act('remind', menuCtx.ids, a.slice(7));
+  if (a === 'suspendOthers') return toast('Would suspend every other tab in this window');
+  act(a, menuCtx.ids);
+});
+
+// ---------- settings window ----------
+const dlg = $('#settings');
+const SECTIONS = [['general', 'General', 'sliders', '#8e8e93'], ['appearance', 'Appearance', 'palette', '#bf5af2'], ['features', 'Features', 'spark', '#30b158'], ['never', 'Never list', 'ban', '#ff453a'], ['shortcuts', 'Shortcuts', 'keyboard', '#ff9f0a'], ['about', 'About', 'info', '#0a84ff']];
+const row = (label, desc, control, extra = '') => `<div class="srow"><span class="lbl"><span>${label}${extra}</span>${desc ? `<span class="desc">${desc}</span>` : ''}</span>${control}</div>`;
+const swRow = (p, label, desc, extra = '', disabled = false) => `<label class="srow"><span class="lbl"><span>${label}${extra}</span>${desc ? `<span class="desc">${desc}</span>` : ''}</span><input type="checkbox" class="switch" data-p="${p}" ${S.prefs[p] ? 'checked' : ''} ${disabled ? 'disabled' : ''}></label>`;
+const segCtl = (p, label, opts) => `<div class="seg" role="group" aria-label="${label}">${opts.map(([v, t]) => `<button type="button" data-p="${p}" data-v="${v}" aria-pressed="${S.prefs[p] === v}">${t}</button>`).join('')}</div>`;
+const selCtl = (p, label, opts) => `<select data-p="${p}" aria-label="${label}">${opts.map(([v, t]) => `<option value="${v}" ${String(S.prefs[p]) === String(v) ? 'selected' : ''}>${t}</option>`).join('')}</select>`;
+const kbd = keys => `<span class="kbds">${keys.map(k => `<kbd>${k}</kbd>`).join('')}</span>`;
+function fontFound(name) {
+  // document.fonts.check() says true for any name it has no @font-face for, so a canvas width test backs it up.
+  if (!name.trim() || !document.fonts.check(`13px "${name}"`)) return false;
+  const ctx = document.createElement('canvas').getContext('2d');
+  const width = (face, base) => { ctx.font = `40px "${face}", ${base}`; return ctx.measureText('mmmmmmmmlli1WQ').width; };
+  return ['monospace', 'serif', 'sans-serif'].some(base => width(name, base) !== width('__no_such_font__', base));
+}
+const PANES = {
+  general: () => `<div class="card">${swRow('dev', 'Developer mode', 'Groups and duplicates per repo, Jira project or Linear team')}${row('Sort tabs', '', segCtl('sort', 'Sort tabs', [['recent', 'Recent'], ['order', 'Tab order']]))}${row('Toolbar badge', '', selCtl('badge', 'Toolbar badge', [['both', 'Duplicates and tab count'], ['dups', 'Duplicates only'], ['off', 'Off']]))}${row('Toolbar button', '', segCtl('button', 'Toolbar button', [['popup', 'Opens the popup'], ['page', 'Opens the full page']]))}</div>`,
+  appearance: () => `<div class="card">${row('Font', '', segCtl('font', 'Font', [['fira', 'Fira Code'], ['system', 'System'], ['custom', 'Custom']]))}
+    <div class="srow" data-custom ${S.prefs.font === 'custom' ? '' : 'hidden'}><label class="lbl" for="p-custom">Font name</label><div style="text-align:right"><input type="text" id="p-custom" data-p="custom" value="${esc(S.prefs.custom)}" placeholder="e.g. Menlo" autocomplete="off" spellcheck="false"><span class="err" data-err ${S.prefs.custom && !fontFound(S.prefs.custom) ? '' : 'hidden'}>Font not found</span></div></div>
+    ${row('Text size', '', segCtl('size', 'Text size', [['small', 'Small'], ['default', 'Default'], ['large', 'Large']]))}${row('Theme', '', segCtl('theme', 'Theme', [['auto', 'Auto'], ['light', 'Light'], ['dark', 'Dark']]))}</div>`,
+  features: () => `<div class="card">${swRow('library', 'Library', 'Save &amp; close tabs into an “oh-my-tabs” bookmarks folder, synced by your browser. Asks for bookmarks access.')}</div>
+    <div class="card">${swRow('stale', 'Stale tabs', '')}${row('Not used for', '', `<span><select data-p="days" aria-label="Stale after" ${S.prefs.stale ? '' : 'disabled'}>${[3, 7, 14, 30].map(d => `<option ${S.prefs.days === d ? 'selected' : ''}>${d}</option>`).join('')}</select> days</span>`)}</div>
+    <div class="card">${swRow('tabGroups', 'Tab groups', 'Show the browser’s tab groups in the window hierarchy. Asks to view and manage your tab groups.')}${swRow('notify', 'Notify me', 'System notification when a reminder is due', '<span class="pill14">1.4</span>')}</div>`,
+  never: () => `<div class="card" style="padding:14px"><label class="lbl" for="p-never" style="margin-bottom:8px"><span>Never stale or suspend</span><span class="desc">one site per line; slack.com covers its subdomains</span></label><textarea id="p-never" class="never" data-p="never" spellcheck="false" autocomplete="off" placeholder="slack.com">${esc(S.prefs.never)}</textarea></div>`,
+  shortcuts: () => `<div class="card">${row('Open oh-my-tabs', '', `<span class="kbds">${kbd(['⌥', '⇧', 'O'])}<button type="button" class="btn sm" data-toast="Opens the browser’s shortcut page">Change…</button></span>`)}${row('Close duplicates', '', `<span class="kbds">${kbd(['⌥', '⇧', 'D'])}<button type="button" class="btn sm" data-toast="Opens the browser’s shortcut page">Change…</button></span>`)}</div>`,
+  about: () => `<div class="card"><div class="center"><strong style="font-size:16px">oh-my-tabs</strong><span class="desc">Version 1.3.0</span></div></div><div class="card">${['Chrome Web Store', 'Source on GitHub', 'Privacy policy', 'Send feedback'].map(l => `<a class="srow link" href="#"><span>${l}</span>${icon('open')}</a>`).join('')}</div>`,
+};
+function renderSettings(focusTab = false) {
+  const [id, label] = SECTIONS.find(s => s[0] === S.sec);
+  dlg.innerHTML = `<nav class="sp-nav" role="tablist" aria-orientation="vertical" aria-label="Settings sections">${SECTIONS.map(([k, l, ic, c]) => `<button type="button" role="tab" id="tab-${k}" data-sec="${k}" aria-selected="${k === id}" aria-controls="pane" tabindex="${k === id ? 0 : -1}"><span class="tile" style="--tc:${c}">${icon(ic)}</span>${l}</button>`).join('')}</nav>
+    <div class="sp-main"><div class="sp-title"><h2>${label}</h2><button type="button" class="icon-btn" data-close-dlg title="Close" aria-label="Close settings">${icon('close')}</button></div><div class="sp-body" id="pane" role="tabpanel" aria-labelledby="tab-${id}">${PANES[id]()}</div></div>`;
+  if (focusTab) $(`#tab-${id}`).focus();
+}
+function placeDialog() {
+  const f = $('.popup-frame');
+  if (S.scene === 1 && f) {
+    const r = f.getBoundingClientRect();
+    Object.assign(dlg.style, { inset: 'auto', margin: '0', left: `${r.left + (r.width - dlg.offsetWidth) / 2}px`, top: `${r.top + (r.height - dlg.offsetHeight) / 2}px` });
+  } else Object.assign(dlg.style, { inset: '', margin: '', left: '', top: '' });
+}
+function openSettings() {
+  if (!dlg.open) dlg.showModal();
+  renderSettings(true);
+  placeDialog();
+}
+addEventListener('resize', () => dlg.open && placeDialog());
+dlg.addEventListener('click', e => {
+  if (e.target.closest('[data-close-dlg]')) return dlg.close();
+  if (e.target === dlg) {
+    dlg.close();
+    // Preview only: the modal covers the preview bar, so a click on the bar through the backdrop goes on to its button.
+    return document.elementFromPoint(e.clientX, e.clientY)?.closest('.preview-bar button')?.click();
+  }
+  const sec = e.target.closest('[data-sec]');
+  if (sec) { S.sec = sec.dataset.sec; return renderSettings(true); }
+  const t = e.target.closest('[data-toast]');
+  if (t) return toast(t.dataset.toast);
+  if (e.target.closest('a.link')) return e.preventDefault();
+  const b = e.target.closest('button[data-p]');
+  if (!b) return;
+  S.prefs[b.dataset.p] = b.dataset.v;
+  for (const x of b.parentElement.children) x.setAttribute('aria-pressed', String(x === b));
+  $('[data-custom]')?.toggleAttribute('hidden', S.prefs.font !== 'custom');
+  afterPref();
+});
+dlg.addEventListener('keydown', e => {
+  if (!e.target.matches('[role=tab]') || !['ArrowDown', 'ArrowUp'].includes(e.key)) return;
+  e.preventDefault();
+  const i = SECTIONS.findIndex(s => s[0] === S.sec);
+  S.sec = SECTIONS[(i + (e.key === 'ArrowDown' ? 1 : SECTIONS.length - 1)) % SECTIONS.length][0];
+  renderSettings(true);
+});
+dlg.addEventListener('input', e => {
+  const p = e.target.dataset.p;
+  if (!p) return;
+  if (e.target.type === 'checkbox') S.prefs[p] = e.target.checked;
+  else S.prefs[p] = p === 'days' ? Number(e.target.value) : e.target.value;
+  if (p === 'custom') dlg.querySelector('[data-err]').hidden = !S.prefs.custom || fontFound(S.prefs.custom);
+  if (p === 'stale') dlg.querySelector('select[data-p=days]').disabled = !e.target.checked;
+  afterPref();
+});
+function afterPref() { applyPrefs(); render(); placeDialog(); }
+
+// ---------- command palette ----------
+const pal = $('#palette');
+let palItems = [], palIdx = 0;
+function fuzzy(q, s) {
+  s = s.toLowerCase();
+  const at = s.indexOf(q);
+  if (at >= 0) return 100 - at;
+  let i = 0, span = 0;
+  for (const ch of q) { const j = s.indexOf(ch, i); if (j < 0) return null; span += j - i; i = j + 1; }
+  return 50 - span;
+}
+function renderPalette() {
+  const q = $('#pal-q').value.trim().toLowerCase();
+  const pick = (list, text) => list.map(x => [fuzzy(q, text(x)), x]).filter(([s]) => q === '' || s !== null).sort((a, b) => (b[0] ?? 0) - (a[0] ?? 0)).map(([, x]) => x);
+  const acts = pick(ACTIONS, a => a).slice(0, 6).map(a => ({ kind: 'a', a }));
+  const tabs = pick(S.tabs, t => `${t.t} ${t.u}`).slice(0, 8).map(t => ({ kind: 't', t }));
+  palItems = [...acts, ...tabs];
+  palIdx = Math.min(palIdx, Math.max(0, palItems.length - 1));
+  const li = (x, i) => `<div class="pal-item" role="option" data-i="${i}" aria-selected="${i === palIdx}">${x.kind === 'a' ? `${icon('chevron')}<span class="tt">${esc(x.a)}</span>` : `${tile(hostOf(x.t.u))}<span class="tt">${esc(x.t.t)}</span><span class="url">${esc(x.t.u)}</span>`}</div>`;
+  $('#pal-list').innerHTML = (acts.length ? '<h4>Actions</h4>' + acts.map((x, i) => li(x, i)).join('') : '') + (tabs.length ? '<h4>Tabs</h4>' + tabs.map((x, i) => li(x, acts.length + i)).join('') : '') || '<div class="empty">No match.</div>';
+  $('#pal-list').querySelector('[aria-selected=true]')?.scrollIntoView({ block: 'nearest' });
+}
+function openPalette() { $('#pal-q').value = ''; palIdx = 0; if (!pal.open) pal.showModal(); renderPalette(); }
+function runPalette(i) {
+  const x = palItems[i];
+  if (!x) return;
+  pal.close();
+  if (x.kind === 'a') return runAction(x.a);
+  S.cur = `t${x.t.id}`;
+  render();
+  toast(`Would switch to “${x.t.t}”`);
+}
+$('#pal-q').addEventListener('input', () => { palIdx = 0; renderPalette(); });
+pal.addEventListener('keydown', e => {
+  if (e.key === 'ArrowDown' || e.key === 'ArrowUp') { e.preventDefault(); palIdx = (palIdx + (e.key === 'ArrowDown' ? 1 : -1) + palItems.length) % palItems.length; renderPalette(); }
+  if (e.key === 'Enter') { e.preventDefault(); runPalette(palIdx); }
+});
+pal.addEventListener('click', e => { if (e.target === pal) pal.close(); const i = e.target.closest('[data-i]'); if (i) runPalette(Number(i.dataset.i)); });
+
+// ---------- page events ----------
+const rowOf = el => buildRows().find(r => r.key === el.closest('[data-key]')?.dataset.key);
+function toggleCheck(r, e) {
+  const rows = buildRows().filter(x => x.ids.length && x.type !== 'due' && x.type !== 'rg' && x.type !== 's');
+  if (e.shiftKey && S.ideas.menu && S.scene === 3 && S.last) {
+    const a = rows.findIndex(x => x.key === S.last), b = rows.findIndex(x => x.key === r.key);
+    if (a >= 0 && b >= 0) for (const x of rows.slice(Math.min(a, b), Math.max(a, b) + 1)) x.ids.forEach(id => S.checked.add(id));
+  } else {
+    const all = r.ids.every(id => S.checked.has(id));
+    r.ids.forEach(id => (all ? S.checked.delete(id) : S.checked.add(id)));
+  }
+  S.last = r.key;
+}
+const checkedIds = () => [...S.checked];
+const DO = {
+  dups: closeDups,
+  settings: openSettings,
+  palette: openPalette,
+  hintOn() { S.prefs.tabGroups = true; render(); },
+  hintX() { S.hintGone = true; render(); },
+  toggleSide() { S.sbHidden = !S.sbHidden; render(); },
+  toggleDetails() { S.dHidden = !S.dHidden; render(); },
+  collapse() { buildRows(true).filter(r => r.kids).forEach(r => S.collapsed.add(r.key)); render(); },
+  expand() { S.collapsed.clear(); render(); },
+  reveal() {
+    const t = S.tabs.find(t => t.u === ACTIVE_URL);
+    S.sel = 'all'; S.cur = `t${t.id}`;
+    for (const k of [`w${t.w}`, `tg${t.tg}`, `g${t.w}|${t.g}`]) S.collapsed.delete(k);
+    render();
+    $('.tr.sel')?.scrollIntoView({ block: 'center' });
+  },
+  saveAll() { act('save', buildRows().filter(r => r.type === 't' || r.type === 'due').flatMap(r => r.ids)); },
+  closeAll() { act('close', buildRows().filter(r => r.type === 't' || r.type === 'due').flatMap(r => r.ids)); },
+  'b-save': () => act('save', checkedIds()), 'b-close': () => act('close', checkedIds()), 'b-suspend': () => act('suspend', checkedIds()),
+  'b-move': () => { toast(`Would move ${S.checked.size} tabs to a new window`); S.checked.clear(); render(); }, 'b-clear'() { S.checked.clear(); render(); },
+  'd-switch': () => toast(`Would switch to “${tabOf(S.cur).t}”`), 'd-save': () => act('save', [tabOf(S.cur).id]), 'd-close': () => act('close', [tabOf(S.cur).id]),
+};
+document.addEventListener('click', e => {
+  const t = e.target;
+  if (t.closest('dialog, #menu, #toast')) return;
+  const sc = t.closest('[data-scene]');
+  if (sc) return setScene(Number(sc.dataset.scene));
+  if (t.closest('#tgToggle')) { S.prefs.tabGroups = !S.prefs.tabGroups; return render(); }
+  const pv = t.closest('[data-pview]');
+  if (pv) { S.pview = pv.dataset.pview; return render(); }
+  const side = t.closest('[data-sel]');
+  if (side) { S.sel = side.dataset.sel; S.checked.clear(); return render(); }
+  const tr = t.closest('.tr');
+  const btn = t.closest('[data-do]');
+  if (btn && DO[btn.dataset.do]) return DO[btn.dataset.do]();
+  if (!tr) return;
+  const r = rowOf(tr);
+  if (!r) return;
+  if (t.closest('[data-close]')) return r.saved ? (S.saved = S.saved.filter(s => s !== r.saved), render()) : act('close', r.ids);
+  if (t.closest('[data-more]')) { const b = t.closest('[data-more]').getBoundingClientRect(); return openMenu(r, b.right - 200, b.bottom + 4); }
+  if (btn) {
+    const a = btn.dataset.do;
+    if (a === 'again') { const b = btn.getBoundingClientRect(); return openMenu(r, b.left, b.bottom + 4, 'remind'); }
+    return a === 'done' ? act('done', r.ids) : toast(`Would open “${r.tab.t}”`);
+  }
+  S.cur = r.key;
+  if (t.matches('[data-ck]')) toggleCheck(r, e);
+  else if (r.kids) S.collapsed.has(r.key) ? S.collapsed.delete(r.key) : S.collapsed.add(r.key);
+  render();
+});
+document.addEventListener('change', e => {
+  const idea = e.target.dataset.idea;
+  if (idea) { S.ideas[idea] = e.target.checked; render(); }
+  if (e.target.matches('[data-sort]')) { S.prefs.sort = e.target.value; render(); }
+});
+document.addEventListener('contextmenu', e => {
+  const tr = e.target.closest('.tr');
+  if (!tr || S.scene !== 3 || !S.ideas.menu) return;
+  const r = rowOf(tr);
+  if (!r || r.type === 'rg' || r.type === 's') return;
+  e.preventDefault();
+  openMenu(r, e.clientX, e.clientY);
+});
+document.addEventListener('keydown', e => {
+  if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k' && S.scene === 3 && S.ideas.palette) { e.preventDefault(); return openPalette(); }
+  if (e.target.id !== 'tree') return;
+  const rows = buildRows();
+  const i = Math.max(0, rows.findIndex(r => r.key === S.cur));
+  const r = rows[i];
+  if (e.key === 'ArrowDown') S.cur = rows[Math.min(i + 1, rows.length - 1)].key;
+  else if (e.key === 'ArrowUp') S.cur = rows[Math.max(i - 1, 0)].key;
+  else if (e.key === 'ArrowRight' && r.kids) { if (S.collapsed.has(r.key)) S.collapsed.delete(r.key); else S.cur = rows[i + 1].key; }
+  else if (e.key === 'ArrowLeft') { if (r.kids && !S.collapsed.has(r.key)) S.collapsed.add(r.key); else if (r.parent) S.cur = r.parent; }
+  else if (e.key === ' ' && r.ids.length) toggleCheck(r, e);
+  else if (e.key === 'Enter') r.tab ? toast(`Would open “${r.tab.t}”`) : r.kids && (S.collapsed.has(r.key) ? S.collapsed.delete(r.key) : S.collapsed.add(r.key));
+  else return;
+  e.preventDefault();
+  render();
+  $('#tree')?.focus({ preventScroll: true });
+  $('.tr.sel')?.scrollIntoView({ block: 'nearest' });
+});
+$('#reset').addEventListener('click', () => { reset(); applyPrefs(); render(); });
+$('#theme').addEventListener('click', () => { S.prefs.theme = S.prefs.theme === 'dark' ? 'light' : 'dark'; applyPrefs(); if (dlg.open) renderSettings(); });
+
+reset();
+applyPrefs();
+setScene(1);
+</script>
+</body>
+</html>
