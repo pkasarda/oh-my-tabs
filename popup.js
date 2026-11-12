@@ -3,7 +3,11 @@ import * as Library from './library.js';
 
 globalThis.browser ??= chrome;
 
-const SETTINGS = { dev: true, sort: 'recent', view: 'groups', stale: true, staleDays: 7, never: [], sideWidth: 240 };
+// font null: never stored, which start() settles once from developer mode (see there).
+const SETTINGS = {
+  dev: true, sort: 'recent', view: 'groups', stale: true, staleDays: 7, never: [], sideWidth: 240,
+  font: null, fontCustom: '', textSize: 'default', theme: 'auto', badge: 'all', button: 'popup', settingsSection: 'general',
+};
 const DAY = 24 * 60 * 60 * 1000;
 const IS_PAGE = location.pathname.endsWith('/page.html');
 // The full page used to be popup.html?page; a tab left open on that address moves over.
@@ -35,6 +39,7 @@ const ICONS = {
   page: '<path d="M15 3h6v6"/><path d="M10 14 21 3"/><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>',
   move: '<path d="m16 3 4 4-4 4"/><path d="M20 7H4"/><path d="m8 21-4-4 4-4"/><path d="M4 17h16"/>',
   close: '<path d="M18 6 6 18"/><path d="m6 6 12 12"/>',
+  copy: '<rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/>',
   closeCopies: '<path d="m12 12 6 6"/><path d="m12 18 6-6"/><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/>',
   chevron: '<path d="m9 18 6-6-6-6"/>',
   plus: '<path d="M5 12h14"/><path d="M12 5v14"/>',
@@ -605,15 +610,17 @@ function render() {
   }
   const inLibrary = state.view === 'library';
   const list = inLibrary ? state.saved.filter(savedMatches) : state.tabs.filter(matches);
-  document.documentElement.classList.toggle('mono', state.dev);
   if (!IS_PAGE) $('[data-view="library"]').hidden = !state.libraryOn;
   search.placeholder = inLibrary ? 'Search saved tabs…' : 'Search tabs, URLs, groups…';
 
+  // Always there, so the view switch beside it never moves; duplicates are about open tabs, the Library has none.
   const closeDups = $('#close-dups');
-  closeDups.textContent = `Close duplicates (${state.duplicates})`;
-  closeDups.disabled = state.duplicates === 0;
-  // Duplicates are about open tabs; the Library view has none.
-  closeDups.hidden = inLibrary;
+  const dupsLabel = `Close duplicates (${state.duplicates})`;
+  const count = state.duplicates > 999 ? '999+' : state.duplicates;
+  closeDups.innerHTML = icon('copy') + (state.duplicates ? `<span class="dup-badge" aria-hidden="true">${count}</span>` : '');
+  closeDups.setAttribute('aria-label', dupsLabel);
+  closeDups.dataset.tip = dupsLabel;
+  closeDups.disabled = inLibrary || state.duplicates === 0;
 
   const none = list.length ? '' : 'disabled';
   const actions = inLibrary
@@ -1172,7 +1179,8 @@ function windowMenu(windowId) {
     ...saveItems(ids, ' window'),
     { icon: 'page', label: 'Bring to front', run: async () => { await browser.windows.update(windowId, { focused: true }); if (!IS_PAGE) window.close(); } },
     { icon: 'plus', label: 'New tab', run: () => browser.tabs.create({ windowId }) },
-    suspendItem('Suspend window', ids),
+    // Every tab but the window's active one, which browsers cannot suspend.
+    suspendItem('Suspend all other tabs', ids),
     '-',
     { icon: 'close', label: 'Close window', danger: true, run: async () => { if (await confirmMany(ids.length)) await closeWindowWithUndo(windowId); } },
   ];
@@ -1476,7 +1484,188 @@ $('#results-bar').addEventListener('click', async event => {
 
 $('#close-dups').addEventListener('click', () => closeDuplicates());
 
-// ---------- header and settings ----------
+// ---------- settings window ----------
+// One definition for popup.html and page.html: the window is built here, before anything below looks it up.
+const SECTIONS = [['general', 'General'], ['appearance', 'Appearance'], ['features', 'Features'], ['never', 'Never list'], ['shortcuts', 'Shortcuts'], ['about', 'About']];
+const LOOK = ['font', 'fontCustom', 'textSize', 'theme'];
+// Settings whose control is a radio group or a select named after the setting.
+const CHOICES = ['sort', 'badge', 'button', 'font', 'textSize', 'theme'];
+const LINKS = [
+  ...(IS_FIREFOX ? [] : [['Chrome Web Store', 'https://chromewebstore.google.com/detail/oh-my-tabs/dfjcphmoeaknnkihfpeojfggfniipaek']]),
+  ['Source on GitHub', 'https://github.com/pkasarda/oh-my-tabs'],
+  ['Privacy policy', 'https://github.com/pkasarda/oh-my-tabs/blob/main/PRIVACY.md'],
+  ['Send feedback', 'https://github.com/pkasarda/oh-my-tabs/issues'],
+];
+
+// Native radios drawn as a segmented switch: the arrow keys and the checked state come with them.
+function radios(name, label, options) {
+  const items = options.map(([value, text]) => `<label><input type="radio" name="${name}" value="${value}">${text}</label>`).join('');
+  return `<div class="seg radios" role="radiogroup" aria-label="${label}">${items}</div>`;
+}
+
+function settingsHtml() {
+  const tabs = SECTIONS.map(([id, label]) => `<button type="button" role="tab" id="tab-${id}" data-sec="${id}" aria-controls="sec-${id}">${label}</button>`).join('');
+  const panel = (id, html) => `<section id="sec-${id}" role="tabpanel" aria-labelledby="tab-${id}" hidden>${html}</section>`;
+  const links = LINKS.map(([label, url]) => `<a class="srow" href="${url}" target="_blank" rel="noopener"><span>${label}</span>${icon('open')}</a>`).join('');
+  return `<dialog id="settings" class="settings-win" aria-label="Settings">
+    <nav class="sp-nav" role="tablist" aria-orientation="vertical" aria-label="Settings sections">${tabs}</nav>
+    <div class="sp-main">
+      <div class="sp-title"><h2 id="settings-title"></h2><button type="button" class="icon-btn" data-close-settings data-tip="Close" aria-label="Close settings">${icon('close')}</button></div>
+      <div class="sp-body">
+        ${panel('general', `<div class="card">
+          <label class="srow"><span class="lbl"><span>Developer mode</span><span class="hint-text" id="s-dev-hint">Groups and duplicates per repo, Jira project or Linear team.</span></span><input type="checkbox" class="switch" id="s-dev" aria-describedby="s-dev-hint"></label>
+          <div class="srow"><span>Sort tabs</span>${radios('sort', 'Sort tabs', [['recent', 'Recent'], ['order', 'Tab order']])}</div>
+          <div class="srow"><label for="s-badge">Toolbar badge</label><select id="s-badge" name="badge"><option value="all">Duplicates and tab count</option><option value="dups">Duplicates only</option><option value="off">Off</option></select></div>
+          <div class="srow"><span>Toolbar button</span>${radios('button', 'Toolbar button', [['popup', 'Opens the popup'], ['page', 'Opens the full page']])}</div>
+        </div>`)}
+        ${panel('appearance', `<div class="card">
+          <div class="srow"><span>Font</span>${radios('font', 'Font', [['fira', 'Fira Code'], ['system', 'System'], ['custom', 'Custom']])}</div>
+          <div class="srow" id="s-font-row" hidden><label for="s-font-custom">Font name</label><span class="font-field"><input type="text" id="s-font-custom" placeholder="e.g. Menlo" autocomplete="off" spellcheck="false" aria-describedby="s-font-missing"><span class="font-missing" id="s-font-missing" hidden>Font not found</span></span></div>
+          <div class="srow"><span>Text size</span>${radios('textSize', 'Text size', [['small', 'Small'], ['default', 'Default'], ['large', 'Large']])}</div>
+          <div class="srow"><span>Theme</span>${radios('theme', 'Theme', [['auto', 'Auto'], ['light', 'Light'], ['dark', 'Dark']])}</div>
+        </div>`)}
+        ${panel('features', `<div class="card">
+          <label class="srow"><span class="lbl"><span>Library</span><span class="hint-text" id="s-library-hint">Save &amp; close tabs into an "oh-my-tabs" bookmarks folder, synced by your browser. Asks for bookmarks access.</span></span><input type="checkbox" class="switch" id="s-library" aria-describedby="s-library-hint"></label>
+        </div>
+        <div class="card">
+          <label class="srow"><span>Stale tabs</span><input type="checkbox" class="switch" id="s-stale"></label>
+          <div class="srow"><label for="s-stale-days">Not used for</label><span><select id="s-stale-days"><option value="3">3</option><option value="7">7</option><option value="14">14</option><option value="30">30</option></select> days</span></div>
+        </div>`)}
+        ${panel('never', `<div class="card never-card"><label class="never-label" for="s-never"><span>Never stale or suspend</span><span class="hint-text">one site per line; slack.com covers its subdomains</span></label>
+          <textarea id="s-never" spellcheck="false" autocomplete="off" placeholder="slack.com"></textarea></div>`)}
+        ${panel('shortcuts', `<div class="card"><div class="shortcuts" id="shortcuts"></div><div class="srow"><span></span><button type="button" class="btn" id="change-shortcuts">Change…</button></div></div>`)}
+        ${panel('about', `<div class="card sp-about"><strong>oh-my-tabs</strong><span class="hint-text">Version ${esc(browser.runtime.getManifest().version)}</span></div><div class="card">${links}</div>`)}
+      </div>
+    </div>
+  </dialog>`;
+}
+
+document.body.insertAdjacentHTML('beforeend', settingsHtml());
+const settingsWin = $('#settings');
+
+function showSection(id) {
+  for (const tab of settingsWin.querySelectorAll('[role="tab"]')) {
+    const selected = tab.dataset.sec === id;
+    tab.setAttribute('aria-selected', String(selected));
+    tab.tabIndex = selected ? 0 : -1;
+  }
+  for (const section of settingsWin.querySelectorAll('[role="tabpanel"]')) section.hidden = section.id !== `sec-${id}`;
+  $('#settings-title').textContent = SECTIONS.find(([key]) => key === id)[1];
+}
+
+function chooseSection(id) {
+  showSection(id);
+  $(`#tab-${id}`).focus();
+  saveSetting('settingsSection', id);
+}
+
+// Reopens on the section used last; closing gives focus back to ⚙ (the dialog does that itself).
+$('#settings-button').addEventListener('click', () => {
+  if (!SECTIONS.some(([id]) => id === state.settingsSection)) state.settingsSection = 'general';
+  showSection(state.settingsSection);
+  settingsWin.showModal();
+  $(`#tab-${state.settingsSection}`).focus();
+});
+
+settingsWin.addEventListener('click', event => {
+  // A click on the backdrop reaches the dialog itself, outside its box. (closedby="any" is newer than Chrome 123.)
+  // A click a label passes on to its control targets the control, so it never counts as outside.
+  const box = settingsWin.getBoundingClientRect();
+  const outside = event.clientX < box.left || event.clientX > box.right || event.clientY < box.top || event.clientY > box.bottom;
+  if (event.target === settingsWin && outside) {
+    settingsWin.close();
+    return;
+  }
+  if (event.target.closest('[data-close-settings]')) {
+    settingsWin.close();
+    return;
+  }
+  const tab = event.target.closest('[role="tab"]');
+  if (tab) chooseSection(tab.dataset.sec);
+});
+
+// ↑/↓ (and Home/End) move between sections while the section list has focus.
+settingsWin.querySelector('.sp-nav').addEventListener('keydown', event => {
+  const ids = SECTIONS.map(([id]) => id);
+  const i = ids.indexOf(state.settingsSection);
+  const moves = { ArrowDown: i + 1, ArrowUp: i - 1, Home: 0, End: ids.length - 1 };
+  if (!(event.key in moves)) return;
+  event.preventDefault();
+  chooseSection(ids[(moves[event.key] + ids.length) % ids.length]);
+});
+
+// document.fonts.check() answers true for a name it knows nothing about. An installed font changes the width
+// of a sample text against at least one generic family; a missing one falls back to it and changes nothing.
+function fontInstalled(name) {
+  const context = document.createElement('canvas').getContext('2d');
+  const width = font => {
+    context.font = `40px ${font}`;
+    return context.measureText('mmmmmmmmlli1WQ').width;
+  };
+  const clean = name.replace(/["\\]/g, '').trim();
+  return ['monospace', 'serif', 'sans-serif'].some(base => width(`"${clean}", ${base}`) !== width(base));
+}
+
+// appearance.js draws the look; the copy in localStorage lets it do so before the next first paint.
+function applyLook() {
+  const look = Object.fromEntries(LOOK.map(key => [key, state[key]]));
+  applyAppearance(look);
+  try {
+    localStorage.setItem('appearance', JSON.stringify(look));
+  } catch {
+    // Storage blocked: the look still applies, a moment later, on the next open.
+  }
+  const custom = state.font === 'custom';
+  $('#s-font-row').hidden = !custom;
+  $('#s-font-missing').hidden = !custom || !state.fontCustom.trim() || fontInstalled(state.fontCustom);
+}
+
+function fillChoices(names) {
+  for (const name of names) {
+    const control = settingsWin.querySelector(`select[name="${name}"]`);
+    if (control) control.value = state[name];
+    const radio = settingsWin.querySelector(`[name="${name}"][value="${state[name]}"]`);
+    if (radio) radio.checked = true;
+  }
+  // Not while someone types in it: a change of their own comes back late and would undo the last keys.
+  if (document.activeElement !== $('#s-font-custom')) $('#s-font-custom').value = state.fontCustom;
+}
+
+function fillSettings() {
+  fillChoices(CHOICES);
+  $('#s-dev').checked = state.dev;
+  $('#s-stale').checked = state.stale;
+  $('#s-stale-days').value = String(state.staleDays);
+  $('#s-never').value = state.never.join('\n');
+}
+
+// Every change applies at once and is saved; there is no Save button.
+settingsWin.addEventListener('change', async event => {
+  const { name, value } = event.target;
+  if (!CHOICES.includes(name)) return;
+  await saveSetting(name, value);
+  if (name === 'sort') render();
+  if (LOOK.includes(name)) applyLook();
+});
+$('#s-font-custom').addEventListener('input', async event => {
+  await saveSetting('fontCustom', event.target.value);
+  applyLook();
+});
+
+// A look picked in another open popup or page shows here too, so this one never writes a stale look into
+// the shared copy in localStorage.
+browser.storage.onChanged.addListener((changes, area) => {
+  if (area !== 'local') return;
+  const changed = LOOK.filter(key => key in changes);
+  if (changed.length === 0) return;
+  for (const key of changed) state[key] = changes[key].newValue ?? SETTINGS[key];
+  applyLook();
+  fillChoices(changed);
+});
+// Where a click does not focus the button (Firefox on macOS), the dialog would hand focus back to the search.
+settingsWin.addEventListener('close', () => $('#settings-button').focus());
+
+// ---------- header ----------
 for (const button of document.querySelectorAll('[data-view]')) {
   button.addEventListener('click', async () => {
     await saveSetting('view', button.dataset.view);
@@ -1484,30 +1673,17 @@ for (const button of document.querySelectorAll('[data-view]')) {
   });
 }
 // The page has no switch and no "Open as page" button; the popup has no sidebar, header or bulk bar.
+// The background opens the page, or switches to one already open, as the toolbar button does.
 $('#open-page')?.addEventListener('click', async () => {
-  await browser.tabs.create({ url: browser.runtime.getURL('page.html') });
+  await browser.runtime.sendMessage({ type: 'open-page' }).catch(() => {});
   window.close();
 });
 
-// No CSS anchor positioning in Chrome or Firefox yet: place the settings panel under its button.
-$('#settings').addEventListener('beforetoggle', event => {
-  if (event.newState !== 'open') return;
-  const rect = $('#settings-button').getBoundingClientRect();
-  event.target.style.top = `${rect.bottom + 6}px`;
-  event.target.style.left = `${Math.max(8, rect.right - 260)}px`;
-  event.target.style.maxHeight = `${innerHeight - rect.bottom - 14}px`;
-});
 $('#s-dev').addEventListener('change', async event => {
   await saveSetting('dev', event.target.checked);
   analyze();
   render();
 });
-for (const radio of document.querySelectorAll('[name="sort"]')) {
-  radio.addEventListener('change', async () => {
-    await saveSetting('sort', radio.value);
-    render();
-  });
-}
 // Library is on exactly while the bookmarks permission is granted (library.js). The request comes first:
 // browsers allow it only while handling the click.
 $('#s-library').addEventListener('change', async event => {
@@ -1552,15 +1728,11 @@ $('#s-stale-days').addEventListener('change', async event => {
   render();
 });
 
-// Everything except each window's active tab, which browsers cannot suspend.
-$('#suspend-others').addEventListener('click', async () => {
-  $('#settings').hidePopover();
-  await suspendTabs(state.tabs.map(tab => tab.id));
-});
 $('#change-shortcuts').addEventListener('click', async () => {
   if (browser.commands.openShortcutSettings) await browser.commands.openShortcutSettings();
   else await browser.tabs.create({ url: 'chrome://extensions/shortcuts' });
-  window.close();
+  // Only the popup: on the page this would close the page's own tab.
+  if (!IS_PAGE) window.close();
 });
 
 async function renderShortcuts() {
@@ -1775,11 +1947,11 @@ async function start() {
     setSideWidth(state.sideWidth);
     readHash();
   }
-  $('#s-dev').checked = state.dev;
-  document.querySelector(`[name="sort"][value="${state.sort}"]`).checked = true;
-  $('#s-stale').checked = state.stale;
-  $('#s-stale-days').value = String(state.staleDays);
-  $('#s-never').value = state.never.join('\n');
+  // Before 1.3 developer mode also set the font. On update everyone keeps the font they saw, stored once,
+  // so turning developer mode on or off later no longer changes it.
+  if (state.font === null) await saveSetting('font', state.dev ? 'fira' : 'system');
+  fillSettings();
+  applyLook();
   state.libraryOn = await Library.isEnabled().catch(() => false);
   $('#s-library').checked = state.libraryOn;
   if (state.libraryOn) listenToBookmarks();

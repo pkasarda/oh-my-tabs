@@ -21,14 +21,19 @@
   --sans: system-ui, -apple-system, "Segoe UI", sans-serif;
   --mono: "Fira Code", ui-monospace, monospace;
   --ui-font: var(--sans);
+  /* Text size: -1, 0 or 1 (appearance.js); the font size and the row height follow it. */
+  --step: 0;
   scrollbar-color: var(--border) transparent;
+  /* Ligatures off in every font, so `->` in a title stays two characters. */
+  font-variant-ligatures: none;
 }
-/* Developer mode: the whole UI in Fira Code, ligatures off so `->` in a title stays two characters. */
-:root.mono { --ui-font: var(--mono); font-variant-ligatures: none; }
+:root.fira { --ui-font: var(--mono); }
+/* No copy of the look yet (appearance.js): nothing is drawn until popup.js has applied it. */
+:root.look-pending body { visibility: hidden; }
 
 * { box-sizing: border-box; }
-body { margin: 0; background: var(--surface); color: var(--text); font: 14px/1.4 var(--ui-font); }
-:root.mono body { font-size: 13px; }
+body { margin: 0; background: var(--surface); color: var(--text); font: calc(14px + var(--step) * 1px)/1.4 var(--ui-font); }
+:root.fira body { font-size: calc(13px + var(--step) * 1px); }
 button, input { font: inherit; color: inherit; }
 button { cursor: pointer; }
 
@@ -72,13 +77,17 @@ button { cursor: pointer; }
 .icon-btn { display: inline-grid; place-items: center; border: 1px solid transparent; background: none; width: 32px; height: 32px; padding: 0; border-radius: 8px; color: var(--muted); }
 .icon-btn:hover { background: var(--surface-2); color: var(--text); }
 .icon-btn[data-close]:hover { color: var(--danger); }
+/* Close duplicates: an icon with the count on it. */
+#close-dups { position: relative; color: var(--danger); }
+#close-dups:disabled { opacity: 0.45; cursor: default; }
+.dup-badge { position: absolute; top: -3px; right: -3px; min-width: 16px; height: 16px; padding: 0 4px; border-radius: 8px; background: var(--danger); color: light-dark(#fff, oklch(20% 0.03 25)); font: 700 10px/16px var(--sans); text-align: center; }
 
 .results-bar { display: flex; gap: 8px; align-items: center; padding: 6px 10px; background: var(--accent-soft); font-size: 12.5px; }
 .results-bar:empty { display: none; }
 .results-bar span { margin-right: auto; }
 
 /* Scrolling areas keep room for a scrollbar whether it shows or not, so content never shifts sideways. */
-.body, .side, .menu, .settings, ul.rows.col-body { scrollbar-gutter: stable; }
+.body, .side, .menu, .sp-body, ul.rows.col-body { scrollbar-gutter: stable; }
 .body { overflow: auto; padding: 8px 10px 16px; }
 .empty { padding: 40px; text-align: center; color: var(--muted); }
 
@@ -105,7 +114,7 @@ details[open] > summary .mini-stack .fav { background-color: var(--surface-2); b
 .g-spacer { margin-left: auto; }
 
 ul.rows { list-style: none; margin: 0; padding: 0 6px 6px; }
-.row { --fav: 28px; position: relative; display: flex; gap: 10px; align-items: center; padding: 7px 8px; border-radius: 7px; cursor: pointer; }
+.row { --fav: 28px; position: relative; display: flex; gap: 10px; align-items: center; padding: calc(7px + var(--step) * 1px) 8px; border-radius: 7px; cursor: pointer; }
 .row:hover, .row.sel { background: var(--raised); }
 .row.sel { outline: 1px solid var(--accent); }
 /* The row's main part is a button, so a tab can be switched to from the keyboard. */
@@ -168,7 +177,7 @@ details.group.stale > summary .g-name { color: light-dark(#b45309, #fbbf24); }
 .chip .i { width: 14px; height: 14px; }
 .chip.add { border-style: dashed; }
 .topic-pill { flex: none; max-width: 140px; overflow: hidden; text-overflow: ellipsis; padding: 1px 8px; border-radius: 9px; font-size: 11px; background: var(--accent-soft); color: var(--accent); white-space: nowrap; }
-.settings select { font: inherit; padding: 1px 4px; border: 1px solid var(--border); border-radius: 6px; background: var(--surface-2); color: var(--text); cursor: pointer; }
+.settings-win select { font: inherit; padding: 4px 8px; border: 1px solid var(--border); border-radius: 6px; background: var(--surface-2); color: var(--text); cursor: pointer; }
 .topic-field { display: grid; gap: 6px; margin-bottom: 14px; }
 .topic-field input { padding: 7px 10px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface-2); color: var(--text); font: inherit; }
 .dialog-actions { display: flex; gap: 8px; justify-content: flex-end; }
@@ -236,7 +245,7 @@ ul.rows.col-body { display: grid; gap: 6px; align-content: start; padding: 0 8px
 /* Every line: indented by its level, with a guide line per level (variant C's repeating gradient). */
 /* :where keeps this rule's specificity low, so the per-level and per-kind rules below can adjust it. */
 :root.page :is(.groups, .windows) :where(details.group > summary, .row, .singles-head) {
-  --fav: 20px; display: flex; gap: 8px; align-items: center; min-height: 34px; margin: 0;
+  --fav: 20px; display: flex; gap: 8px; align-items: center; min-height: calc(34px + var(--step) * 3px); margin: 0;
   padding: 1px 12px 1px calc(12px + var(--lvl, 0) * 24px); border-radius: 0;
   background-color: transparent;
   background-image: repeating-linear-gradient(to right, transparent 0 22px, var(--border) 22px 23px, transparent 23px 24px);
@@ -285,8 +294,7 @@ ul.rows.col-body { display: grid; gap: 6px; align-content: start; padding: 0 8px
 @media (prefers-reduced-motion: no-preference) {
   .undo-bar { transition: opacity 0.15s, translate 0.15s; @starting-style { opacity: 0; translate: -50% 6px; } }
 }
-.never-field { display: grid !important; gap: 2px; margin-top: 8px; }
-#s-never { width: 100%; resize: vertical; padding: 6px 8px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface-2); color: var(--text); font: 12px/1.4 var(--mono); }
+#s-never { display: block; width: 100%; height: 220px; resize: vertical; padding: 6px 8px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface-2); color: var(--text); font: 12px/1.5 var(--mono); }
 
 /* ---------- tooltip ---------- */
 [popover].tip { min-width: 0; max-width: 300px; padding: 5px 9px; border-radius: 7px; font-size: 12px; line-height: 1.35; pointer-events: none; }
@@ -305,15 +313,7 @@ ul.rows.col-body { display: grid; gap: 6px; align-content: start; padding: 0 8px
 .menu button.danger { color: var(--danger); }
 .menu .hint { margin-left: auto; color: var(--muted); }
 .menu hr { border: 0; border-top: 1px solid var(--border); margin: 4px 0; }
-/* Only while open: a display value on a closed popover overrides its display: none and leaves it invisibly catching the pointer. */
-/* Its max-height comes from where it opens (popup.js), so it scrolls instead of running off the popup. */
-.settings { width: 260px; padding: 12px; gap: 12px; font-size: 13px; overflow: auto; overscroll-behavior: contain; }
-.settings:popover-open { display: grid; }
-.settings h3 { margin: 0 0 4px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); }
-.settings .btn { width: 100%; }
 .hint-text { margin: 4px 0 0; color: var(--muted); font-size: 11.5px; line-height: 1.35; }
-.settings label { display: flex; align-items: center; gap: 8px; cursor: pointer; }
-.settings input { cursor: pointer; }
 .switch { appearance: none; width: 30px; height: 18px; border-radius: 9px; background: var(--border); position: relative; margin: 0 0 0 auto; transition: background-color 150ms ease; }
 .switch::after { content: ""; position: absolute; top: 2px; left: 2px; width: 14px; height: 14px; border-radius: 50%; background: white; transition: translate 150ms var(--ease-out); }
 .switch:checked { background: var(--accent); }
@@ -325,3 +325,54 @@ dialog::backdrop { background: oklch(0% 0 0 / 0.35); }
 dialog p { margin: 0 0 14px; }
 dialog form { display: flex; gap: 8px; justify-content: flex-end; }
 #topic-dialog form { display: block; }
+
+/* ---------- settings window: sections on the left, the chosen one on the right ---------- */
+dialog.settings-win { width: 680px; height: 460px; max-width: calc(100vw - 16px); max-height: calc(100vh - 16px); padding: 0; overflow: hidden; }
+dialog.settings-win[open] { display: grid; grid-template-columns: 180px minmax(0, 1fr); }
+.sp-nav { display: flex; flex-direction: column; gap: 2px; padding: 14px 10px; background: var(--surface-2); border-right: 1px solid var(--border); }
+.sp-nav button { display: flex; gap: 10px; align-items: center; padding: 6px 8px; border: 0; border-radius: 8px; background: none; text-align: left; }
+.sp-nav button:hover { background: var(--raised); }
+.sp-nav button:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.sp-nav button[aria-selected="true"] { background: var(--accent); color: light-dark(#fff, oklch(18% 0.02 265)); }
+.sp-main { display: grid; grid-template-rows: auto minmax(0, 1fr); min-width: 0; }
+.sp-title { display: flex; justify-content: space-between; align-items: center; padding: 14px 16px 6px 22px; }
+.sp-title h2 { margin: 0; font-size: 18px; }
+.sp-body { overflow: auto; overscroll-behavior: contain; padding: 8px 22px 22px; }
+.sp-body > section { display: grid; gap: 16px; align-content: start; }
+.sp-body > section[hidden] { display: none; }
+.card { border: 1px solid var(--border); border-radius: 10px; background: var(--surface); }
+.srow { display: flex; gap: 16px; align-items: center; justify-content: space-between; padding: 10px 14px; }
+.srow + .srow { border-top: 1px solid var(--border); }
+.srow[hidden] { display: none; }
+.srow > :is(span, label):first-child:not(.lbl) { white-space: nowrap; }
+label.srow { cursor: pointer; }
+.lbl { display: grid; gap: 2px; min-width: 0; }
+.srow .switch { flex: none; margin: 0; cursor: pointer; }
+.srow .hint-text { margin: 0; }
+.srow input[type="text"] { padding: 6px 9px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface-2); color: var(--text); font: inherit; outline: none; }
+:is(.srow input[type="text"], #s-never):focus-visible { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); outline: none; }
+.font-field { text-align: right; }
+.font-missing { display: block; margin-top: 4px; color: var(--danger); font-size: 11.5px; }
+.font-missing[hidden] { display: none; }
+/* Radio buttons drawn as a segmented switch: the native radios keep the arrow keys and the form semantics. */
+.seg.radios label { position: relative; padding: 4px 10px; border-radius: 6px; color: var(--muted); cursor: pointer; white-space: nowrap; }
+.seg.radios label:has(:checked) { background: var(--raised); color: var(--text); box-shadow: 0 1px 2px oklch(0% 0 0 / 0.15); }
+.seg.radios label:has(:focus-visible) { outline: 2px solid var(--accent); outline-offset: 1px; }
+.seg.radios input { position: absolute; opacity: 0; width: 1px; height: 1px; margin: 0; pointer-events: none; }
+.never-card { padding: 14px; }
+.never-label { display: grid; gap: 2px; margin-bottom: 8px; }
+.shortcuts { padding: 12px 14px; margin: 0; }
+.sp-about { display: grid; gap: 4px; padding: 18px; text-align: center; }
+a.srow { color: var(--text); text-decoration: none; }
+a.srow:hover { background: var(--surface-2); }
+a.srow:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+a.srow .i { color: var(--muted); }
+.shortcuts { row-gap: 8px; }
+/* A narrow page: the sections become a strip above the content, and a row's control goes under its label. */
+@media (max-width: 600px) {
+  dialog.settings-win[open] { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr); }
+  .sp-nav { flex-direction: row; overflow-x: auto; padding: 8px; border-right: 0; border-bottom: 1px solid var(--border); }
+  .sp-nav button { flex: none; }
+  .sp-title, .sp-body { padding-inline: 14px; }
+  .srow { flex-wrap: wrap; }
+}

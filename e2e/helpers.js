@@ -9,7 +9,7 @@ import { fileURLToPath } from 'node:url';
 export const ROOT = fileURLToPath(new URL('..', import.meta.url));
 
 // What the extension is made of, as scripts/firefox.js copies it.
-const EXTENSION_FILES = ['manifest.json', 'background.js', 'rules.js', 'library.js', 'popup.html', 'page.html', 'popup.css', 'popup.js', 'fonts', 'icons'];
+const EXTENSION_FILES = ['manifest.json', 'appearance.js', 'background.js', 'rules.js', 'library.js', 'popup.html', 'page.html', 'popup.css', 'popup.js', 'fonts', 'icons'];
 
 // Neutral addresses and the titles their pages get. Nothing is fetched: every request is answered here.
 export const TABS = {
@@ -72,8 +72,9 @@ export async function eventually(check, { timeout = 5000 } = {}) {
 }
 
 // library: load the extension with the bookmarks permission granted. settings: storage.local before any page opens.
-export async function launch({ library = false, settings = null } = {}) {
-  const profile = mkdtempSync(join(tmpdir(), 'omt-profile-'));
+// profile: a profile directory to reuse (a browser restart), which close() then leaves for the caller to remove.
+export async function launch({ library = false, settings = null, profile: reused = null } = {}) {
+  const profile = reused ?? mkdtempSync(join(tmpdir(), 'omt-profile-'));
   const extension = library ? extensionWithBookmarks() : ROOT;
   const context = await chromium.launchPersistentContext(profile, {
     // The bundled Chromium: its new headless mode runs extensions, Chrome Headless Shell does not.
@@ -169,7 +170,7 @@ export async function launch({ library = false, settings = null } = {}) {
 
     async close() {
       await context.close();
-      rmSync(profile, { recursive: true, force: true });
+      if (!reused) rmSync(profile, { recursive: true, force: true });
       if (extension !== ROOT) rmSync(extension, { recursive: true, force: true });
     },
   };

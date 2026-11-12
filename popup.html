@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <meta name="color-scheme" content="light dark">
 <title>oh-my-tabs</title>
+<script src="appearance.js"></script>
 <link rel="stylesheet" href="popup.css">
 <script type="module" src="popup.js"></script>
 </head>
@@ -11,53 +12,19 @@
 <main class="app" id="app">
   <div class="head">
     <input class="search" id="search" type="search" placeholder="Search tabs, URLs, groups…" autocomplete="off" aria-label="Search tabs" autofocus>
+    <button type="button" class="icon-btn" id="close-dups" aria-label="Close duplicates" data-tip="Close duplicates"></button>
     <div class="seg" role="group" aria-label="View">
       <button type="button" data-view="groups" aria-pressed="true">Groups</button>
       <button type="button" data-view="windows" aria-pressed="false">Windows</button>
       <button type="button" data-view="library" aria-pressed="false" hidden>Library</button>
     </div>
-    <button type="button" class="btn danger" id="close-dups">Close duplicates</button>
     <button type="button" class="icon-btn" id="open-page" data-tip="Open as page" aria-label="Open as page" data-icon="page"></button>
-    <button type="button" class="icon-btn" id="settings-button" popovertarget="settings" data-tip="Settings" aria-label="Settings" data-icon="settings"></button>
+    <button type="button" class="icon-btn" id="settings-button" aria-haspopup="dialog" data-tip="Settings" aria-label="Settings" data-icon="settings"></button>
   </div>
   <div class="results-bar" id="results-bar"></div>
   <div class="body" id="body"></div>
   <div class="undo-bar" id="undo-bar" role="status" hidden><span id="undo-text"></span><button type="button" class="btn" id="undo-button">Undo</button></div>
 </main>
-
-<div popover id="settings" class="settings">
-  <div>
-    <h3>Display</h3>
-    <label>Developer mode <input type="checkbox" class="switch" id="s-dev" aria-describedby="s-dev-hint"></label>
-    <p class="hint-text" id="s-dev-hint">Groups and duplicates per repo, Jira project or Linear team; monospace look.</p>
-  </div>
-  <div>
-    <h3>Features</h3>
-    <label>Library <input type="checkbox" class="switch" id="s-library" aria-describedby="s-library-hint"></label>
-    <p class="hint-text" id="s-library-hint">Save &amp; close tabs into an "oh-my-tabs" bookmarks folder, synced by your browser. Asks for bookmarks access.</p>
-    <label>Stale tabs <input type="checkbox" class="switch" id="s-stale"></label>
-    <label class="hint-text">Not used for
-      <select id="s-stale-days" aria-label="Stale after">
-        <option value="3">3</option><option value="7">7</option><option value="14">14</option><option value="30">30</option>
-      </select> days</label>
-    <label class="never-field" for="s-never">Never stale or suspend <span class="hint-text">one site per line; slack.com covers its subdomains</span></label>
-    <textarea id="s-never" rows="3" spellcheck="false" autocomplete="off" placeholder="slack.com"></textarea>
-  </div>
-  <div>
-    <h3>Sort tabs</h3>
-    <label><input type="radio" name="sort" value="recent"> Recent</label>
-    <label><input type="radio" name="sort" value="order"> Tab order</label>
-  </div>
-  <div>
-    <h3>Actions</h3>
-    <button type="button" class="btn" id="suspend-others">Suspend all other tabs</button>
-  </div>
-  <div>
-    <h3>Shortcuts</h3>
-    <div class="shortcuts" id="shortcuts"></div>
-    <button type="button" class="btn" id="change-shortcuts">Change…</button>
-  </div>
-</div>
 
 <div popover id="menu" class="menu" role="menu" aria-label="Actions"></div>
 
