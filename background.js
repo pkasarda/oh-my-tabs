@@ -2,7 +2,7 @@ import { findDuplicates } from './rules.js';
 
 globalThis.browser ??= chrome;
 
-const SETTINGS = { dev: true };
+const SETTINGS = { dev: true, badge: 'all', button: 'popup' };
 const MENU_CLOSE_DUPLICATES = 'close-duplicates';
 
 // Firefox can still list a tab in windows.getAll while its onRemoved runs; skip those.
@@ -28,13 +28,19 @@ function truncate(text, length) {
   return text.length > length ? `${text.slice(0, length - 1)}…` : text;
 }
 
-// Duplicates in red; with none, the number of open tabs in a quiet color.
+// Duplicates in red; with none, the number of open tabs in a quiet color (badge 'all'), or nothing ('dups').
 async function updateBadge() {
   const tabs = await openTabs();
   const sets = await duplicateSets(tabs);
+  const { badge } = await browser.storage.local.get(SETTINGS);
   const count = sets.reduce((sum, set) => sum + set.copies.length, 0);
-  const shown = count || tabs.length;
-  await browser.action.setBadgeText({ text: shown > 999 ? '999+' : String(shown) });
+  let shown = count || tabs.length;
+  if (badge === 'dups') shown = count;
+  if (badge === 'off') shown = 0;
+  let text = '';
+  if (shown > 999) text = '999+';
+  else if (shown > 0) text = String(shown);
+  await browser.action.setBadgeText({ text });
   await browser.action.setBadgeBackgroundColor({ color: count ? DUPLICATES_COLOR : TABS_COLOR });
   await browser.action.setBadgeTextColor?.({ color: '#ffffff' });
 
@@ -55,6 +61,25 @@ async function updateIcon() {
 
 function refreshIcon() {
   updateIcon().catch(error => console.error('oh-my-tabs: icon update failed', error));
+}
+
+// The toolbar button opens the popup, or with an empty popup fires action.onClicked (a click or the open shortcut).
+async function applyButton() {
+  const { button } = await browser.storage.local.get(SETTINGS);
+  await browser.action.setPopup({ popup: button === 'page' ? '' : 'popup.html' });
+}
+
+// Switches to the full page when one is open instead of opening a second one.
+async function openPage() {
+  const url = browser.runtime.getURL('page.html');
+  const tabs = await browser.tabs.query({});
+  const open = tabs.find(tab => tab.url?.startsWith(url));
+  if (!open) {
+    await browser.tabs.create({ url });
+    return;
+  }
+  await browser.tabs.update(open.id, { active: true });
+  await browser.windows.update(open.windowId, { focused: true });
 }
 
 // Never asks: every keeper stays open, so no page is lost.
@@ -85,6 +110,12 @@ function refresh() {
   }, 150);
 }
 
+// Every start of the worker, so the button follows the setting after an update or a browser restart too.
+applyButton().catch(error => console.error('oh-my-tabs: toolbar button update failed', error));
+browser.action.onClicked.addListener(() => {
+  openPage().catch(error => console.error('oh-my-tabs: open page failed', error));
+});
+
 browser.runtime.onInstalled.addListener(() => {
   browser.contextMenus.create({ id: MENU_CLOSE_DUPLICATES, title: 'Close duplicates', contexts: ['action'] });
   refresh();
@@ -101,6 +132,7 @@ browser.contextMenus.onClicked.addListener(info => {
 browser.runtime.onMessage.addListener(message => {
   // The popup asks on open, so the badge never lags behind what the popup shows.
   if (message.type === 'refresh-badge') refresh();
+  if (message.type === 'open-page') openPage().catch(error => console.error('oh-my-tabs: open page failed', error));
   if (message.type === 'move-to-new-window') {
     moveToNewWindow(message.ids).catch(error => console.error('oh-my-tabs: move failed', error));
   }
@@ -121,7 +153,7 @@ browser.tabs.onUpdated.addListener((tabId, changeInfo) => {
 // lastAccessed decides the keeper, which the tooltip names.
 browser.tabs.onActivated.addListener(refresh);
 browser.storage.onChanged.addListener(changes => {
-  if (!changes.dev) return;
-  refresh();
-  refreshIcon();
+  if (changes.dev || changes.badge) refresh();
+  if (changes.dev) refreshIcon();
+  if (changes.button) applyButton();
 });

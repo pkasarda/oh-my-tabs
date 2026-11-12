@@ -342,7 +342,8 @@ Goal: you can close tabs without losing them, so you stop keeping hundreds open 
   - **Never list**: the list of sites, in a larger field.
   - **Shortcuts**: the current shortcuts and `Change…`, then the keys of the full page (the tree and the command palette).
   - **About**: version, and links to the store listing, the source, the privacy policy and feedback.
-- `Suspend all other tabs` is an action, not a setting: it moves to each window's ⋯ menu.
+- `Suspend all other tabs` is an action, not a setting: it moves to each window's ⋯ menu, where it takes the place of `Suspend window` (the two did the same) and suspends that window's tabs except its active one.
+- The look is applied before the first paint from a copy kept in the page's own storage. An open popup or page follows a look change made in another one.
 
 ### General options
 

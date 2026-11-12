@@ -34,13 +34,15 @@ test('without developer mode tabs are grouped per hostname', async t => {
   const page = await app.openPopup();
   assert.deepEqual(await groupHeaders(page), ['docs.example.org 3', 'github.com 3', 'acme.atlassian.net 2']);
   // pull/12 and pull/12/files are one page only to the GitHub rule.
-  assert.equal(await page.locator('#close-dups').textContent(), 'Close duplicates (1)');
+  assert.equal(await page.locator('#close-dups').getAttribute('aria-label'), 'Close duplicates (1)');
 });
 
 test('duplicates are counted and nested under their keeper', async t => {
   const app = await start(t);
   const page = await app.openPopup();
-  assert.equal(await page.locator('#close-dups').textContent(), 'Close duplicates (2)');
+  assert.equal(await page.locator('#close-dups').getAttribute('aria-label'), 'Close duplicates (2)');
+  // The count sits on the icon.
+  assert.equal(await page.locator('#close-dups .dup-badge').textContent(), '2');
   const repo = group(page, 'acme/client');
   assert.equal(await repo.locator('summary .dup-count').textContent(), '1 dup');
 
@@ -61,7 +63,8 @@ test('Close duplicates closes every copy and keeps every keeper', async t => {
   // The keeper is the copy used last; the seed opened pull/12/files and guide#intro last.
   const expected = ALL_TABS.filter(url => url !== TABS.pr && url !== TABS.guide).sort();
   await eventually(async () => assert.deepEqual(await app.webUrls(), expected));
-  await eventually(async () => assert.equal(await page.locator('#close-dups').textContent(), 'Close duplicates (0)'));
+  await eventually(async () => assert.equal(await page.locator('#close-dups').getAttribute('aria-label'), 'Close duplicates (0)'));
+  assert.equal(await page.locator('#close-dups .dup-badge').count(), 0);
   assert.equal(await page.locator('#close-dups').isDisabled(), true);
   // Nothing is lost, so there is nothing to undo.
   assert.equal(await page.locator('#undo-bar').isHidden(), true);
@@ -132,22 +135,20 @@ test('a group moves to a new window', async t => {
   });
 });
 
-// 1.2.1: a settings panel taller than the popup ran off its bottom edge.
-test('the settings panel scrolls when it is taller than the popup', async t => {
+// 1.2.1: a settings panel taller than the popup ran off its bottom edge. The settings window stays inside it.
+test('the settings window fits a short popup and its content scrolls', async t => {
   const app = await start(t);
   const page = await app.openPopup();
   await page.setViewportSize({ width: 780, height: 360 });
   await page.locator('#settings-button').click();
-  const panel = page.locator('#settings');
-  await eventually(async () => assert.equal(await panel.evaluate(el => el.matches(':popover-open')), true));
+  await page.locator('#tab-never').click();
+  const win = page.locator('#settings');
+  const box = await win.boundingBox();
+  assert.ok(box.y >= 0 && box.y + box.height <= 360, `window spans ${box.y}–${box.y + box.height}`);
 
-  const box = await panel.evaluate(el => ({ bottom: el.getBoundingClientRect().bottom, scrollHeight: el.scrollHeight, clientHeight: el.clientHeight }));
-  assert.ok(box.bottom <= 360, `panel ends at ${box.bottom}`);
-  assert.ok(box.scrollHeight > box.clientHeight, 'panel has more content than fits');
-
-  // The last control is reachable inside the panel.
-  const last = page.locator('#change-shortcuts');
-  await last.scrollIntoViewIfNeeded();
-  const lastBox = await last.boundingBox();
-  assert.ok(lastBox.y + lastBox.height <= box.bottom, `Change… ends at ${lastBox.y + lastBox.height}`);
+  // The last control of a long section is reachable inside the window.
+  const field = page.locator('#s-never');
+  await field.scrollIntoViewIfNeeded();
+  const fieldBox = await field.boundingBox();
+  assert.ok(fieldBox.y + fieldBox.height <= box.y + box.height, `the field ends at ${fieldBox.y + fieldBox.height}`);
 });

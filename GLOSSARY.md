@@ -122,7 +122,7 @@ _Avoid_: footer
 ## Developer mode
 
 **Developer mode**:
-A setting that turns on site rules and the monospace look. With it off, every group name is a hostname and duplicate keys use only the generic rules.
+A setting that turns on site rules and the `omt` toolbar icon. It no longer changes the font, which is a setting of its own. With it off, every group name is a hostname and duplicate keys use only the generic rules.
 _Avoid_: dev mode, advanced mode
 
 **Site rule**:

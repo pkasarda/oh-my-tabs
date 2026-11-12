@@ -90,3 +90,25 @@ test('dragging a card to another column changes its topic', async t => {
     assert.deepEqual(counts, ['0', '2']);
   });
 });
+
+test('Close duplicates stays in the header in every view, disabled in the Library, and the switch never moves', async t => {
+  const app = await start(t, [ALL_TABS]);
+  const page = await app.openPopup();
+  const dups = page.locator('#close-dups');
+  const switchX = async () => (await page.locator('.head .seg').boundingBox()).x;
+  const x = await switchX();
+  for (const [view, disabled] of [['windows', false], ['library', true], ['groups', false]]) {
+    await page.locator(`[data-view="${view}"]`).click();
+    await eventually(async () => assert.equal(await page.locator(`[data-view="${view}"]`).getAttribute('aria-pressed'), 'true'));
+    assert.equal(await dups.isVisible(), true, view);
+    assert.equal(await dups.isDisabled(), disabled, view);
+    assert.equal(await dups.getAttribute('aria-label'), 'Close duplicates (2)', view);
+    assert.equal(await switchX(), x, view);
+  }
+
+  // The full page has it too, disabled on the Library board.
+  const full = await app.openPage();
+  assert.equal(await full.locator('#close-dups').isDisabled(), false);
+  await full.locator('#side [data-section="library"]:not([data-item])').click();
+  await eventually(async () => assert.equal(await full.locator('#close-dups').isDisabled(), true));
+});
