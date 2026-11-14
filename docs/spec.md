@@ -357,7 +357,8 @@ Goal: you can close tabs without losing them, so you stop keeping hundreds open 
 - **Font** is its own setting: `Fira Code`, `System`, or `Custom`, which takes the name of a font installed on the computer. A name the browser cannot find shows `Font not found` under the field and falls back to System. Ligatures stay off.
 - Developer mode no longer changes the font. It only turns on the site rules and the `omt` toolbar icon. On update everyone keeps what they see: Fira Code where developer mode was on, System where it was off.
 - **Text size**: `Small`, `Default`, `Large`. Default is 13 px for Fira Code and 14 px for other fonts, as before; Small and Large are one pixel either side, and rows tighten or loosen with it.
-- **Theme**: `Auto` (follows the system, as before), `Light` or `Dark`. An accent color stays in #19.
+- **Theme**: `Auto` (follows the system, as before), `Light` or `Dark`.
+- **Accent color** (after 1.4, #19): seven swatches named after Tailwind hues: `Blue` (the default, the look until now), `Violet`, `Pink`, `Orange`, `Green`, `Teal` and `Slate`. It colors the highlights: the selected row and sidebar entry, checkboxes, switches, focus rings and topic pills. Each color is a hue and a chroma in popup.css; the lightness is the same for all of them, so contrast holds in light and dark. The soft backgrounds are the pastel part; the accent itself stays strong enough for text and icons. Stored as `accent`, drawn by appearance.js as `data-accent` on the root.
 
 ### Tab groups (#31)
 
@@ -412,7 +413,6 @@ Six additions to the full page. The popup gets only the right click.
 ### Out of 1.3
 
 - Managing tab groups: creating one from a group, adding tabs, renaming, recoloring, collapsing in the browser.
-- An accent color (#19).
 - On the full page: split panes, a tree of which tab opened which, and resizing the details pane.
 - Reminders (1.4, below).
 

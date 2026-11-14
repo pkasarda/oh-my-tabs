@@ -3,7 +3,7 @@
 // popup.js calls applyAppearance too, so the look has one definition.
 // Without a copy (the first open, or the first after an update) the look is not guessed: the page stays
 // unpainted (look-pending) until popup.js has read the settings and applies the look, which reveals it.
-function applyAppearance({ font = 'fira', fontCustom = '', textSize = 'default', theme = 'auto' } = {}) {
+function applyAppearance({ font = 'fira', fontCustom = '', textSize = 'default', theme = 'auto', accent = 'blue' } = {}) {
   const root = document.documentElement;
   root.classList.remove('look-pending');
   const name = fontCustom.replace(/["\\]/g, '').trim();
@@ -12,6 +12,7 @@ function applyAppearance({ font = 'fira', fontCustom = '', textSize = 'default',
   if (font === 'custom' && name) root.style.setProperty('--ui-font', `"${name}", var(--sans)`);
   else root.style.removeProperty('--ui-font');
   root.style.setProperty('--step', String({ small: -1, default: 0, large: 1 }[textSize] ?? 0));
+  root.dataset.accent = accent;
   if (theme === 'auto') root.style.removeProperty('color-scheme');
   else root.style.setProperty('color-scheme', theme);
 }
