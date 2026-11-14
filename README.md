@@ -7,6 +7,7 @@ See [docs/spec.md](docs/spec.md) for the full spec and [GLOSSARY.md](GLOSSARY.md
 ## Install
 
 - **Chrome**: [oh-my-tabs on the Chrome Web Store](https://chromewebstore.google.com/detail/oh-my-tabs/dfjcphmoeaknnkihfpeojfggfniipaek).
+- **Firefox**: [oh-my-tabs on Firefox Add-ons](https://addons.mozilla.org/en-US/firefox/addon/oh-my-tabs/).
 
 ## Install from source (unpacked)
 
