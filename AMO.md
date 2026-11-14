@@ -38,7 +38,7 @@ The toolbar badge counts your duplicates, and "Close duplicates" keeps the tab y
 
 **Tab groups (optional):** turn them on to see Firefox's tab groups inside each window, with their names and colors. Moving a tab group keeps it together, and Undo puts closed tabs back into it.
 
-**Make it yours:** choose the font, text size and a light or dark theme, what the toolbar badge counts, and whether the toolbar button opens the popup or the full page.
+**Make it yours:** choose the font, text size, a light or dark theme and an accent color, what the toolbar badge counts, and whether the toolbar button opens the popup or the full page.
 
 **Remind me later:** set a reminder on a tab, a group or the tabs you ticked: in an hour, tomorrow morning, next Monday, or at a time you pick. The tab stays open; when the time comes it is listed at the top and the toolbar icon turns amber. A system notification is optional.
 

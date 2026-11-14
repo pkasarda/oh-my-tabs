@@ -9,7 +9,7 @@ globalThis.browser ??= chrome;
 // font null: never stored, which start() settles once from developer mode (see there).
 const SETTINGS = {
   dev: true, sort: 'recent', view: 'groups', stale: true, staleDays: 7, never: [], sideWidth: 240,
-  font: null, fontCustom: '', textSize: 'default', theme: 'auto', badge: 'all', button: 'popup', settingsSection: 'general',
+  font: null, fontCustom: '', textSize: 'default', theme: 'auto', accent: 'blue', badge: 'all', button: 'popup', settingsSection: 'general',
   tabGroupHint: true, sideShown: true, detailsShown: false, notifyHint: true,
 };
 const DAY = 24 * 60 * 60 * 1000;
@@ -2176,9 +2176,11 @@ $('#close-dups').addEventListener('click', () => closeDuplicates());
 // ---------- settings window ----------
 // One definition for popup.html and page.html: the window is built here, before anything below looks it up.
 const SECTIONS = [['general', 'General'], ['appearance', 'Appearance'], ['features', 'Features'], ['never', 'Never list'], ['shortcuts', 'Shortcuts'], ['about', 'About']];
-const LOOK = ['font', 'fontCustom', 'textSize', 'theme'];
+const LOOK = ['font', 'fontCustom', 'textSize', 'theme', 'accent'];
 // Settings whose control is a radio group or a select named after the setting.
-const CHOICES = ['sort', 'badge', 'button', 'font', 'textSize', 'theme'];
+const CHOICES = ['sort', 'badge', 'button', 'font', 'textSize', 'theme', 'accent'];
+// The accent colors, named after their Tailwind hue (the hue itself is in popup.css).
+const ACCENTS = [['blue', 'Blue'], ['violet', 'Violet'], ['pink', 'Pink'], ['orange', 'Orange'], ['green', 'Green'], ['teal', 'Teal'], ['slate', 'Slate']];
 const LINKS = [
   ...(IS_FIREFOX ? [] : [['Chrome Web Store', 'https://chromewebstore.google.com/detail/oh-my-tabs/dfjcphmoeaknnkihfpeojfggfniipaek']]),
   ['Source on GitHub', 'https://github.com/pkasarda/oh-my-tabs'],
@@ -2201,6 +2203,12 @@ function radios(name, label, options) {
   return `<div class="seg radios" role="radiogroup" aria-label="${label}">${items}</div>`;
 }
 
+// The same radios as above, drawn as colored dots.
+function swatches(name, label, options) {
+  const items = options.map(([value, text]) => `<label data-accent="${value}" data-tip="${text}"><input type="radio" name="${name}" value="${value}" aria-label="${text}"></label>`).join('');
+  return `<div class="swatches" role="radiogroup" aria-label="${label}">${items}</div>`;
+}
+
 function settingsHtml() {
   const tabs = SECTIONS.map(([id, label]) => `<button type="button" role="tab" id="tab-${id}" data-sec="${id}" aria-controls="sec-${id}">${label}</button>`).join('');
   const panel = (id, html) => `<section id="sec-${id}" role="tabpanel" aria-labelledby="tab-${id}" hidden>${html}</section>`;
@@ -2221,6 +2229,7 @@ function settingsHtml() {
           <div class="srow" id="s-font-row" hidden><label for="s-font-custom">Font name</label><span class="font-field"><input type="text" id="s-font-custom" placeholder="e.g. Menlo" autocomplete="off" spellcheck="false" aria-describedby="s-font-missing"><span class="font-missing" id="s-font-missing" hidden>Font not found</span></span></div>
           <div class="srow"><span>Text size</span>${radios('textSize', 'Text size', [['small', 'Small'], ['default', 'Default'], ['large', 'Large']])}</div>
           <div class="srow"><span>Theme</span>${radios('theme', 'Theme', [['auto', 'Auto'], ['light', 'Light'], ['dark', 'Dark']])}</div>
+          <div class="srow"><span>Accent color</span>${swatches('accent', 'Accent color', ACCENTS)}</div>
         </div>`)}
         ${panel('features', `<div class="card">
           <label class="srow"><span class="lbl"><span>Library</span><span class="hint-text" id="s-library-hint">Save &amp; close tabs into an "oh-my-tabs" bookmarks folder, synced by your browser. Asks for bookmarks access.</span></span><input type="checkbox" class="switch" id="s-library" aria-describedby="s-library-hint"></label>

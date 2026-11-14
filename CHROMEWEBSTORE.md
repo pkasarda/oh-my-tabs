@@ -51,7 +51,7 @@ YOUR TAB GROUPS (OPTIONAL)
 If you use your browser's tab groups, turn them on to see them inside each window, with their names and colors. Moving a tab group keeps it together, and Undo puts closed tabs back into it.
 
 MAKE IT YOURS
-Choose the font, text size and a light or dark theme, what the toolbar badge counts, and whether the toolbar button opens the popup or the full page.
+Choose the font, text size, a light or dark theme and an accent color, what the toolbar badge counts, and whether the toolbar button opens the popup or the full page.
 
 REMIND ME LATER
 Set a reminder on a tab, a group or the tabs you ticked: in an hour, tomorrow morning, next Monday, or at a time you pick. The tab stays open. When the time comes it is listed at the top and the toolbar icon turns amber; open it, mark it done or set a new time. A system notification is optional.
@@ -105,7 +105,7 @@ The screenshots use made-up tabs, and their icons are letter tiles, so no third-
 | Permission | Type | Justification |
 |------------|------|---------------|
 | tabs | permissions | Reads the address and title of open tabs. The extension groups tabs by them, detects duplicate tabs, shows tabs in its list, and switches, moves, closes or suspends the tab the user picks. Every feature depends on it. |
-| storage | permissions | Saves the user's settings on the device: developer mode on or off, sort order, the last view, font, text size, theme, toolbar badge and button, stale-tabs options and the never list. From 1.4 it also saves the reminders the user sets: the page's address, its title and the chosen time. Nothing else is stored. |
+| storage | permissions | Saves the user's settings on the device: developer mode on or off, sort order, the last view, font, text size, theme, accent color, toolbar badge and button, stale-tabs options and the never list. From 1.4 it also saves the reminders the user sets: the page's address, its title and the chosen time. Nothing else is stored. |
 | alarms | permissions | From 1.4. Wakes the extension at the time of the next reminder the user set with "Remind me later", so it can list the page as due and turn the toolbar badge amber. One alarm, set only while a reminder is scheduled. |
 | contextMenus | permissions | Adds "Close duplicates" to the right-click menu of the extension's toolbar icon, so duplicates can be closed without opening the popup. |
 | favicon | permissions | Shows each tab's site icon in the list from Chrome's local favicon cache, without fetching icons from the web. |

@@ -45,6 +45,7 @@ function look(page) {
       font: root.style.getPropertyValue('--ui-font'),
       step: root.style.getPropertyValue('--step'),
       scheme: getComputedStyle(root).colorScheme,
+      accent: root.dataset.accent,
       size: getComputedStyle(document.body).fontSize,
     };
   });
@@ -121,7 +122,7 @@ test('About shows the version and the links, with the store listing in Chrome', 
 test('every option applies at once and survives a reload', async t => {
   const app = await start(t);
   const page = await app.openPopup();
-  assert.deepEqual(await look(page), { fira: true, font: '', step: '0', scheme: 'light dark', size: '13px' });
+  assert.deepEqual(await look(page), { fira: true, font: '', step: '0', scheme: 'light dark', accent: 'blue', size: '13px' });
   const headers = () => page.locator('#body details.group > summary .g-name').allTextContents();
   assert.deepEqual(await headers(), ['acme/client', 'docs.example.org', 'Jira · WEB']);
 
@@ -139,7 +140,7 @@ test('every option applies at once and survives a reload', async t => {
   assert.equal((await look(page)).size, '14px');
   await choose(page, 'Large');
   await choose(page, 'Dark');
-  const applied = { fira: false, font: '', step: '1', scheme: 'dark', size: '15px' };
+  const applied = { fira: false, font: '', step: '1', scheme: 'dark', accent: 'blue', size: '15px' };
   assert.deepEqual(await look(page), applied);
 
   const saved = { dev: false, sort: 'order', badge: 'dups', button: 'page', font: 'system', textSize: 'large', theme: 'dark' };
@@ -152,7 +153,7 @@ test('every option applies at once and survives a reload', async t => {
   assert.deepEqual(await look(page), applied);
   assert.deepEqual(await headers(), ['docs.example.org', 'github.com', 'acme.atlassian.net']);
   const checked = await page.locator('#settings input[type="radio"]:checked').evaluateAll(radios => radios.map(radio => `${radio.name}=${radio.value}`));
-  assert.deepEqual(checked, ['sort=order', 'button=page', 'font=system', 'textSize=large', 'theme=dark']);
+  assert.deepEqual(checked, ['sort=order', 'button=page', 'font=system', 'textSize=large', 'theme=dark', 'accent=blue']);
   assert.equal(await page.locator('#s-badge').inputValue(), 'dups');
   assert.equal(await page.locator('#s-dev').isChecked(), false);
 
@@ -321,7 +322,7 @@ test('a look picked in one window shows in another open one, which keeps the sha
   await choose(full, 'System');
   await eventually(async () => {
     const copy = await full.evaluate(() => JSON.parse(localStorage.getItem('appearance')));
-    assert.deepEqual(copy, { font: 'system', fontCustom: '', textSize: 'default', theme: 'dark' });
+    assert.deepEqual(copy, { font: 'system', fontCustom: '', textSize: 'default', theme: 'dark', accent: 'blue' });
   });
   await eventually(async () => assert.equal((await look(popup)).fira, false));
 });
@@ -432,4 +433,38 @@ test('Suspend all other tabs is in a window menu and suspends that window but it
   });
   // The settings no longer have it.
   assert.equal(await page.locator('#settings').getByText('Suspend all other tabs').count(), 0);
+});
+
+test('the accent color is a swatch in Appearance: it recolors the look at once, is kept, and starts as blue', async t => {
+  const app = await start(t);
+  const page = await app.openPopup();
+  const color = () => page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue('--accent').trim());
+  const swatch = name => page.locator(`#settings .swatches label[data-accent="${name}"]`);
+
+  assert.equal((await look(page)).accent, 'blue');
+  const blue = await color();
+  await openSettings(page);
+  await page.locator('#tab-appearance').click();
+  assert.equal(await page.locator('#settings input[name="accent"][value="blue"]').isChecked(), true);
+  // Seven colors, each a labelled radio.
+  assert.deepEqual(await page.locator('#settings input[name="accent"]').evaluateAll(radios => radios.map(radio => radio.getAttribute('aria-label'))),
+    ['Blue', 'Violet', 'Pink', 'Orange', 'Green', 'Teal', 'Slate']);
+
+  await swatch('violet').click();
+  assert.equal((await look(page)).accent, 'violet');
+  assert.notEqual(await color(), blue);
+  // The swatch shows its own color, not the chosen one.
+  const dots = await page.locator('#settings .swatches label').evaluateAll(labels => labels.map(label => getComputedStyle(label).backgroundColor));
+  assert.equal(new Set(dots).size, 7);
+
+  await eventually(async () => assert.equal(await stored(app, 'accent'), 'violet'));
+  await page.reload();
+  await page.waitForFunction(() => document.querySelector('#body')?.children.length > 0);
+  assert.equal((await look(page)).accent, 'violet');
+  await openSettings(page);
+  await page.locator('#tab-appearance').click();
+  assert.equal(await page.locator('#settings input[name="accent"][value="violet"]').isChecked(), true);
+  // Back to blue: the same color as at the start.
+  await swatch('blue').click();
+  assert.equal(await color(), blue);
 });

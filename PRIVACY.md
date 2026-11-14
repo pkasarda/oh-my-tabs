@@ -30,7 +30,7 @@ It does not read the content of web pages. It does not read your browsing histor
 oh-my-tabs stores your settings:
 
 - developer mode on or off, how tabs are sorted and the last view you used;
-- the look: font, text size and theme;
+- the look: font, text size, theme and accent color;
 - what the toolbar badge shows and what the toolbar button opens;
 - whether the stale-tabs group is on and after how many days, and the sites on your never list;
 - on the full page, the sidebar's width and whether the sidebar and the details pane are shown.

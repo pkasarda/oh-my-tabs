@@ -12,8 +12,8 @@
   --border: light-dark(oklch(90% 0.008 260), oklch(32% 0.016 260));
   --text: light-dark(oklch(22% 0.02 260), oklch(93% 0.008 260));
   --muted: light-dark(oklch(52% 0.02 260), oklch(68% 0.015 260));
-  --accent: light-dark(oklch(55% 0.19 265), oklch(72% 0.15 265));
-  --accent-soft: light-dark(oklch(94% 0.04 265), oklch(32% 0.07 265));
+  /* The accent color comes from a hue and a chroma, set by data-accent (appearance.js): see the list below. */
+  --accent-h: 265; --accent-c: 0.19;
   --danger: light-dark(oklch(55% 0.2 25), oklch(70% 0.17 25));
   --danger-soft: light-dark(oklch(95% 0.035 25), oklch(31% 0.07 25));
   /* Stale tabs and due reminders. */
@@ -34,6 +34,19 @@
   font-variant-ligatures: none;
 }
 :root.fira { --ui-font: var(--mono); }
+/* The accent color: the Tailwind hues, with the same lightness for every color. Also on the swatches in Settings
+   (the swatch carries data-accent itself, so --accent is worked out again there). Blue is the default. */
+:root, [data-accent] {
+  --accent: light-dark(oklch(55% var(--accent-c) var(--accent-h)), oklch(72% calc(var(--accent-c) * 0.8) var(--accent-h)));
+  --accent-soft: light-dark(oklch(94% calc(var(--accent-c) * 0.21) var(--accent-h)), oklch(32% calc(var(--accent-c) * 0.37) var(--accent-h)));
+}
+[data-accent="blue"] { --accent-h: 265; --accent-c: 0.19; }
+[data-accent="violet"] { --accent-h: 293; --accent-c: 0.19; }
+[data-accent="pink"] { --accent-h: 350; --accent-c: 0.19; }
+[data-accent="orange"] { --accent-h: 47; --accent-c: 0.15; }
+[data-accent="green"] { --accent-h: 150; --accent-c: 0.14; }
+[data-accent="teal"] { --accent-h: 183; --accent-c: 0.11; }
+[data-accent="slate"] { --accent-h: 260; --accent-c: 0.04; }
 /* No copy of the look yet (appearance.js): nothing is drawn until popup.js has applied it. */
 :root.look-pending body { visibility: hidden; }
 
@@ -412,7 +425,7 @@ dialog.settings-win[open] { display: grid; grid-template-columns: 180px minmax(0
 .sp-nav button { display: flex; gap: 10px; align-items: center; padding: 6px 8px; border: 0; border-radius: 8px; background: none; text-align: left; }
 .sp-nav button:hover { background: var(--raised); }
 .sp-nav button:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
-.sp-nav button[aria-selected="true"] { background: var(--accent); color: light-dark(#fff, oklch(18% 0.02 265)); }
+.sp-nav button[aria-selected="true"] { background: var(--accent); color: light-dark(#fff, oklch(18% 0.02 var(--accent-h))); }
 .sp-main { display: grid; grid-template-rows: auto minmax(0, 1fr); min-width: 0; }
 .sp-title { display: flex; justify-content: space-between; align-items: center; padding: 14px 16px 6px 22px; }
 .sp-title h2 { margin: 0; font-size: 18px; }
@@ -433,6 +446,12 @@ label.srow { cursor: pointer; }
 .font-field { text-align: right; }
 .font-missing { display: block; margin-top: 4px; color: var(--danger); font-size: 11.5px; }
 .font-missing[hidden] { display: none; }
+/* The accent colors as round swatches: the same native radios, the checked one ringed. */
+.swatches { display: flex; flex-wrap: wrap; gap: 8px; }
+.swatches label { position: relative; display: block; width: 22px; height: 22px; border-radius: 50%; background: var(--accent); cursor: pointer; }
+.swatches label:has(:checked) { box-shadow: 0 0 0 2px var(--surface), 0 0 0 4px var(--accent); }
+.swatches label:has(:focus-visible) { outline: 2px solid var(--text); outline-offset: 4px; }
+.swatches input { position: absolute; opacity: 0; width: 1px; height: 1px; margin: 0; pointer-events: none; }
 /* Radio buttons drawn as a segmented switch: the native radios keep the arrow keys and the form semantics. */
 .seg.radios label { position: relative; padding: 4px 10px; border-radius: 6px; color: var(--muted); cursor: pointer; white-space: nowrap; }
 .seg.radios label:has(:checked) { background: var(--raised); color: var(--text); box-shadow: 0 1px 2px oklch(0% 0 0 / 0.15); }
