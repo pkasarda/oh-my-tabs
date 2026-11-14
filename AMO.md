@@ -1,8 +1,8 @@
 # Firefox Add-ons (AMO) Listing — oh-my-tabs
 
-> Last Updated: 2026-11-12
+> Last Updated: 2026-11-14
 
-Upload `dist/oh-my-tabs-1.4.0-firefox.zip`, built by `npm run package`. It needs Firefox 140 or later, desktop only. On upload, select Firefox only: leave **Firefox for Android unchecked**, because Android has no windows API.
+Upload `dist/oh-my-tabs-1.5.0-firefox.zip`, built by `npm run package`. It needs Firefox 140 or later, desktop only. On upload, select Firefox only: leave **Firefox for Android unchecked**, because Android has no windows API.
 
 ## Listing
 
@@ -80,6 +80,7 @@ About the innerHTML warnings in popup.js (render, results bar, menu, shortcuts):
 
 | Version | Date | Changes | Status |
 |---------|------|---------|--------|
+| 1.5.0 | 2026-11-14 | Accent color: seven colors in Settings → Appearance (blue, the old look, is the default). No new permissions. | Ready to submit |
 | 1.4.0 | 2026-11-12 | Reminders (Remind me later), with a due group, an amber badge, a Reminders section on the full page and an optional notification. New permissions: alarms, notifications (optional). | Published |
 | 1.3.1 | 2026-11-12 | The right-click menu stays open in Firefox on macOS and Linux. Ships 1.3.0 too. | Not submitted, shipped in 1.4.0 |
 | 1.3.0 | 2026-11-12 | Settings window; font, text size, theme; toolbar badge and button options; tab groups shown (optional tabGroups permission); full page: command palette, details pane, tree toolbar, status bar. | Not submitted, shipped in 1.3.1 |

@@ -1,8 +1,8 @@
 # Chrome Web Store Listing — oh-my-tabs
 
-> Last Updated: 2026-11-12
+> Last Updated: 2026-11-14
 
-Upload `dist/oh-my-tabs-1.4.0-chrome.zip`, built by `npm run package`.
+Upload `dist/oh-my-tabs-1.5.0-chrome.zip`, built by `npm run package`.
 
 **Listing**: https://chromewebstore.google.com/detail/oh-my-tabs/dfjcphmoeaknnkihfpeojfggfniipaek
 
@@ -159,6 +159,7 @@ https://github.com/pkasarda/oh-my-tabs/blob/main/PRIVACY.md (live once PR #1 is 
 
 | Version | Date | Changes | Status |
 |---------|------|---------|--------|
+| 1.5.0 | 2026-11-14 | Accent color: seven colors in Settings → Appearance (blue, the old look, is the default). No new permissions. | Ready to submit |
 | 1.4.0 | 2026-11-12 | Reminders: Remind me later on a tab, a group or the checked tabs; due reminders in a group at the top and on an amber badge; a Reminders section on the full page; optional system notification. New permissions: alarms (no warning), notifications (optional). | Ready to submit |
 | 1.3.1 | 2026-11-12 | The right-click menu stays open in Firefox on macOS and Linux (it closed when the button was released). Ships 1.3.0 too. | Not submitted, shipped in 1.4.0 |
 | 1.3.0 | 2026-11-12 | Settings window with sections; font, text size and theme; toolbar badge and button options; the browser's tab groups shown (optional); on the full page a command palette, details pane, tree toolbar, status bar, a sidebar that hides, right click and Shift+click. New optional permission: tabGroups. No new install-time warning. | Not submitted, shipped in 1.3.1 |
