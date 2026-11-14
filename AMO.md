@@ -80,7 +80,7 @@ About the innerHTML warnings in popup.js (render, results bar, menu, shortcuts):
 
 | Version | Date | Changes | Status |
 |---------|------|---------|--------|
-| 1.4.0 | 2026-11-12 | Reminders (Remind me later), with a due group, an amber badge, a Reminders section on the full page and an optional notification. New permissions: alarms, notifications (optional). | Ready to submit |
+| 1.4.0 | 2026-11-12 | Reminders (Remind me later), with a due group, an amber badge, a Reminders section on the full page and an optional notification. New permissions: alarms, notifications (optional). | Published |
 | 1.3.1 | 2026-11-12 | The right-click menu stays open in Firefox on macOS and Linux. Ships 1.3.0 too. | Not submitted, shipped in 1.4.0 |
 | 1.3.0 | 2026-11-12 | Settings window; font, text size, theme; toolbar badge and button options; tab groups shown (optional tabGroups permission); full page: command palette, details pane, tree toolbar, status bar. | Not submitted, shipped in 1.3.1 |
 | 1.2.1 | 2026-11-04 | Settings panel scrolls inside the popup; lists keep their width with a scrollbar. Ships 1.1 and 1.2 too. | Ready to submit |
