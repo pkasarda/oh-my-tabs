@@ -455,6 +455,8 @@ Six additions to the full page. The popup gets only the right click.
 
 - **Pin**: a tab's ⋯ menu has `Pin tab` or `Unpin tab` (the browser's own pinning, next to `Move to window`). A pinned tab's row carries a small pin. Pinned tabs still count as possible keepers for duplicates and are never stale, as before.
 - **Mute**: the same menu has `Mute tab` or `Unmute tab`. A tab playing sound carries a speaker in the accent color, a muted one a crossed-out speaker in grey; a click on it mutes or unmutes the tab, as on the tab strip. The list follows sound starting, stopping and muting done in the tab strip.
+- **Finding the sound**: a group, a tab group or a window (Windows view) holding a tab that plays sound carries the same speaker on its header, so it shows while the group is closed. A click on it opens what the tab sits in, scrolls to the tab and focuses it (as `Reveal last used tab` does); the tab's own speaker then mutes it. A header never mutes a whole group. With several playing, the header and the palette go to the one used last.
+- **Command palette** (full page): `Go to tab playing sound`, listed only while a tab plays.
 - **Library backup** (#23 closed): the Library is a bookmarks folder, so the browser's own export backs it up. Settings → Features says where: `Bookmark manager → ⋮ → Export bookmarks` in Chrome, `Manage bookmarks → Import and Backup → Export Bookmarks to HTML` in Firefox.
 - No new permissions: `tabs.update` pins and mutes with the `tabs` permission already held.
 

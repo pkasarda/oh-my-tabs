@@ -490,6 +490,24 @@ function soundButton(tab) {
   return `<button type="button" class="sound${muted ? ' muted' : ''}" data-mute="${tab.id}" data-tip="${label}" aria-label="${muted ? 'Unmute tab' : 'Mute tab'}">${icon(muted ? 'muted' : 'sound')}</button>`;
 }
 
+function isPlaying(tab) {
+  return Boolean(tab.audible) && !isMuted(tab);
+}
+
+// The tabs playing sound, the one used last first.
+function playingTabs(tabs = state.tabs) {
+  return tabs.filter(isPlaying).sort((a, b) => b.lastAccessed - a.lastAccessed);
+}
+
+// A group or window holding a tab that plays sound says so on its header, so the tab is found while the group
+// is closed. A click shows that tab (reveal), where its own speaker mutes it: a whole group is not muted at once.
+function headerSound(members) {
+  const playing = playingTabs(members);
+  if (playing.length === 0) return '';
+  const label = playing.length === 1 ? 'Playing sound: show the tab' : `${playing.length} tabs playing sound: show the last used`;
+  return `<button type="button" class="sound" data-reveal-tab="${playing[0].id}" data-tip="${label}" aria-label="${label}">${icon('sound')}</button>`;
+}
+
 async function setMuted(id, muted) {
   await browser.tabs.update(id, { muted });
 }
@@ -565,6 +583,7 @@ function renderGroups(list) {
         <span class="g-name">${esc(name)}</span>
         <span class="g-meta">${members.length}</span>
         ${dups ? `<span class="dup-count">${dups} dup${dups === 1 ? '' : 's'}</span>` : ''}
+        ${headerSound(members)}
         <span class="g-spacer"></span>
         ${dups ? `<button type="button" class="icon-btn" data-close-group-dups="${esc(name)}" data-tip="Close duplicates in group" aria-label="Close duplicates in group">${icon('closeCopies')}</button>` : ''}
         ${groupNewWindowButton(name)}
@@ -739,6 +758,7 @@ function windowGroupHtml(windowId, name, members) {
       <span class="g-name">${esc(name)}</span>
       <span class="g-meta">${members.length}</span>
       ${dups ? `<span class="dup-count">${dups} dup${dups === 1 ? '' : 's'}</span>` : ''}
+      ${headerSound(members)}
       <span class="g-spacer"></span>
       ${groupNewWindowButton(name, windowId)}
       ${groupSaveButton(name, windowId)}
@@ -760,6 +780,7 @@ function tabGroupHtml(tabGroup, members) {
       <span class="tg-stripe"></span>
       <span class="g-name">${esc(tabGroup.name)}</span>
       <span class="g-meta">${members.length}</span>
+      ${headerSound(members)}
       <span class="g-spacer"></span>
       ${moreButton('tab-group', `data-tab-group="${tabGroup.id}"`, 'More tab group actions')}
     </summary>
@@ -795,6 +816,7 @@ function renderWindows(list) {
         ${IS_PAGE ? windowLabel(windowId) : ''}
         <span class="mini-stack">${distinctFavicons(groups.map(([, [first]]) => first))}</span>
         <span class="win-title"><span class="g-name">${esc(windowName(windowId))}</span><span class="win-stats">${windowStats(windowId)}</span></span>
+        ${headerSound(members)}
         <span class="g-spacer"></span>
         <button type="button" class="icon-btn" data-minimize="${windowId}" data-tip="${minimized ? 'Restore' : 'Minimize'} this window" aria-label="${minimized ? 'Restore' : 'Minimize'} this window">${icon(minimized ? 'restore' : 'minimize')}</button>
         ${moreButton('window', `data-w="${windowId}"`, 'More window actions')}
@@ -1206,9 +1228,12 @@ function lastUsedTab() {
   return state.tabs.reduce((last, tab) => (!last || tab.lastAccessed > last.lastAccessed ? tab : last), null);
 }
 
-// Clears a sidebar choice or a search that hides it, opens what it sits in, then scrolls to it and focuses it.
 function revealLastUsed() {
-  const tab = lastUsedTab();
+  revealTab(lastUsedTab());
+}
+
+// Clears a sidebar choice or a search that hides it, opens what it sits in, then scrolls to it and focuses it.
+function revealTab(tab) {
   if (!tab) return;
   if (state.view !== 'groups' && state.view !== 'windows') setPage('groups', null);
   if (!inPageSelection(tab)) setPage(state.view, null);
@@ -1997,6 +2022,13 @@ body.addEventListener('click', async event => {
     closeDuplicates(tab => tab.group === name && matches(tab));
     return;
   }
+  // A header's speaker: inside a summary, so the click must not also open or close the group.
+  const reveal = target.closest('[data-reveal-tab]');
+  if (reveal) {
+    event.preventDefault();
+    revealTab(state.tabs.find(tab => tab.id === Number(reveal.dataset.revealTab)));
+    return;
+  }
   const mute = target.closest('[data-mute]');
   if (mute) {
     const id = Number(mute.dataset.mute);
@@ -2458,6 +2490,7 @@ function paletteActions() {
     { label: 'Collapse all', when: tree, run: () => setAllOpen(false) },
     { label: 'Expand all', when: tree, run: () => setAllOpen(true) },
     { label: 'Reveal last used tab', when: state.tabs.length > 0, run: revealLastUsed },
+    { label: 'Go to tab playing sound', when: playingTabs().length > 0, run: () => revealTab(playingTabs()[0]) },
     { label: 'Toggle sidebar', when: true, run: () => togglePane('sideShown') },
     { label: 'Toggle details', when: wide(), run: () => togglePane('detailsShown') },
   ].filter(action => action.when).map(action => ({ ...action, lead: icon('chevron') }));
