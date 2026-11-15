@@ -209,6 +209,14 @@ details.group.reminders { margin-bottom: 6px; }
 .bell { flex: none; display: grid; color: var(--muted); }
 .bell .i { width: 15px; height: 15px; }
 .bell.due, .row.reminder.due .age, .side button.due .n { color: var(--amber); }
+/* A pin on a pinned tab, and a speaker on a tab playing sound (accent) or muted (quiet): a click toggles it. */
+.pin-mark { flex: none; display: grid; color: var(--muted); }
+.pin-mark .i { width: 14px; height: 14px; }
+.sound { flex: none; display: grid; padding: 3px; border: 0; border-radius: 6px; background: none; color: var(--accent); }
+.sound .i { width: 15px; height: 15px; }
+.sound.muted { color: var(--muted); }
+.sound:hover { background: var(--surface-2); }
+.sound:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 /* On a narrow page the time and the three buttons would leave the title a few letters: there the time goes
    under the title, in line with it (past the favicon), and the title gets the width left of the buttons. */
 @media (max-width: 720px) {

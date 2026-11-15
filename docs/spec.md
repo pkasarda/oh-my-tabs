@@ -451,6 +451,13 @@ Six additions to the full page. The popup gets only the right click.
 - `alarms` is a new permission without an install warning, and `notifications` a new optional one, so an update disables nobody's extension.
 - PRIVACY.md says that reminders (address, title, time) are stored on the device, and that Notify me only shows a notification.
 
+## 1.6: Pin and mute (#2, #5)
+
+- **Pin**: a tab's ⋯ menu has `Pin tab` or `Unpin tab` (the browser's own pinning, next to `Move to window`). A pinned tab's row carries a small pin. Pinned tabs still count as possible keepers for duplicates and are never stale, as before.
+- **Mute**: the same menu has `Mute tab` or `Unmute tab`. A tab playing sound carries a speaker in the accent color, a muted one a crossed-out speaker in grey; a click on it mutes or unmutes the tab, as on the tab strip. The list follows sound starting, stopping and muting done in the tab strip.
+- **Library backup** (#23 closed): the Library is a bookmarks folder, so the browser's own export backs it up. Settings → Features says where: `Bookmark manager → ⋮ → Export bookmarks` in Chrome, `Manage bookmarks → Import and Backup → Export Bookmarks to HTML` in Firefox.
+- No new permissions: `tabs.update` pins and mutes with the `tabs` permission already held.
+
 ## Testing
 
 - `npm test` (`node --test`) runs `rules.test.js`.
@@ -461,7 +468,6 @@ Six additions to the full page. The popup gets only the right click.
 
 ## Out of v1 (roadmap issues)
 
-- Tab actions: pin, sort and mute.
 - Window actions:
   - Save a window for later (sessions).
   - Name or color a window. Window ids change on browser restart, so names need a stable key.

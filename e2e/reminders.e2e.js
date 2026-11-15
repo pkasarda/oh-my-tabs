@@ -239,10 +239,14 @@ test('due reminders are a Reminders group at the top of the popup, and the badge
     { ...CLOSED, at: now - 2 * HOUR },
     reminderOf(TABS.api, now + HOUR),
   ]);
-  await eventually(async () => assert.equal(await badgeText(app), '2'));
-  assert.deepEqual(await badgeColor(app), AMBER);
-  const title = await app.worker.evaluate(() => chrome.action.getTitle({}));
-  assert.equal(title.split('\n')[0], '2 reminders due');
+  // The two duplicates make a red '2' too, so the text alone does not say the reminders have taken over.
+  await eventually(async () => {
+    assert.equal(await badgeText(app), '2');
+    assert.deepEqual(await badgeColor(app), AMBER);
+    // The tooltip is set last.
+    const title = await app.worker.evaluate(() => chrome.action.getTitle({}));
+    assert.equal(title.split('\n')[0], '2 reminders due');
+  });
 
   const page = await app.openPopup();
   const due = page.locator('#body details.reminders');
@@ -475,8 +479,11 @@ test('at startup a reminder that came due while the browser was closed is on the
 
     const again = await launch({ profile });
     try {
-      await eventually(async () => assert.equal(await badgeText(again), '1'));
-      assert.deepEqual(await badgeColor(again), AMBER);
+      // The one open tab makes a quiet '1' too: wait for the amber one.
+      await eventually(async () => {
+        assert.equal(await badgeText(again), '1');
+        assert.deepEqual(await badgeColor(again), AMBER);
+      });
       await eventually(async () => assert.equal((await alarm(again))?.scheduledTime, later));
       const page = await again.openPopup();
       assert.deepEqual(await page.locator('#body details.reminders .row .title').allTextContents(), [titleOf(TABS.jira1)]);
