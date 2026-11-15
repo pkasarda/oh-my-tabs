@@ -1,8 +1,8 @@
 # Chrome Web Store Listing — oh-my-tabs
 
-> Last Updated: 2026-11-14
+> Last Updated: 2026-11-15
 
-Upload `dist/oh-my-tabs-1.5.0-chrome.zip`, built by `npm run package`.
+Upload `dist/oh-my-tabs-1.6.0-chrome.zip`, built by `npm run package`.
 
 **Listing**: https://chromewebstore.google.com/detail/oh-my-tabs/dfjcphmoeaknnkihfpeojfggfniipaek
 
@@ -52,6 +52,9 @@ If you use your browser's tab groups, turn them on to see them inside each windo
 
 MAKE IT YOURS
 Choose the font, text size, a light or dark theme and an accent color, what the toolbar badge counts, and whether the toolbar button opens the popup or the full page.
+
+PIN AND MUTE
+Pin or mute a tab from its menu. A tab playing sound shows a speaker, and so does the group or window it is in, so you find the noisy tab in a second; one click mutes it.
 
 REMIND ME LATER
 Set a reminder on a tab, a group or the tabs you ticked: in an hour, tomorrow morning, next Monday, or at a time you pick. The tab stays open. When the time comes it is listed at the top and the toolbar icon turns amber; open it, mark it done or set a new time. A system notification is optional.
@@ -159,6 +162,7 @@ https://github.com/pkasarda/oh-my-tabs/blob/main/PRIVACY.md (live once PR #1 is 
 
 | Version | Date | Changes | Status |
 |---------|------|---------|--------|
+| 1.6.0 | 2026-11-15 | Pin, unpin, mute and unmute a tab from its menu; a pin on pinned tabs; a speaker on tabs playing sound (a click mutes) and on the group or window that holds one (a click shows the tab); Go to tab playing sound in the command palette; where to back up the Library. No new permissions. | Ready to submit |
 | 1.5.0 | 2026-11-14 | Accent color: seven colors in Settings → Appearance (blue, the old look, is the default). No new permissions. | Ready to submit |
 | 1.4.0 | 2026-11-12 | Reminders: Remind me later on a tab, a group or the checked tabs; due reminders in a group at the top and on an amber badge; a Reminders section on the full page; optional system notification. New permissions: alarms (no warning), notifications (optional). | Ready to submit |
 | 1.3.1 | 2026-11-12 | The right-click menu stays open in Firefox on macOS and Linux (it closed when the button was released). Ships 1.3.0 too. | Not submitted, shipped in 1.4.0 |

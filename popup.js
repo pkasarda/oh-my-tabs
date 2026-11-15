@@ -76,6 +76,9 @@ const ICONS = {
   newWindow: '<rect width="18" height="16" x="3" y="4" rx="2"/><path d="M3 9h18"/><path d="M12 12v5M9.5 14.5h5"/>',
   bell: '<path d="M10.268 21a2 2 0 0 0 3.464 0"/><path d="M3.262 15.326A1 1 0 0 0 4 17h16a1 1 0 0 0 .74-1.673C19.41 13.956 18 12.499 18 8A6 6 0 0 0 6 8c0 4.499-1.411 5.956-2.738 7.326"/>',
   check: '<path d="M20 6 9 17l-5-5"/>',
+  pin: '<path d="M12 17v5"/><path d="M9 10.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V7a1 1 0 0 1 1-1 2 2 0 0 0 0-4H8a2 2 0 0 0 0 4 1 1 0 0 1 1 1z"/>',
+  sound: '<path d="M11 4.702a.705.705 0 0 0-1.203-.498L6.413 7.587A1.4 1.4 0 0 1 5.416 8H3a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h2.416a1.4 1.4 0 0 1 .997.413l3.383 3.384A.705.705 0 0 0 11 19.298z"/><path d="M16 9a5 5 0 0 1 0 6"/><path d="M19.364 18.364a9 9 0 0 0 0-12.728"/>',
+  muted: '<path d="M11 4.702a.705.705 0 0 0-1.203-.498L6.413 7.587A1.4 1.4 0 0 1 5.416 8H3a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h2.416a1.4 1.4 0 0 1 .997.413l3.383 3.384A.705.705 0 0 0 11 19.298z"/><path d="m22 9-6 6"/><path d="m16 9 6 6"/>',
 };
 
 function icon(name) {
@@ -469,6 +472,50 @@ function bell(tab) {
   return `<span class="bell${due ? ' due' : ''}" role="img" data-tip="${esc(label)}" aria-label="${esc(label)}">${icon('bell')}</span>`;
 }
 
+// A pinned tab says so with a pin; pinning and unpinning are in its ⋯ menu.
+function pinMark(tab) {
+  if (!tab.pinned) return '';
+  return `<span class="pin-mark" role="img" data-tip="Pinned" aria-label="Pinned">${icon('pin')}</span>`;
+}
+
+function isMuted(tab) {
+  return Boolean(tab.mutedInfo?.muted);
+}
+
+// A tab playing sound, or muted, carries a speaker: one click mutes or unmutes it, as on the tab strip.
+function soundButton(tab) {
+  const muted = isMuted(tab);
+  if (!tab.audible && !muted) return '';
+  const label = muted ? 'Muted: click to unmute' : 'Playing sound: click to mute';
+  return `<button type="button" class="sound${muted ? ' muted' : ''}" data-mute="${tab.id}" data-tip="${label}" aria-label="${muted ? 'Unmute tab' : 'Mute tab'}">${icon(muted ? 'muted' : 'sound')}</button>`;
+}
+
+function isPlaying(tab) {
+  return Boolean(tab.audible) && !isMuted(tab);
+}
+
+// The tabs playing sound, the one used last first.
+function playingTabs(tabs = state.tabs) {
+  return tabs.filter(isPlaying).sort((a, b) => b.lastAccessed - a.lastAccessed);
+}
+
+// A group or window holding a tab that plays sound says so on its header, so the tab is found while the group
+// is closed. A click shows that tab (reveal), where its own speaker mutes it: a whole group is not muted at once.
+function headerSound(members) {
+  const playing = playingTabs(members);
+  if (playing.length === 0) return '';
+  const label = playing.length === 1 ? 'Playing sound: show the tab' : `${playing.length} tabs playing sound: show the last used`;
+  return `<button type="button" class="sound" data-reveal-tab="${playing[0].id}" data-tip="${label}" aria-label="${label}">${icon('sound')}</button>`;
+}
+
+async function setMuted(id, muted) {
+  await browser.tabs.update(id, { muted });
+}
+
+async function setPinned(id, pinned) {
+  await browser.tabs.update(id, { pinned });
+}
+
 function rowHtml(tab, nested = false, list = []) {
   const age = Date.now() - tab.lastAccessed > DAY ? `<span class="age">used ${ago(tab.lastAccessed)}</span>` : '';
   return `<li class="row${nested ? ' nested' : ''}${tab.discarded ? ' suspended' : ''}" data-id="${tab.id}">
@@ -478,6 +525,8 @@ function rowHtml(tab, nested = false, list = []) {
       <span class="t"><span class="title">${esc(tab.title || tab.url)}</span><span class="url">${esc(shortUrl(tab.url))}</span></span>
     </button>
     ${tabGroupChip(tab)}
+    ${pinMark(tab)}
+    ${soundButton(tab)}
     ${bell(tab)}
     ${age}
     ${nested ? '' : copiesButton(tab, list)}
@@ -534,6 +583,7 @@ function renderGroups(list) {
         <span class="g-name">${esc(name)}</span>
         <span class="g-meta">${members.length}</span>
         ${dups ? `<span class="dup-count">${dups} dup${dups === 1 ? '' : 's'}</span>` : ''}
+        ${headerSound(members)}
         <span class="g-spacer"></span>
         ${dups ? `<button type="button" class="icon-btn" data-close-group-dups="${esc(name)}" data-tip="Close duplicates in group" aria-label="Close duplicates in group">${icon('closeCopies')}</button>` : ''}
         ${groupNewWindowButton(name)}
@@ -708,6 +758,7 @@ function windowGroupHtml(windowId, name, members) {
       <span class="g-name">${esc(name)}</span>
       <span class="g-meta">${members.length}</span>
       ${dups ? `<span class="dup-count">${dups} dup${dups === 1 ? '' : 's'}</span>` : ''}
+      ${headerSound(members)}
       <span class="g-spacer"></span>
       ${groupNewWindowButton(name, windowId)}
       ${groupSaveButton(name, windowId)}
@@ -729,6 +780,7 @@ function tabGroupHtml(tabGroup, members) {
       <span class="tg-stripe"></span>
       <span class="g-name">${esc(tabGroup.name)}</span>
       <span class="g-meta">${members.length}</span>
+      ${headerSound(members)}
       <span class="g-spacer"></span>
       ${moreButton('tab-group', `data-tab-group="${tabGroup.id}"`, 'More tab group actions')}
     </summary>
@@ -764,6 +816,7 @@ function renderWindows(list) {
         ${IS_PAGE ? windowLabel(windowId) : ''}
         <span class="mini-stack">${distinctFavicons(groups.map(([, [first]]) => first))}</span>
         <span class="win-title"><span class="g-name">${esc(windowName(windowId))}</span><span class="win-stats">${windowStats(windowId)}</span></span>
+        ${headerSound(members)}
         <span class="g-spacer"></span>
         <button type="button" class="icon-btn" data-minimize="${windowId}" data-tip="${minimized ? 'Restore' : 'Minimize'} this window" aria-label="${minimized ? 'Restore' : 'Minimize'} this window">${icon(minimized ? 'restore' : 'minimize')}</button>
         ${moreButton('window', `data-w="${windowId}"`, 'More window actions')}
@@ -1175,9 +1228,12 @@ function lastUsedTab() {
   return state.tabs.reduce((last, tab) => (!last || tab.lastAccessed > last.lastAccessed ? tab : last), null);
 }
 
-// Clears a sidebar choice or a search that hides it, opens what it sits in, then scrolls to it and focuses it.
 function revealLastUsed() {
-  const tab = lastUsedTab();
+  revealTab(lastUsedTab());
+}
+
+// Clears a sidebar choice or a search that hides it, opens what it sits in, then scrolls to it and focuses it.
+function revealTab(tab) {
   if (!tab) return;
   if (state.view !== 'groups' && state.view !== 'windows') setPage('groups', null);
   if (!inPageSelection(tab)) setPage(state.view, null);
@@ -1746,6 +1802,10 @@ function rowMenu(tab) {
     tab.reminder ? { icon: 'close', label: 'Remove reminder', run: () => doneReminder(tab.reminder.url) } : null,
     '-',
     { icon: 'move', label: 'Move to window', items: moveItems([tab.id]) },
+    { icon: 'pin', label: tab.pinned ? 'Unpin tab' : 'Pin tab', run: () => setPinned(tab.id, !tab.pinned) },
+    isMuted(tab)
+      ? { icon: 'sound', label: 'Unmute tab', run: () => setMuted(tab.id, false) }
+      : { icon: 'muted', label: 'Mute tab', run: () => setMuted(tab.id, true) },
     '-',
     tab.active
       ? { icon: 'suspend', label: 'Suspend this tab (it is active)', disabled: true }
@@ -1960,6 +2020,20 @@ body.addEventListener('click', async event => {
     event.preventDefault();
     const name = closeGroupDups.dataset.closeGroupDups;
     closeDuplicates(tab => tab.group === name && matches(tab));
+    return;
+  }
+  // A header's speaker: inside a summary, so the click must not also open or close the group.
+  const reveal = target.closest('[data-reveal-tab]');
+  if (reveal) {
+    event.preventDefault();
+    revealTab(state.tabs.find(tab => tab.id === Number(reveal.dataset.revealTab)));
+    return;
+  }
+  const mute = target.closest('[data-mute]');
+  if (mute) {
+    const id = Number(mute.dataset.mute);
+    const tab = state.tabs.find(item => item.id === id);
+    if (tab) await setMuted(id, !isMuted(tab));
     return;
   }
   const close = target.closest('[data-close]');
@@ -2179,6 +2253,10 @@ const SECTIONS = [['general', 'General'], ['appearance', 'Appearance'], ['featur
 const LOOK = ['font', 'fontCustom', 'textSize', 'theme', 'accent'];
 // Settings whose control is a radio group or a select named after the setting.
 const CHOICES = ['sort', 'badge', 'button', 'font', 'textSize', 'theme', 'accent'];
+// The Library is a bookmarks folder, so the browser's own export backs it up; this says where.
+const BACKUP = IS_FIREFOX
+  ? 'To back it up: Manage bookmarks → Import and Backup → Export Bookmarks to HTML.'
+  : 'To back it up: Bookmark manager → ⋮ → Export bookmarks.';
 // The accent colors, named after their Tailwind hue (the hue itself is in popup.css).
 const ACCENTS = [['blue', 'Blue'], ['violet', 'Violet'], ['pink', 'Pink'], ['orange', 'Orange'], ['green', 'Green'], ['teal', 'Teal'], ['slate', 'Slate']];
 const LINKS = [
@@ -2232,7 +2310,7 @@ function settingsHtml() {
           <div class="srow"><span>Accent color</span>${swatches('accent', 'Accent color', ACCENTS)}</div>
         </div>`)}
         ${panel('features', `<div class="card">
-          <label class="srow"><span class="lbl"><span>Library</span><span class="hint-text" id="s-library-hint">Save &amp; close tabs into an "oh-my-tabs" bookmarks folder, synced by your browser. Asks for bookmarks access.</span></span><input type="checkbox" class="switch" id="s-library" aria-describedby="s-library-hint"></label>
+          <label class="srow"><span class="lbl"><span>Library</span><span class="hint-text" id="s-library-hint">Save &amp; close tabs into an "oh-my-tabs" bookmarks folder, synced by your browser. Asks for bookmarks access. ${BACKUP}</span></span><input type="checkbox" class="switch" id="s-library" aria-describedby="s-library-hint"></label>
           <label class="srow"><span class="lbl"><span>Tab groups</span><span class="hint-text" id="s-tab-groups-hint">Show the browser’s tab groups in the window hierarchy. Asks to view and manage your tab groups.</span></span><input type="checkbox" class="switch" id="s-tab-groups" aria-describedby="s-tab-groups-hint"></label>
         </div>
         <div class="card">
@@ -2412,6 +2490,7 @@ function paletteActions() {
     { label: 'Collapse all', when: tree, run: () => setAllOpen(false) },
     { label: 'Expand all', when: tree, run: () => setAllOpen(true) },
     { label: 'Reveal last used tab', when: state.tabs.length > 0, run: revealLastUsed },
+    { label: 'Go to tab playing sound', when: playingTabs().length > 0, run: () => revealTab(playingTabs()[0]) },
     { label: 'Toggle sidebar', when: true, run: () => togglePane('sideShown') },
     { label: 'Toggle details', when: wide(), run: () => togglePane('detailsShown') },
   ].filter(action => action.when).map(action => ({ ...action, lead: icon('chevron') }));
@@ -2903,7 +2982,8 @@ for (const event of ['onCreated', 'onRemoved', 'onMoved', 'onAttached', 'onDetac
 }
 // Only changes the list shows; loading progress and the like would re-render for nothing.
 // groupId: a tab joins or leaves a tab group (the hint row needs it even while tab groups are off).
-const SHOWN_CHANGES = ['url', 'title', 'favIconUrl', 'discarded', 'pinned', 'groupId'];
+// audible and mutedInfo: the speaker on a row comes and goes with the sound.
+const SHOWN_CHANGES = ['url', 'title', 'favIconUrl', 'discarded', 'pinned', 'groupId', 'audible', 'mutedInfo'];
 browser.tabs.onUpdated.addListener((tabId, changeInfo) => {
   if (SHOWN_CHANGES.some(key => key in changeInfo)) refresh();
 });
