@@ -9,7 +9,7 @@
     "e2e": "node --test --test-timeout=60000 'e2e/*.e2e.js'",
     "screenshots": "node scripts/screenshots.js"
   },
-  "version": "1.5.0",
+  "version": "1.6.0",
   "license": "MIT",
   "devDependencies": {
     "playwright": "^1.65.0"
